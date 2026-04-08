@@ -14,6 +14,7 @@ export default function LoginPage(){
   const [inlineMsg, setInlineMsg] = useState(null)
   const toast = useToast()
   const nav = useNavigate()
+  const emailRedirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
 
   async function handleSubmit(e){
     e.preventDefault()
@@ -23,7 +24,14 @@ export default function LoginPage(){
       if (mode === 'register') {
         const { data, error } = await supabase.auth.signUp({
           email, password,
-          options: { data: { full_name: name } }
+          options: {
+            data: {
+              full_name: name,
+              role,
+              is_vendor: role === 'vendor',
+            },
+            emailRedirectTo,
+          }
         })
         if (error) {
           console.error('signUp error', error)
@@ -66,7 +74,7 @@ export default function LoginPage(){
 
         // success
         toast.push('Login berhasil', { type: 'success' })
-        nav('/dashboard')
+        nav('/map')
       }
     } catch (err) {
       console.error('Auth unexpected error', err)
@@ -78,12 +86,26 @@ export default function LoginPage(){
   }
 
   async function handleResendVerification(){
-    // Supabase client SDK doesn't provide a direct "resend verification" endpoint.
-    // Options:
-    // 1) Ask student/admin to resend from Supabase Dashboard -> Auth -> Users -> (resend)
-    // 2) Implement server-side endpoint (using service_role key) to trigger resend.
-    // Here we simply inform the user.
-    toast.push('Untuk kirim ulang verifikasi: buka Supabase Dashboard → Auth → Users → pilih user → Resend confirmation (atau hubungi admin).', { type: 'info', timeout: 8000 })
+    if (!email.trim()) {
+      toast.push('Masukkan email Anda terlebih dahulu', { type: 'error' })
+      return
+    }
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+        options: {
+          emailRedirectTo,
+        },
+      })
+
+      if (error) throw error
+      toast.push('Email verifikasi berhasil dikirim ulang', { type: 'success' })
+    } catch (error) {
+      console.error('handleResendVerification', error)
+      toast.push(error.message || 'Gagal mengirim ulang email verifikasi', { type: 'error' })
+    }
   }
 
   return (

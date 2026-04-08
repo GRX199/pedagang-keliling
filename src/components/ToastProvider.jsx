@@ -1,5 +1,5 @@
 // src/components/ToastProvider.jsx
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react'
 
 const ToastContext = createContext({ push: () => {} })
 
@@ -18,8 +18,10 @@ export function ToastProvider({ children }) {
     }
   }, [])
 
+  const value = useMemo(() => ({ push }), [push])
+
   return (
-    <ToastContext.Provider value={{ push }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div className="fixed right-4 top-4 z-50 flex flex-col gap-2">
         {toasts.map((t) => (

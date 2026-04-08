@@ -1,0 +1,10 @@
+services:
+  - name: pedagang-keliling-api
+    type: web
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm run start
+    autoDeployTrigger: commit
+    healthCheckPath: /

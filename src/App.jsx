@@ -1,28 +1,18 @@
-// src/App.jsx
-import React, { useEffect } from 'react'
+import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './lib/auth'
+import { useAuth } from './lib/auth'
 import { supabase } from './lib/supabase'
-import { ToastProvider } from './components/ToastProvider'
 
-import DashboardPage from './pages/DashboardPage'
-import MapPage from './pages/MapPage'
-import VendorProfile from './pages/VendorProfile'
-import LoginPage from './pages/LoginPage'
-import VendorChatsList from './components/VendorChatsList'
+const DashboardPage = lazy(() => import('./pages/DashboardScreen'))
+const MapPage = lazy(() => import('./pages/MapViewPage'))
+const VendorProfile = lazy(() => import('./pages/VendorStorePage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const ChatsPage = lazy(() => import('./pages/ChatsPage'))
 
-// PROTECTED wrapper (assumes App rendered inside a Router)
 function Protected({ children }) {
   const { user, loading } = useAuth()
-  const navigate = useNavigate()
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/login', { replace: true })
-    }
-  }, [user, loading, navigate])
-
   if (loading) return <div className="p-6">Memuat...</div>
-  if (!user) return null
+  if (!user) return <Navigate to="/login" replace />
   return children
 }
 
@@ -50,6 +40,7 @@ function TopNav() {
             <nav className="hidden md:flex gap-2">
               <Link to="/map" className="px-3 py-1 rounded hover:bg-gray-100">Peta</Link>
               <Link to="/dashboard" className="px-3 py-1 rounded hover:bg-gray-100">Dashboard</Link>
+              <Link to="/chat" className="px-3 py-1 rounded hover:bg-gray-100">Chat</Link>
             </nav>
           )}
         </div>
@@ -84,44 +75,42 @@ function RootRedirect() {
 
 function LoginGuard({ children }) {
   const { user, loading } = useAuth()
-  const navigate = useNavigate()
-  useEffect(() => {
-    if (!loading && user) {
-      navigate('/map', { replace: true })
-    }
-  }, [user, loading, navigate])
   if (loading) return <div className="p-6">Memuat...</div>
-  return !user ? children : null
+  if (user) return <Navigate to="/map" replace />
+  return children
+}
+
+function RouteFallback() {
+  return <div className="p-6 text-sm text-gray-500">Memuat halaman...</div>
 }
 
 export default function App() {
-  // IMPORTANT: do NOT wrap BrowserRouter here; it must be in main.jsx (root)
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <TopNav />
-        <main className="min-h-[calc(100vh-64px)]">
+    <>
+      <TopNav />
+      <main className="min-h-[calc(100vh-64px)]">
+        <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<RootRedirect />} />
-            <Route path="/login" element={<LoginGuard><LoginPage/></LoginGuard>} />
+            <Route path="/login" element={<LoginGuard><LoginPage /></LoginGuard>} />
 
             <Route path="/map" element={
-              <Protected><MapPage/></Protected>
+              <Protected><MapPage /></Protected>
             } />
 
             <Route path="/dashboard" element={
-              <Protected><DashboardPage/></Protected>
+              <Protected><DashboardPage /></Protected>
             } />
 
             <Route path="/vendor/:id" element={<VendorProfile />} />
 
-            <Route path="/chat" element={<Protected><VendorChatsList/></Protected>} />
-            <Route path="/chat/:id" element={<Protected><VendorChatsList/></Protected>} />
+            <Route path="/chat" element={<Protected><ChatsPage /></Protected>} />
+            <Route path="/chat/:id" element={<Protected><ChatsPage /></Protected>} />
 
             <Route path="*" element={<div className="p-6">Halaman tidak ditemukan</div>} />
           </Routes>
-        </main>
-      </ToastProvider>
-    </AuthProvider>
+        </Suspense>
+      </main>
+    </>
   )
 }
