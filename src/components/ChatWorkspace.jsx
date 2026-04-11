@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { findOrCreateDirectChat, sendChatMessage } from '../lib/conversations'
+import { loadIdentityMap } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from './ToastProvider'
@@ -10,7 +12,7 @@ function getPartnerId(chat, currentUserId) {
 function getPartnerLabel(chat, currentUserId, vendorMap) {
   const partnerId = getPartnerId(chat, currentUserId)
   if (!partnerId) return 'Percakapan'
-  return vendorMap[partnerId]?.name || 'Pelanggan'
+  return vendorMap[partnerId]?.name || 'Pengguna'
 }
 
 function ChatThread({ chatId, currentUser }) {
@@ -73,20 +75,7 @@ function ChatThread({ chatId, currentUser }) {
 
     setSending(true)
     try {
-      const payload = {
-        chat_id: chatId,
-        from_user: currentUser.id,
-        text: text.trim(),
-      }
-
-      const { error } = await supabase.from('messages').insert([payload])
-      if (error) throw error
-
-      await supabase
-        .from('chats')
-        .update({ last_updated: new Date().toISOString() })
-        .eq('id', chatId)
-
+      await sendChatMessage(chatId, currentUser.id, text.trim())
       setText('')
     } catch (error) {
       console.error('sendMessage', error)
@@ -194,17 +183,39 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
     }
 
     try {
-      const { data, error } = await supabase
-        .from('vendors')
-        .select('id, name, photo_url')
-        .in('id', partnerIds)
+      const nextMap = await loadIdentityMap(partnerIds)
+      const missingIds = partnerIds.filter((partnerId) => !nextMap[partnerId])
 
-      if (error) throw error
+      if (missingIds.length > 0 && user?.id) {
+        const { data: orderRows, error } = await supabase
+          .from('orders')
+          .select('vendor_id, vendor_name, buyer_id, buyer_name')
+          .or(`vendor_id.eq.${user.id},buyer_id.eq.${user.id}`)
+          .order('created_at', { ascending: false })
+          .limit(200)
 
-      const nextMap = (data || []).reduce((accumulator, vendor) => {
-        accumulator[vendor.id] = vendor
-        return accumulator
-      }, {})
+        if (error) throw error
+
+        for (const order of orderRows || []) {
+          if (!nextMap[order.buyer_id] && missingIds.includes(order.buyer_id)) {
+            nextMap[order.buyer_id] = {
+              id: order.buyer_id,
+              name: order.buyer_name || 'Pelanggan',
+              photo_url: null,
+              role: 'customer',
+            }
+          }
+
+          if (!nextMap[order.vendor_id] && missingIds.includes(order.vendor_id)) {
+            nextMap[order.vendor_id] = {
+              id: order.vendor_id,
+              name: order.vendor_name || 'Pedagang',
+              photo_url: null,
+              role: 'vendor',
+            }
+          }
+        }
+      }
 
       setVendorMap(nextMap)
     } catch (error) {
@@ -275,40 +286,10 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
     async function ensureDirectChat() {
       setCreatingChat(true)
       try {
-        const { data, error } = await supabase
-          .from('chats')
-          .select('*')
-          .contains('participants', [user.id, initialVendorId])
-          .order('last_updated', { ascending: false })
-          .limit(1)
-
-        if (error) throw error
-
-        const existingChat = data?.[0]
-        if (existingChat) {
-          if (active) {
-            setSelectedChatId(existingChat.id)
-            fetchChats(existingChat.id)
-          }
-          return
-        }
-
-        const payload = {
-          participants: [user.id, initialVendorId],
-          last_updated: new Date().toISOString(),
-        }
-
-        const { data: createdChat, error: createError } = await supabase
-          .from('chats')
-          .insert([payload])
-          .select()
-          .single()
-
-        if (createError) throw createError
-
+        const chat = await findOrCreateDirectChat(user.id, initialVendorId)
         if (active) {
-          setSelectedChatId(createdChat.id)
-          fetchChats(createdChat.id)
+          setSelectedChatId(chat.id)
+          fetchChats(chat.id)
         }
       } catch (error) {
         console.error('ensureDirectChat', error)
@@ -351,12 +332,6 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
             <div className="font-semibold text-slate-900">Daftar Chat</div>
             <div className="text-sm text-slate-500">Pilih percakapan untuk mulai ngobrol.</div>
           </div>
-          <button
-            onClick={() => fetchChats(selectedChatId)}
-            className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Refresh
-          </button>
         </div>
 
         <div className="space-y-2">

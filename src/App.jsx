@@ -1,6 +1,8 @@
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useToast } from './components/ToastProvider'
 import { useAuth } from './lib/auth'
+import { useRealtimeNotifications } from './lib/notifications'
 import { supabase } from './lib/supabase'
 
 const DashboardPage = lazy(() => import('./pages/DashboardScreen'))
@@ -17,9 +19,10 @@ function Protected({ children }) {
 }
 
 function TopNav() {
-  const { user } = useAuth()
+  const { user, role } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
 
   async function handleLogout() {
     try {
@@ -31,27 +34,49 @@ function TopNav() {
   }
 
   const avatarUrl = user?.user_metadata?.avatar_url
-  const navItems = [
-    { to: '/map', label: 'Peta' },
-    { to: '/dashboard', label: 'Dashboard' },
-    { to: '/chat', label: 'Chat' },
-  ]
+  const notificationCounts = useRealtimeNotifications({
+    user,
+    role,
+    pathname: location.pathname,
+    search: location.search,
+    toast,
+  })
+
+  const navItems = user ? [
+    { to: '/map', label: 'Peta', count: 0, active: location.pathname === '/map' },
+    {
+      to: '/dashboard?tab=orders',
+      label: 'Pesanan',
+      count: notificationCounts.orders,
+      active: location.pathname === '/dashboard' && new URLSearchParams(location.search).get('tab') === 'orders',
+    },
+    { to: '/chat', label: 'Chat', count: notificationCounts.messages, active: location.pathname.startsWith('/chat') },
+    { to: '/dashboard', label: 'Dashboard', count: 0, active: location.pathname === '/dashboard' && new URLSearchParams(location.search).get('tab') !== 'orders' },
+  ] : []
 
   function renderNavItem(item, compact = false) {
-    const active = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
     return (
       <NavLink
         key={item.to}
         to={item.to}
         className={`rounded-full px-3 py-2 text-sm font-medium transition ${
-          active
+          item.active
             ? 'bg-slate-900 text-white shadow-sm'
             : compact
               ? 'bg-white/70 text-slate-700 ring-1 ring-slate-200 hover:bg-white'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        {item.label}
+        <span className="inline-flex items-center gap-2">
+          <span>{item.label}</span>
+          {item.count > 0 && (
+            <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+              item.active ? 'bg-white/15 text-white' : 'bg-rose-500 text-white'
+            }`}>
+              {item.count}
+            </span>
+          )}
+        </span>
       </NavLink>
     )
   }

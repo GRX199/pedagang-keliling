@@ -38,6 +38,25 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
     fetchProducts()
   }, [vendorId])
 
+  useEffect(() => {
+    if (!vendorId) return undefined
+
+    const channel = supabase
+      .channel(`vendor-products-${vendorId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products', filter: `vendor_id=eq.${vendorId}` }, () => {
+        fetchProducts()
+      })
+      .subscribe()
+
+    return () => {
+      try {
+        supabase.removeChannel(channel)
+      } catch (error) {
+        console.error('removeVendorProductsChannel', error)
+      }
+    }
+  }, [vendorId])
+
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl)
   }, [previewUrl])
@@ -275,14 +294,11 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
       </div>
 
       <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4">
           <div>
             <h3 className="font-semibold text-slate-900">Daftar Produk</h3>
             <p className="text-sm text-slate-500">Produk akan ditampilkan di peta dan profil toko.</p>
           </div>
-          <button onClick={fetchProducts} className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
-            Refresh
-          </button>
         </div>
 
         {loading ? (

@@ -424,7 +424,7 @@ export default function MapViewPage() {
       marker.bindPopup(buildPopupContent(vendor, {
         onView: () => setSelectedVendor(vendor),
         onChat: () => navigate(`/chat/${vendor.id}`),
-        onOrder: () => navigate(`/vendor/${vendor.id}#order`),
+        onOrder: () => navigate(`/vendor/${vendor.id}#order-summary`),
       }), { maxWidth: 320 })
 
       group.addLayer(marker)
@@ -602,17 +602,10 @@ export default function MapViewPage() {
                   <button
                     onClick={() => {
                       setQuery('')
-                      loadVendors()
                     }}
                     className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Reset
-                  </button>
-                  <button
-                    onClick={loadVendors}
-                    className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
-                  >
-                    Refresh
                   </button>
                 </div>
               </div>
@@ -804,7 +797,7 @@ export default function MapViewPage() {
                         Lihat Profil
                       </button>
                       <button
-                        onClick={() => navigate(`/vendor/${selectedVendor.id}#order`)}
+                        onClick={() => navigate(`/vendor/${selectedVendor.id}#order-summary`)}
                         className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 sm:col-span-2"
                       >
                         Buat Pesanan

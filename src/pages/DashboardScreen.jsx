@@ -6,6 +6,7 @@ import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
 import { uploadImageFile } from '../lib/media'
 import { getGeolocationErrorMessage } from '../lib/network'
+import { syncCurrentProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import {
   createVendorLocationPayload,
@@ -29,6 +30,7 @@ function TabButton({ id, active, onClick, children }) {
 
 function OrdersPanel({ currentUser, role }) {
   const toast = useToast()
+  const navigate = useNavigate()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -96,14 +98,11 @@ function OrdersPanel({ currentUser, role }) {
 
   return (
     <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4">
         <div>
           <h3 className="font-semibold text-slate-900">Pesanan</h3>
-          <p className="text-sm text-slate-500">Pantau transaksi terbaru Anda di sini.</p>
+          <p className="text-sm text-slate-500">Pantau transaksi terbaru Anda dan lanjutkan komunikasi dari sini.</p>
         </div>
-        <button onClick={fetchOrders} className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
-          Refresh
-        </button>
       </div>
 
       <div className="space-y-3">
@@ -129,6 +128,13 @@ function OrdersPanel({ currentUser, role }) {
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-700">
                     {order.status || 'pending'}
                   </span>
+
+                  <button
+                    onClick={() => navigate(`/chat/${role === 'vendor' ? order.buyer_id : order.vendor_id}`)}
+                    className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
+                  >
+                    Buka Chat
+                  </button>
 
                   {role === 'vendor' && order.status === 'pending' && (
                     <>
@@ -268,6 +274,14 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
         })
 
         if (error) throw error
+        await syncCurrentProfile({
+          ...currentUser,
+          user_metadata: {
+            ...currentUser.user_metadata,
+            full_name: form.name.trim(),
+            avatar_url: photoUrl,
+          },
+        }, 'customer')
         await refreshAuth()
         setProfile((current) => ({ ...current, name: form.name.trim(), photo_url: photoUrl }))
       }
@@ -469,7 +483,6 @@ export default function DashboardScreen() {
   const location = useLocation()
   const [activeTab, setActiveTab] = useState('products')
   const [vendorProfile, setVendorProfile] = useState(null)
-  const [refreshKey, setRefreshKey] = useState(0)
 
   const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
   const handleVendorProfileSaved = useCallback((profile) => {
@@ -516,7 +529,7 @@ export default function DashboardScreen() {
     return () => {
       active = false
     }
-  }, [isVendor, refreshKey, toast, user])
+  }, [isVendor, toast, user])
 
   if (loading) {
     return <div className="p-6 text-sm text-gray-500">Memuat dashboard...</div>
@@ -589,13 +602,6 @@ export default function DashboardScreen() {
                     {activeTab === 'profile' && 'Perbarui identitas akun dan tampilan profil.'}
                   </p>
                 </div>
-
-                <button
-                  onClick={() => setRefreshKey((current) => current + 1)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  Refresh
-                </button>
               </div>
             </div>
 

@@ -1,5 +1,6 @@
 // src/lib/auth.jsx
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { syncCurrentProfile } from './profiles'
 import { supabase } from './supabase'
 
 const AuthContext = createContext({
@@ -42,6 +43,7 @@ export function AuthProvider({ children }){
 
     const nextRole = await determineRole(sessionUser.id)
     setRole(nextRole)
+    await syncCurrentProfile(sessionUser, nextRole)
     setLoading(false)
   }, [determineRole])
 
