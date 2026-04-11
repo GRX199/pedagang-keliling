@@ -37,3 +37,27 @@ export function getDisplayName(value, fallback = 'Pengguna') {
   if (!value) return fallback
   return String(value).trim() || fallback
 }
+
+export function createVendorLocationPayload({ lat, lng, accuracy = null }) {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null
+
+  return {
+    lat,
+    lng,
+    accuracy: typeof accuracy === 'number' ? Math.round(accuracy) : null,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+export function getVendorLocationUpdatedAtLabel(location) {
+  const updatedAt = location?.updated_at
+  if (!updatedAt) return 'Belum pernah disinkronkan'
+
+  const date = new Date(updatedAt)
+  if (Number.isNaN(date.getTime())) return 'Belum pernah disinkronkan'
+
+  return date.toLocaleString('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}

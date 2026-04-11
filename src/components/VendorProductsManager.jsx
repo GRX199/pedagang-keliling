@@ -221,13 +221,13 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
-        <h2 className="text-xl font-semibold text-gray-900">Produk Saya</h2>
-        <p className="mt-1 text-sm text-gray-500">Tambah produk baru agar pelanggan bisa langsung melihat dagangan Anda.</p>
+      <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+        <h2 className="text-xl font-semibold text-slate-900">Produk Saya</h2>
+        <p className="mt-1 text-sm leading-6 text-slate-500">Tambah produk baru agar pelanggan bisa langsung melihat dagangan Anda.</p>
 
         <form onSubmit={addProduct} className="mt-4 space-y-3">
           <input
-            className="w-full rounded-xl border border-gray-300 px-3 py-2"
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Nama produk"
@@ -235,7 +235,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
           />
 
           <textarea
-            className="min-h-[120px] w-full rounded-xl border border-gray-300 px-3 py-2"
+            className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Deskripsi produk"
@@ -243,78 +243,82 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
 
           <input
             type="number"
-            className="w-full rounded-xl border border-gray-300 px-3 py-2"
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
             value={price}
             onChange={(event) => setPrice(event.target.value)}
             placeholder="Harga (Rp)"
           />
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Foto produk</label>
+            <label className="block text-sm font-medium text-slate-700">Foto produk</label>
             <input type="file" accept="image/*" className="mt-2" onChange={onFileChange} />
             {previewUrl && <img src={previewUrl} alt="preview" className="mt-3 h-36 w-36 rounded-xl object-cover" />}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-white disabled:bg-blue-300"
+              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:bg-slate-400"
             >
               {submitting ? 'Menyimpan...' : 'Tambah Produk'}
             </button>
-            <button type="button" onClick={resetCreateForm} className="rounded-lg border border-gray-300 px-4 py-2">
+            <button
+              type="button"
+              onClick={resetCreateForm}
+              className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
+            >
               Reset
             </button>
           </div>
         </form>
       </div>
 
-      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
+      <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-gray-900">Daftar Produk</h3>
-            <p className="text-sm text-gray-500">Produk akan ditampilkan di peta dan profil toko.</p>
+            <h3 className="font-semibold text-slate-900">Daftar Produk</h3>
+            <p className="text-sm text-slate-500">Produk akan ditampilkan di peta dan profil toko.</p>
           </div>
-          <button onClick={fetchProducts} className="rounded-lg border border-gray-300 px-3 py-1 text-sm">
+          <button onClick={fetchProducts} className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
             Refresh
           </button>
         </div>
 
         {loading ? (
-          <div className="text-sm text-gray-500">Memuat produk...</div>
+          <div className="text-sm text-slate-500">Memuat produk...</div>
         ) : products.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
+          <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
             Belum ada produk.
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {products.map((product) => (
-              <div key={product.id} className="overflow-hidden rounded-2xl border border-gray-200">
+              <div key={product.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
                 {product.image_url ? (
                   <img src={product.image_url} alt={product.name} className="h-44 w-full object-cover" />
                 ) : (
-                  <div className="flex h-44 items-center justify-center bg-gray-100 text-sm text-gray-400">
+                  <div className="flex h-44 items-center justify-center bg-slate-100 text-sm text-slate-400">
                     Belum ada gambar
                   </div>
                 )}
 
                 <div className="space-y-2 p-4">
-                  <div className="font-semibold text-gray-900">{product.name}</div>
-                  <div className="text-sm text-gray-600">{product.description || 'Tanpa deskripsi'}</div>
-                  <div className="text-sm font-medium text-gray-900">{formatPrice(product.price)}</div>
+                  <div className="font-semibold text-slate-900">{product.name}</div>
+                  <div className="text-sm leading-6 text-slate-600">{product.description || 'Tanpa deskripsi'}</div>
+                  <div className="text-sm font-medium text-slate-900">{formatPrice(product.price)}</div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <button
                       onClick={() => openEditModal(product)}
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => deleteProduct(product.id)}
                       disabled={deletingId === product.id}
-                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 disabled:opacity-60"
+                      className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 disabled:opacity-60"
                     >
                       {deletingId === product.id ? 'Menghapus...' : 'Hapus'}
                     </button>
@@ -328,17 +332,17 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-4 shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-[28px] bg-white p-4 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Edit Produk</h3>
-              <button onClick={closeEditModal} className="rounded-lg border border-gray-300 px-3 py-1 text-sm">
+              <h3 className="text-lg font-semibold text-slate-900">Edit Produk</h3>
+              <button onClick={closeEditModal} className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
                 Tutup
               </button>
             </div>
 
             <form onSubmit={saveEdit} className="space-y-3">
               <input
-                className="w-full rounded-xl border border-gray-300 px-3 py-2"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
                 value={editName}
                 onChange={(event) => setEditName(event.target.value)}
                 placeholder="Nama produk"
@@ -346,7 +350,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
               />
 
               <textarea
-                className="min-h-[120px] w-full rounded-xl border border-gray-300 px-3 py-2"
+                className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3"
                 value={editDescription}
                 onChange={(event) => setEditDescription(event.target.value)}
                 placeholder="Deskripsi produk"
@@ -354,26 +358,26 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
 
               <input
                 type="number"
-                className="w-full rounded-xl border border-gray-300 px-3 py-2"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
                 value={editPrice}
                 onChange={(event) => setEditPrice(event.target.value)}
                 placeholder="Harga (Rp)"
               />
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Ganti foto produk</label>
+                <label className="block text-sm font-medium text-slate-700">Ganti foto produk</label>
                 <input type="file" accept="image/*" className="mt-2" onChange={onEditFileChange} />
                 {editPreview && <img src={editPreview} alt="preview" className="mt-3 h-36 w-36 rounded-xl object-cover" />}
               </div>
 
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={closeEditModal} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+              <div className="flex flex-col justify-end gap-2 sm:flex-row">
+                <button type="button" onClick={closeEditModal} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700">
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white disabled:bg-blue-300"
+                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:bg-slate-400"
                 >
                   {submitting ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </button>
