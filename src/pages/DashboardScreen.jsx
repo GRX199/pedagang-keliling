@@ -71,7 +71,12 @@ function OrdersPanel({ currentUser, role }) {
       })
       .subscribe()
 
+    const intervalId = window.setInterval(() => {
+      void fetchOrders()
+    }, 8000)
+
     return () => {
+      window.clearInterval(intervalId)
       try {
         supabase.removeChannel(channel)
       } catch (error) {

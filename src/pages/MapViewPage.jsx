@@ -55,6 +55,24 @@ function hasMeaningfulLocationChange(previousLocation, nextLocation) {
   ) >= LOCATION_SYNC_DISTANCE_METERS
 }
 
+function getVendorDistance(vendor, userLocation) {
+  const coordinates = getVendorCoordinates(vendor?.location)
+  if (!coordinates || !userLocation) return null
+
+  return haversineDistance(
+    userLocation.lat,
+    userLocation.lng,
+    coordinates.lat,
+    coordinates.lng
+  )
+}
+
+function formatDistanceLabel(distanceMeters) {
+  if (typeof distanceMeters !== 'number') return 'Aktifkan lokasi untuk melihat jarak'
+  if (distanceMeters < 1000) return `${Math.round(distanceMeters)} m dari Anda`
+  return `${(distanceMeters / 1000).toFixed(1)} km dari Anda`
+}
+
 function createActionButton(label, colors, onClick) {
   const button = document.createElement('button')
   button.type = 'button'
@@ -157,12 +175,13 @@ export default function MapViewPage() {
   const [userLocation, setUserLocation] = useState(null)
   const [radiusKm, setRadiusKm] = useState(2.5)
   const [onlyWithinRadius, setOnlyWithinRadius] = useState(false)
-  const [clusterEnabled, setClusterEnabled] = useState(true)
+  const [availabilityFilter, setAvailabilityFilter] = useState('online')
   const [syncingStoreLocation, setSyncingStoreLocation] = useState(false)
 
   const serverOrigin = getServerOrigin()
   const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
   const myVendorId = user?.id
+  const clusterEnabled = true
 
   const syncMyVendorLocation = useCallback(async (coords, options = {}) => {
     if (!isVendor || !myVendorId) return
@@ -213,6 +232,20 @@ export default function MapViewPage() {
       setView: options.setView !== false,
     })
   }
+
+  const focusVendor = useCallback((vendor) => {
+    if (!vendor) return
+
+    const coordinates = getVendorCoordinates(vendor.location)
+    setSelectedVendor(vendor)
+
+    if (coordinates) {
+      mapRef.current?.flyTo([coordinates.lat, coordinates.lng], 16, {
+        animate: true,
+        duration: 0.8,
+      })
+    }
+  }, [])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -368,6 +401,8 @@ export default function MapViewPage() {
         if (!haystack.includes(debouncedQuery)) return false
       }
 
+      if (availabilityFilter === 'online' && !vendor.online) return false
+
       if (onlyWithinRadius) {
         if (!userLocation) return false
         const distance = haversineDistance(
@@ -381,25 +416,37 @@ export default function MapViewPage() {
 
       return true
     })
-  }, [debouncedQuery, onlyWithinRadius, radiusKm, userLocation, vendors])
+  }, [availabilityFilter, debouncedQuery, onlyWithinRadius, radiusKm, userLocation, vendors])
 
-  const vendorsWithinRadius = useMemo(() => {
+  const onlineVendors = useMemo(
+    () => vendors.filter((vendor) => vendor.online && getVendorCoordinates(vendor.location)),
+    [vendors]
+  )
+
+  const onlineVendorsWithinRadius = useMemo(() => {
     if (!userLocation) return []
 
-    return vendors.filter((vendor) => {
-      const coordinates = getVendorCoordinates(vendor.location)
-      if (!coordinates) return false
-
-      const distance = haversineDistance(
-        userLocation.lat,
-        userLocation.lng,
-        coordinates.lat,
-        coordinates.lng
-      )
-
-      return distance <= radiusKm * 1000
+    return onlineVendors.filter((vendor) => {
+      const distance = getVendorDistance(vendor, userLocation)
+      return typeof distance === 'number' && distance <= radiusKm * 1000
     })
-  }, [radiusKm, userLocation, vendors])
+  }, [onlineVendors, radiusKm, userLocation])
+
+  const onlineListVendors = useMemo(() => {
+    const rows = filteredVendors.filter((vendor) => vendor.online)
+    return [...rows].sort((left, right) => {
+      const leftDistance = getVendorDistance(left, userLocation)
+      const rightDistance = getVendorDistance(right, userLocation)
+
+      if (typeof leftDistance === 'number' && typeof rightDistance === 'number') {
+        return leftDistance - rightDistance
+      }
+
+      if (typeof leftDistance === 'number') return -1
+      if (typeof rightDistance === 'number') return 1
+      return (left.name || '').localeCompare(right.name || '', 'id')
+    })
+  }, [filteredVendors, userLocation])
 
   useEffect(() => {
     const map = mapRef.current
@@ -422,7 +469,7 @@ export default function MapViewPage() {
 
       const marker = L.marker([coordinates.lat, coordinates.lng])
       marker.bindPopup(buildPopupContent(vendor, {
-        onView: () => setSelectedVendor(vendor),
+        onView: () => focusVendor(vendor),
         onChat: () => navigate(`/chat/${vendor.id}`),
         onOrder: () => navigate(`/vendor/${vendor.id}#order-summary`),
       }), { maxWidth: 320 })
@@ -450,7 +497,7 @@ export default function MapViewPage() {
       }
       clusterRef.current = null
     }
-  }, [clusterEnabled, filteredVendors, navigate])
+  }, [clusterEnabled, filteredVendors, focusVendor, navigate])
 
   async function getAccessToken() {
     try {
@@ -519,310 +566,429 @@ export default function MapViewPage() {
   const myVendorCoordinates = getVendorCoordinates(myVendorLocation)
   const filteredVendorCount = filteredVendors.length
   const selectedVendorCoordinates = getVendorCoordinates(selectedVendor?.location)
+  const onlineVendorCount = onlineVendors.length
+  const selectedVendorDistance = getVendorDistance(selectedVendor, userLocation)
 
   return (
     <div className="min-h-screen bg-transparent">
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:py-6">
-        <section className="overflow-hidden rounded-[28px] bg-slate-900 px-4 py-5 text-white shadow-xl shadow-slate-900/10 sm:px-6">
-          <div className="grid gap-5 lg:grid-cols-[1.4fr_0.9fr]">
-            <div>
-              <div className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-slate-200">
-                Peta Pedagang Sekitar
+        <section className="rounded-[32px] bg-white/95 p-5 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <div className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white">
+                Peta Pedagang
               </div>
-              <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-                Cari pedagang yang sedang aktif dan lihat posisi toko secara real-time.
+              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+                Fokus ke pedagang online yang paling relevan untuk dibuka dulu.
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                Gunakan peta ini untuk menemukan pedagang terdekat, membuka chat, dan langsung membuat pesanan dari HP maupun desktop.
+              <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
+                Cari toko aktif, lihat siapa yang masuk radius Anda, lalu buka chat atau pesan tanpa perlu banyak pindah halaman.
               </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <button
-                  onClick={() => requestCurrentLocation()}
-                  className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
-                >
-                  Lokasi Saya
-                </button>
-                <button
-                  onClick={() => {
-                    const bounds = clusterRef.current?.getBounds?.()
-                    if (bounds?.isValid?.()) mapRef.current?.fitBounds(bounds, { padding: [48, 48] })
-                  }}
-                  className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15"
-                >
-                  Zoom Semua Pedagang
-                </button>
-                {isVendor && (
-                  <button
-                    onClick={() => requestCurrentLocation({ maxZoom: 16 })}
-                    className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/15"
-                  >
-                    {syncingStoreLocation ? 'Menyinkronkan Lokasi...' : 'Bagikan Lokasi Toko'}
-                  </button>
-                )}
-              </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-              <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Pedagang Tersedia</div>
-                <div className="mt-2 text-3xl font-semibold text-white">{vendors.length}</div>
-                <div className="mt-1 text-sm text-slate-300">Total toko yang sudah masuk ke peta.</div>
-              </div>
-              <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Hasil Tersaring</div>
-                <div className="mt-2 text-3xl font-semibold text-white">{filteredVendorCount}</div>
-                <div className="mt-1 text-sm text-slate-300">Sesuai pencarian, radius, dan lokasi.</div>
-              </div>
-              <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Dalam Radius</div>
-                <div className="mt-2 text-3xl font-semibold text-white">
-                  {userLocation ? vendorsWithinRadius.length : '-'}
-                </div>
-                <div className="mt-1 text-sm text-slate-300">
-                  {userLocation ? `Pedagang dalam radius ${radiusKm} km.` : 'Aktifkan lokasi untuk menghitung jarak.'}
-                </div>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => requestCurrentLocation()}
+                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                Lokasi Saya
+              </button>
+              <button
+                onClick={() => {
+                  const bounds = clusterRef.current?.getBounds?.()
+                  if (bounds?.isValid?.()) mapRef.current?.fitBounds(bounds, { padding: [48, 48] })
+                }}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Zoom Semua Toko
+              </button>
+              {isVendor && (
+                <button
+                  onClick={() => requestCurrentLocation({ maxZoom: 16 })}
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  {syncingStoreLocation ? 'Menyinkronkan...' : 'Bagikan Lokasi Toko'}
+                </button>
+              )}
             </div>
           </div>
-        </section>
 
-        <section className="rounded-[28px] bg-white/95 p-4 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-5">
-          <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-3">
-              <div className="text-sm font-medium text-slate-700">Cari pedagang atau produk</div>
-              <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-slate-700">Cari pedagang aktif</label>
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Contoh: bakso, sayur, nasi kuning..."
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
                 />
-                <div className="grid grid-cols-2 gap-2 sm:flex">
-                  <button
-                    onClick={() => {
-                      setQuery('')
-                    }}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Reset
-                  </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setAvailabilityFilter('online')}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    availabilityFilter === 'online'
+                      ? 'bg-slate-900 text-white'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  Hanya Online
+                </button>
+                <button
+                  onClick={() => setAvailabilityFilter('all')}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    availabilityFilter === 'all'
+                      ? 'bg-slate-900 text-white'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  Semua Toko
+                </button>
+                <button
+                  onClick={() => setOnlyWithinRadius((current) => !current)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    onlyWithinRadius
+                      ? 'bg-emerald-600 text-white'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {onlyWithinRadius ? 'Radius Aktif' : 'Filter Radius'}
+                </button>
+                <button
+                  onClick={() => {
+                    setQuery('')
+                    setAvailabilityFilter('online')
+                    setOnlyWithinRadius(false)
+                  }}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <div className="font-medium text-slate-800">Radius pencarian</div>
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    value={radiusKm}
+                    onChange={(event) => setRadiusKm(Number(event.target.value || 0))}
+                    className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none focus:border-slate-400"
+                  />
+                </label>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <div className="font-medium text-slate-800">Status lokasi Anda</div>
+                  <div className="mt-2">
+                    {userLocation
+                      ? `${userLocation.lat.toFixed(5)}, ${userLocation.lng.toFixed(5)}`
+                      : 'Belum aktif. Tekan "Lokasi Saya" agar jarak pedagang bisa dihitung.'}
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    Radius dipakai untuk menghitung toko yang paling dekat dan paling relevan.
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                <div className="font-medium text-slate-800">Radius Pencarian</div>
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={radiusKm}
-                  onChange={(event) => setRadiusKm(Number(event.target.value || 0))}
-                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none focus:border-slate-400"
-                />
-              </label>
-
-              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={onlyWithinRadius}
-                    onChange={(event) => setOnlyWithinRadius(event.target.checked)}
-                  />
-                  <span>Tampilkan dalam radius</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={clusterEnabled}
-                    onChange={(event) => setClusterEnabled(event.target.checked)}
-                  />
-                  <span>Gabungkan marker berdekatan</span>
-                </label>
+            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              <div className="rounded-[24px] bg-slate-900 p-4 text-white">
+                <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Pedagang Online</div>
+                <div className="mt-2 text-3xl font-semibold">{onlineVendorCount}</div>
+                <div className="mt-1 text-sm text-slate-300">Toko aktif yang siap diajak chat atau dipesan.</div>
+              </div>
+              <div className="rounded-[24px] bg-emerald-50 p-4 ring-1 ring-emerald-100">
+                <div className="text-xs uppercase tracking-[0.2em] text-emerald-700">Online Dalam Radius</div>
+                <div className="mt-2 text-3xl font-semibold text-slate-900">
+                  {userLocation ? onlineVendorsWithinRadius.length : '-'}
+                </div>
+                <div className="mt-1 text-sm text-slate-600">
+                  {userLocation ? `Dalam radius ${radiusKm} km dari posisi Anda.` : 'Aktifkan lokasi untuk menghitung radius.'}
+                </div>
+              </div>
+              <div className="rounded-[24px] bg-slate-50 p-4 ring-1 ring-slate-200">
+                <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Hasil Ditampilkan</div>
+                <div className="mt-2 text-3xl font-semibold text-slate-900">{filteredVendorCount}</div>
+                <div className="mt-1 text-sm text-slate-500">
+                  Sesuai pencarian, status toko, dan filter radius yang aktif.
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="space-y-3">
-            <div className="overflow-hidden rounded-[30px] bg-white p-2 shadow-lg shadow-slate-200/50 ring-1 ring-slate-200/70">
-              <div ref={containerRef} className="h-[56vh] rounded-[24px] sm:h-[64vh] lg:h-[72vh]" />
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_380px]">
+          <div className="rounded-[30px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Pedagang online sekarang</h2>
+                <p className="text-sm leading-6 text-slate-500">
+                  Daftar ini diprioritaskan untuk mobile: pilih toko, lanjut chat, lalu pesan dari menu yang tersedia.
+                </p>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                {onlineListVendors.length} toko cocok dengan filter
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200/70">
-              <div>{loading ? 'Memuat pedagang...' : `${vendors.length} pedagang tersedia di peta`}</div>
-              {onlyWithinRadius && userLocation && (
-                <div>{vendorsWithinRadius.length} pedagang dalam radius {radiusKm} km</div>
-              )}
-              {!userLocation && (
-                <div className="text-slate-400">Aktifkan lokasi Anda untuk menghitung jarak terdekat.</div>
+
+            <div className="mt-4 space-y-3">
+              {onlineListVendors.length === 0 ? (
+                <div className="rounded-[24px] border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                  Belum ada pedagang online yang cocok dengan pencarian Anda.
+                </div>
+              ) : (
+                onlineListVendors.map((vendor) => {
+                  const vendorDistance = getVendorDistance(vendor, userLocation)
+                  const active = selectedVendor?.id === vendor.id
+
+                  return (
+                    <div
+                      key={vendor.id}
+                      className={`rounded-[24px] border p-4 transition ${
+                        active
+                          ? 'border-slate-900 bg-slate-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="h-14 w-14 overflow-hidden rounded-2xl bg-slate-100">
+                          {vendor.photo_url ? (
+                            <img src={vendor.photo_url} alt={vendor.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-lg font-semibold text-slate-500">
+                              {(vendor.name || 'P')[0]}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="truncate text-base font-semibold text-slate-900">{vendor.name}</div>
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                              Online
+                            </span>
+                          </div>
+                          <div className="mt-1 text-sm text-slate-500">{formatDistanceLabel(vendorDistance)}</div>
+                          <div className="mt-2 text-sm leading-6 text-slate-600">
+                            {vendor.description ? String(vendor.description).slice(0, 120) : 'Belum ada deskripsi toko.'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => focusVendor(vendor)}
+                          className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Pilih Toko
+                        </button>
+                        <button
+                          onClick={() => navigate(`/chat/${vendor.id}`)}
+                          className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Chat
+                        </button>
+                        <button
+                          onClick={() => navigate(`/vendor/${vendor.id}#order-summary`)}
+                          className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700"
+                        >
+                          Pesan Sekarang
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })
               )}
             </div>
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            {!selectedVendor ? (
-              <>
-                <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-                  <h2 className="font-semibold text-slate-900">Detail Pedagang</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Ketuk marker pada peta untuk melihat detail toko, produk, chat, dan tombol pesanan.
-                  </p>
+          <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+            {isVendor && (
+              <div className="rounded-[30px] bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-5 shadow-sm ring-1 ring-emerald-100">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-[0.22em] text-emerald-700">Kontrol Pedagang</div>
+                    <h3 className="mt-2 text-lg font-semibold text-slate-900">Status toko dan lokasi</h3>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    myVendorRow?.online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {myVendorRow?.online ? 'Online' : 'Offline'}
+                  </span>
                 </div>
 
-                {isVendor && (
-                  <div className="rounded-[28px] bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-5 shadow-sm ring-1 ring-emerald-100">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-xs font-medium uppercase tracking-[0.22em] text-emerald-700">Kontrol Pedagang</div>
-                        <h3 className="mt-2 text-lg font-semibold text-slate-900">Status toko dan lokasi</h3>
-                      </div>
-                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        myVendorRow?.online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {myVendorRow?.online ? 'Online' : 'Offline'}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
-                      <div className="text-sm font-medium text-slate-800">Lokasi toko saat ini</div>
-                      <div className="mt-2 text-sm text-slate-600">
-                        {myVendorCoordinates ? getVendorLocationLabel(myVendorLocation) : 'Lokasi toko belum dibagikan'}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        Sinkron terakhir: {getVendorLocationUpdatedAtLabel(myVendorLocation)}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                      <button
-                        onClick={toggleMyOnlineStatus}
-                        className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
-                      >
-                        {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
-                      </button>
-                      <button
-                        onClick={() => requestCurrentLocation({ maxZoom: 16 })}
-                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        {syncingStoreLocation ? 'Sinkron Lokasi...' : 'Perbarui Lokasi Toko'}
-                      </button>
-                      <button
-                        onClick={() => navigate('/dashboard?tab=products')}
-                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:col-span-2"
-                      >
-                        Kelola Produk
-                      </button>
-                    </div>
-
-                    <p className="mt-4 text-xs leading-5 text-slate-500">
-                      Agar pelanggan bisa melihat posisi Anda di peta, izinkan lokasi saat membuka halaman ini lalu tekan tombol perbarui lokasi bila perlu.
-                    </p>
+                <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
+                  <div className="text-sm font-medium text-slate-800">Lokasi toko</div>
+                  <div className="mt-2 text-sm text-slate-600">
+                    {myVendorCoordinates ? getVendorLocationLabel(myVendorLocation) : 'Lokasi toko belum dibagikan'}
                   </div>
-                )}
-              </>
-            ) : (
-              <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-                <div className="flex items-center gap-3">
-                  <div className="h-16 w-16 overflow-hidden rounded-2xl bg-slate-100">
-                    {selectedVendor.photo_url ? (
-                      <img src={selectedVendor.photo_url} alt={selectedVendor.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-xl text-slate-500">
-                        {(selectedVendor.name || 'P')[0]}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-lg font-semibold text-slate-900">{selectedVendor.name}</div>
-                    <div className="text-sm text-slate-500">{selectedVendor.online ? 'Sedang online' : 'Sedang offline'}</div>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-                  {selectedVendor.description || 'Belum ada deskripsi toko.'}
-                </div>
-
-                <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-                  <div className="font-medium text-slate-800">Lokasi toko</div>
-                  <div className="mt-1">{getVendorLocationLabel(selectedVendor.location)}</div>
                   <div className="mt-1 text-xs text-slate-500">
-                    {selectedVendorCoordinates ? 'Lokasi siap dipakai untuk navigasi dan estimasi jarak.' : 'Pedagang belum membagikan lokasi.'}
+                    Sinkron terakhir: {getVendorLocationUpdatedAtLabel(myVendorLocation)}
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {isVendor && myVendorId === selectedVendor.id ? (
-                    <>
-                      <button
-                        onClick={toggleMyOnlineStatus}
-                        className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
-                      >
-                        {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
-                      </button>
-                      <button
-                        onClick={() => requestCurrentLocation({ maxZoom: 16 })}
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        {syncingStoreLocation ? 'Sinkron Lokasi...' : 'Perbarui Lokasi'}
-                      </button>
-                      <button
-                        onClick={() => navigate('/dashboard?tab=products')}
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        Kelola Produk
-                      </button>
-                      <button
-                        onClick={() => navigate('/dashboard?tab=profile')}
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        Edit Profil
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => navigate(`/chat/${selectedVendor.id}`)}
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        Chat
-                      </button>
-                      <button
-                        onClick={() => navigate(`/vendor/${selectedVendor.id}`)}
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        Lihat Profil
-                      </button>
-                      <button
-                        onClick={() => navigate(`/vendor/${selectedVendor.id}#order-summary`)}
-                        className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 sm:col-span-2"
-                      >
-                        Buat Pesanan
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                <div className="mt-5">
-                  <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Preview Produk</h3>
-                  <VendorProductsPreview vendorId={selectedVendor.id} />
-                </div>
-
-                <div className="mt-5">
+                <div className="mt-4 grid gap-2">
                   <button
-                    onClick={() => setSelectedVendor(null)}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    onClick={toggleMyOnlineStatus}
+                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
                   >
-                    Tutup Detail
+                    {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
+                  </button>
+                  <button
+                    onClick={() => requestCurrentLocation({ maxZoom: 16 })}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    {syncingStoreLocation ? 'Sinkron Lokasi...' : 'Perbarui Lokasi Toko'}
+                  </button>
+                  <button
+                    onClick={() => navigate('/dashboard?tab=products')}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Kelola Produk
                   </button>
                 </div>
               </div>
             )}
+
+            <div className="rounded-[30px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+              {!selectedVendor ? (
+                <>
+                  <h2 className="text-lg font-semibold text-slate-900">Detail toko</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Pilih toko dari daftar online atau marker pada peta untuk melihat detail yang lebih lengkap.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="h-16 w-16 overflow-hidden rounded-2xl bg-slate-100">
+                      {selectedVendor.photo_url ? (
+                        <img src={selectedVendor.photo_url} alt={selectedVendor.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-xl text-slate-500">
+                          {(selectedVendor.name || 'P')[0]}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-lg font-semibold text-slate-900">{selectedVendor.name}</div>
+                      <div className="text-sm text-slate-500">
+                        {selectedVendor.online ? 'Sedang online' : 'Sedang offline'}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        {formatDistanceLabel(selectedVendorDistance)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                    {selectedVendor.description || 'Belum ada deskripsi toko.'}
+                  </div>
+
+                  <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                    <div className="font-medium text-slate-800">Lokasi toko</div>
+                    <div className="mt-1">{getVendorLocationLabel(selectedVendor.location)}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {selectedVendorCoordinates ? 'Lokasi siap dipakai untuk perkiraan jarak dan arah.' : 'Pedagang belum membagikan lokasi.'}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {isVendor && myVendorId === selectedVendor.id ? (
+                      <>
+                        <button
+                          onClick={toggleMyOnlineStatus}
+                          className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
+                        >
+                          {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
+                        </button>
+                        <button
+                          onClick={() => navigate('/dashboard?tab=profile')}
+                          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Edit Profil
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => navigate(`/chat/${selectedVendor.id}`)}
+                          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Chat
+                        </button>
+                        <button
+                          onClick={() => navigate(`/vendor/${selectedVendor.id}`)}
+                          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Profil Toko
+                        </button>
+                        <button
+                          onClick={() => navigate(`/vendor/${selectedVendor.id}#order-summary`)}
+                          className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 sm:col-span-2"
+                        >
+                          Buat Pesanan
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="mt-5">
+                    <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Preview Produk</h3>
+                    <VendorProductsPreview vendorId={selectedVendor.id} />
+                  </div>
+
+                  <div className="mt-5">
+                    <button
+                      onClick={() => setSelectedVendor(null)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Tutup Detail
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </aside>
-        </div>
+        </section>
+
+        <section className="space-y-3">
+          <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/80">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Peta pedagang sekitar</h2>
+                <p className="text-sm leading-6 text-slate-500">
+                  Peta diletakkan di bawah agar daftar toko dan aksi utama lebih cepat dijangkau di HP.
+                </p>
+              </div>
+              <div className="text-sm text-slate-500">
+                {loading ? 'Memuat pedagang...' : `${filteredVendorCount} toko tampil di peta`}
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-[30px] bg-white p-2 shadow-lg shadow-slate-200/50 ring-1 ring-slate-200/70">
+            <div ref={containerRef} className="h-[52vh] rounded-[24px] sm:h-[60vh] lg:h-[68vh]" />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200/70">
+            <div>
+              {availabilityFilter === 'online'
+                ? 'Peta sedang menampilkan toko yang online dulu.'
+                : 'Peta sedang menampilkan semua toko sesuai pencarian.'}
+            </div>
+            {userLocation ? (
+              <div>{onlineVendorsWithinRadius.length} pedagang online dalam radius {radiusKm} km</div>
+            ) : (
+              <div className="text-slate-400">Aktifkan lokasi Anda untuk menghitung toko terdekat.</div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   )

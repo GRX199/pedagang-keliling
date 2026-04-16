@@ -15,12 +15,40 @@ function getPartnerLabel(chat, currentUserId, vendorMap) {
   return vendorMap[partnerId]?.name || 'Pengguna'
 }
 
-function ChatThread({ chatId, currentUser }) {
+function ChatThread({ chatId, currentUser, onMessageActivity }) {
   const toast = useToast()
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const endRef = useRef(null)
+  const messageIdsRef = useRef(new Set())
+  const latestMessageAtRef = useRef(null)
+
+  function applyMessageRows(incomingRows, { replace = false } = {}) {
+    setMessages((current) => {
+      const nextMap = new Map()
+
+      if (!replace) {
+        for (const row of current) {
+          if (row?.id) nextMap.set(row.id, row)
+        }
+      }
+
+      for (const row of incomingRows || []) {
+        if (row?.id) nextMap.set(row.id, row)
+      }
+
+      const nextRows = [...nextMap.values()].sort((left, right) => {
+        const leftTime = new Date(left.created_at || 0).getTime()
+        const rightTime = new Date(right.created_at || 0).getTime()
+        return leftTime - rightTime
+      })
+
+      messageIdsRef.current = new Set(nextRows.map((row) => row.id))
+      latestMessageAtRef.current = nextRows.at(-1)?.created_at || null
+      return nextRows
+    })
+  }
 
   useEffect(() => {
     if (!chatId || !currentUser) return undefined
@@ -36,10 +64,35 @@ function ChatThread({ chatId, currentUser }) {
           .order('created_at', { ascending: true })
 
         if (error) throw error
-        if (active) setMessages(data || [])
+        if (active) applyMessageRows(data || [], { replace: true })
       } catch (error) {
         console.error('loadMessages', error)
         toast.push('Gagal memuat pesan', { type: 'error' })
+      }
+    }
+
+    async function pollNewMessages() {
+      try {
+        let query = supabase
+          .from('messages')
+          .select('*')
+          .eq('chat_id', chatId)
+          .order('created_at', { ascending: true })
+
+        if (latestMessageAtRef.current) {
+          query = query.gt('created_at', latestMessageAtRef.current)
+        }
+
+        const { data, error } = await query
+        if (error) throw error
+        if (active && (data || []).length > 0) {
+          applyMessageRows(data || [])
+          for (const message of data || []) {
+            onMessageActivity?.(chatId, message)
+          }
+        }
+      } catch (error) {
+        console.warn('pollNewMessages', error)
       }
     }
 
@@ -51,20 +104,27 @@ function ChatThread({ chatId, currentUser }) {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload) => {
-          setMessages((current) => [...current, payload.new])
+          if (!payload.new?.id || messageIdsRef.current.has(payload.new.id)) return
+          applyMessageRows([payload.new])
+          onMessageActivity?.(chatId, payload.new)
         }
       )
       .subscribe()
 
+    const intervalId = window.setInterval(() => {
+      void pollNewMessages()
+    }, 4000)
+
     return () => {
       active = false
+      window.clearInterval(intervalId)
       try {
         supabase.removeChannel(channel)
       } catch (error) {
         console.error('removeMessagesChannel', error)
       }
     }
-  }, [chatId, currentUser, toast])
+  }, [chatId, currentUser, onMessageActivity, toast])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -75,7 +135,9 @@ function ChatThread({ chatId, currentUser }) {
 
     setSending(true)
     try {
-      await sendChatMessage(chatId, currentUser.id, text.trim())
+      const message = await sendChatMessage(chatId, currentUser.id, text.trim())
+      applyMessageRows(message ? [message] : [])
+      onMessageActivity?.(chatId, message)
       setText('')
     } catch (error) {
       console.error('sendMessage', error)
@@ -264,12 +326,19 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
 
     const channel = supabase
       .channel(`chats-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, (payload) => {
+        const participants = payload.new?.participants || payload.old?.participants || []
+        if (!participants.includes(user.id)) return
         fetchChats()
       })
       .subscribe()
 
+    const intervalId = window.setInterval(() => {
+      void fetchChats()
+    }, 10000)
+
     return () => {
+      window.clearInterval(intervalId)
       try {
         supabase.removeChannel(channel)
       } catch (error) {
@@ -322,6 +391,23 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       setShowInboxMobile(false)
     }
+  }
+
+  function handleMessageActivity(chatId, message) {
+    if (!chatId || !message) return
+
+    setChats((current) => {
+      const currentIndex = current.findIndex((chat) => chat.id === chatId)
+      if (currentIndex === -1) return current
+
+      const nextRows = [...current]
+      const [chat] = nextRows.splice(currentIndex, 1)
+      nextRows.unshift({
+        ...chat,
+        last_updated: message.created_at || new Date().toISOString(),
+      })
+      return nextRows
+    })
   }
 
   return (
@@ -405,7 +491,11 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
               </div>
             </div>
             <div className={embedded ? 'h-[62vh] sm:h-[60vh]' : 'h-[72vh] sm:h-[70vh]'}>
-              <ChatThread chatId={selectedChat.id} currentUser={user} />
+              <ChatThread
+                chatId={selectedChat.id}
+                currentUser={user}
+                onMessageActivity={handleMessageActivity}
+              />
             </div>
           </>
         ) : (

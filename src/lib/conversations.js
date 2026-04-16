@@ -42,11 +42,20 @@ export async function sendChatMessage(chatId, fromUser, text) {
     text: String(text).trim(),
   }
 
-  const { error } = await supabase.from('messages').insert([payload])
+  const { data, error } = await supabase
+    .from('messages')
+    .insert([payload])
+    .select()
+    .single()
+
   if (error) throw error
 
-  await supabase
+  const { error: chatError } = await supabase
     .from('chats')
     .update({ last_updated: new Date().toISOString() })
     .eq('id', chatId)
+
+  if (chatError) throw chatError
+
+  return data
 }
