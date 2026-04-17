@@ -66,6 +66,7 @@ function OrdersPanel({ currentUser, role }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const isVendor = role === 'vendor'
+  const customerName = currentUser?.user_metadata?.full_name || currentUser?.email || 'Pelanggan'
 
   async function fetchOrders({ background = false, silent = false } = {}) {
     if (!currentUser || !role) return
@@ -311,9 +312,116 @@ function OrdersPanel({ currentUser, role }) {
   const historyOrders = orders.filter((order) => isHistoryOrderStatus(order.status))
   const pendingOrders = orders.filter((order) => order.status === 'pending')
   const completedOrders = orders.filter((order) => order.status === 'completed')
+  const spotlightOrder = activeOrders[0] || orders[0] || null
 
   return (
     <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+      {!isVendor && (
+        <section className="mb-5 overflow-hidden rounded-[28px] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-5 text-white shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-300">Beranda Pelanggan</div>
+              <h3 className="mt-2 text-2xl font-semibold tracking-tight">
+                {`Halo, ${customerName.split('@')[0]}. Lanjutkan pesanan Anda tanpa kehilangan jejak.`}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                Dashboard ini sekarang difokuskan untuk membantu Anda melihat order aktif lebih cepat, buka tracking saat dibutuhkan, lalu kembali ke peta saat ingin pesan lagi.
+              </p>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={() => navigate('/map')}
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
+                >
+                  Buka Peta Pedagang
+                </button>
+                <button
+                  onClick={() => navigate(spotlightOrder ? `/chat/${spotlightOrder.vendor_id}` : '/chat')}
+                  className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+                >
+                  {spotlightOrder ? 'Buka Chat Terakhir' : 'Buka Chat'}
+                </button>
+                <button
+                  onClick={() => navigate('/dashboard?tab=profile')}
+                  className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+                >
+                  Profil Saya
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3 lg:w-[360px] lg:grid-cols-1">
+              <div className="rounded-[22px] bg-white/10 p-4 ring-1 ring-white/10">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Aktif</div>
+                <div className="mt-2 text-3xl font-semibold">{activeOrders.length}</div>
+                <div className="mt-1 text-sm text-slate-300">Pesanan yang masih bisa dilacak atau dilanjutkan.</div>
+              </div>
+              <div className="rounded-[22px] bg-white/10 p-4 ring-1 ring-white/10">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Menunggu</div>
+                <div className="mt-2 text-3xl font-semibold">{pendingOrders.length}</div>
+                <div className="mt-1 text-sm text-slate-300">Order yang belum dikonfirmasi pedagang.</div>
+              </div>
+              <div className="rounded-[22px] bg-white/10 p-4 ring-1 ring-white/10">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Selesai</div>
+                <div className="mt-2 text-3xl font-semibold">{completedOrders.length}</div>
+                <div className="mt-1 text-sm text-slate-300">Riwayat pesanan yang sudah tuntas.</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-[24px] bg-white/10 p-4 ring-1 ring-white/10">
+            {spotlightOrder ? (
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-300">Pesanan Terbaru</div>
+                  <div className="mt-2 text-lg font-semibold text-white">
+                    {spotlightOrder.vendor_name || 'Pedagang'}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-200">
+                    {formatOrderStatusLabel(spotlightOrder.status)}
+                    {Number(spotlightOrder.total_amount || 0) > 0 ? ` • ${formatPriceLabel(spotlightOrder.total_amount)}` : ''}
+                    {spotlightOrder.created_at ? ` • ${new Date(spotlightOrder.created_at).toLocaleString('id-ID')}` : ''}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-300">
+                    {spotlightOrder.meeting_point_label || 'Siap dibuka untuk tracking atau komunikasi lanjutan.'}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => navigate(`/orders/${spotlightOrder.id}`)}
+                    className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
+                  >
+                    Lacak Sekarang
+                  </button>
+                  <button
+                    onClick={() => navigate(`/chat/${spotlightOrder.vendor_id}`)}
+                    className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+                  >
+                    Chat Pedagang
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-lg font-semibold text-white">Belum ada pesanan untuk dilanjutkan.</div>
+                  <div className="mt-1 text-sm text-slate-300">
+                    Mulai dari peta agar Anda bisa melihat pedagang yang online dan paling dekat lebih dulu.
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate('/map')}
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
+                >
+                  Cari Pedagang
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       <div className="mb-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
