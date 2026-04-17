@@ -193,7 +193,7 @@ export default function OrderTrackingPage() {
   }, [order?.vendor_id])
 
   useEffect(() => {
-    if (!containerRef.current) return undefined
+    if (loading || !order || !containerRef.current || mapRef.current) return undefined
 
     if (mapRef.current) {
       try {
@@ -291,7 +291,7 @@ export default function OrderTrackingPage() {
       tileLayerRef.current = null
       setMapNotice('Menyiapkan peta tracking...')
     }
-  }, [])
+  }, [loading, order])
 
   useEffect(() => {
     if (!navigator.geolocation) return undefined
