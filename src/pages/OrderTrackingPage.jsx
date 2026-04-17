@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import OrderStatusTimeline from '../components/OrderStatusTimeline'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
@@ -15,6 +16,26 @@ import { supabase } from '../lib/supabase'
 import { getVendorCoordinates } from '../lib/vendor'
 
 const DEFAULT_CENTER = [-2.5489, 118.0149]
+const MAP_TILE_SOURCES = [
+  {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors',
+  },
+  {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  },
+]
+
+const DefaultIcon = L.icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+})
+
+L.Marker.prototype.options.icon = DefaultIcon
 
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const toRad = (value) => (value * Math.PI) / 180
@@ -67,22 +88,6 @@ function describeCustomerPoint(hasCurrentViewerLocation, hasSavedLocation, meeti
   return 'Titik pelanggan belum tersedia'
 }
 
-function createRouteIcon(label, accentClass, haloClass) {
-  return L.divIcon({
-    className: 'tracking-route-marker',
-    html: `
-      <div class="tracking-route-marker__inner">
-        <span class="tracking-route-marker__dot ${accentClass} ${haloClass}"></span>
-        <span class="tracking-route-marker__label">${label}</span>
-      </div>
-    `,
-    iconAnchor: [10, 10],
-  })
-}
-
-const vendorIcon = createRouteIcon('Pedagang', 'tracking-route-marker__dot--vendor', 'tracking-route-marker__dot-halo--vendor')
-const customerIcon = createRouteIcon('Pelanggan', 'tracking-route-marker__dot--customer', 'tracking-route-marker__dot-halo--customer')
-
 export default function OrderTrackingPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -102,6 +107,7 @@ export default function OrderTrackingPage() {
   const vendorMarkerRef = useRef(null)
   const customerMarkerRef = useRef(null)
   const routeLineRef = useRef(null)
+  const tileLayerRef = useRef(null)
 
   async function loadOrder({ background = false, silent = false } = {}) {
     if (!id) return
@@ -189,30 +195,58 @@ export default function OrderTrackingPage() {
   useEffect(() => {
     if (!containerRef.current) return undefined
 
-    if (containerRef.current._leaflet_id) {
-      containerRef.current._leaflet_id = undefined
+    if (mapRef.current) {
+      try {
+        mapRef.current.remove()
+      } catch (error) {
+        console.error('removeExistingTrackingMap', error)
+      }
     }
 
-    const map = L.map(containerRef.current, {
-      zoomControl: true,
-      attributionControl: true,
-    }).setView(DEFAULT_CENTER, 5)
+    const map = L.map(containerRef.current).setView(DEFAULT_CENTER, 5)
     mapRef.current = map
 
-    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    })
+    let activeTileIndex = 0
+    let tileErrorCount = 0
 
-    tileLayer.on('load', () => {
-      setMapNotice('')
-    })
+    function attachTileLayer(index) {
+      const source = MAP_TILE_SOURCES[index]
+      const layer = L.tileLayer(source.url, {
+        maxZoom: 19,
+        attribution: source.attribution,
+      })
 
-    tileLayer.on('tileerror', () => {
-      setMapNotice('Sebagian tile peta belum termuat, tetapi tracking tetap bisa dipakai.')
-    })
+      layer.on('load', () => {
+        setMapNotice('')
+      })
 
-    tileLayer.addTo(map)
+      layer.on('tileerror', () => {
+        tileErrorCount += 1
+
+        if (tileErrorCount >= 3 && activeTileIndex < MAP_TILE_SOURCES.length - 1) {
+          activeTileIndex += 1
+          tileErrorCount = 0
+
+          try {
+            if (tileLayerRef.current) {
+              map.removeLayer(tileLayerRef.current)
+            }
+          } catch (error) {
+            console.error('removeBrokenTileLayer', error)
+          }
+
+          tileLayerRef.current = attachTileLayer(activeTileIndex)
+          setMapNotice('Sumber peta utama gagal dimuat, sedang memakai peta cadangan.')
+        } else if (activeTileIndex === MAP_TILE_SOURCES.length - 1) {
+          setMapNotice('Peta belum berhasil dimuat. Coba buka ulang halaman ini.')
+        }
+      })
+
+      layer.addTo(map)
+      return layer
+    }
+
+    tileLayerRef.current = attachTileLayer(activeTileIndex)
 
     const invalidate = () => {
       try {
@@ -230,6 +264,7 @@ export default function OrderTrackingPage() {
     const frameId = window.requestAnimationFrame(invalidate)
     const timeoutId = window.setTimeout(invalidate, 300)
     const timeoutIdLate = window.setTimeout(invalidate, 1200)
+    const timeoutIdLatest = window.setTimeout(invalidate, 2500)
     window.addEventListener('resize', invalidate)
     const resizeObserver = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(() => invalidate())
@@ -243,6 +278,7 @@ export default function OrderTrackingPage() {
       window.cancelAnimationFrame(frameId)
       window.clearTimeout(timeoutId)
       window.clearTimeout(timeoutIdLate)
+      window.clearTimeout(timeoutIdLatest)
       window.removeEventListener('resize', invalidate)
       resizeObserver?.disconnect()
 
@@ -252,6 +288,7 @@ export default function OrderTrackingPage() {
         console.error('removeTrackingMap', error)
       }
       mapRef.current = null
+      tileLayerRef.current = null
       setMapNotice('Menyiapkan peta tracking...')
     }
   }, [])
@@ -324,7 +361,7 @@ export default function OrderTrackingPage() {
     if (vendorCoordinates) {
       const latLng = [vendorCoordinates.lat, vendorCoordinates.lng]
       if (!vendorMarkerRef.current) {
-        vendorMarkerRef.current = L.marker(latLng, { icon: vendorIcon }).addTo(map)
+        vendorMarkerRef.current = L.marker(latLng).addTo(map)
       } else {
         vendorMarkerRef.current.setLatLng(latLng)
       }
@@ -338,7 +375,13 @@ export default function OrderTrackingPage() {
     if (customerCoordinates) {
       const latLng = [customerCoordinates.lat, customerCoordinates.lng]
       if (!customerMarkerRef.current) {
-        customerMarkerRef.current = L.marker(latLng, { icon: customerIcon }).addTo(map)
+        customerMarkerRef.current = L.circleMarker(latLng, {
+          radius: 8,
+          color: '#0ea5e9',
+          fillColor: '#0ea5e9',
+          fillOpacity: 0.95,
+          weight: 2,
+        }).addTo(map)
       } else {
         customerMarkerRef.current.setLatLng(latLng)
       }
