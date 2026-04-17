@@ -10,6 +10,7 @@ const MapPage = lazy(() => import('./pages/MapViewPage'))
 const VendorProfile = lazy(() => import('./pages/VendorStorePage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const ChatsPage = lazy(() => import('./pages/ChatsPage'))
+const OrderTrackingPage = lazy(() => import('./pages/OrderTrackingPage'))
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -183,6 +184,7 @@ export default function App() {
 
             <Route path="/chat" element={<Protected><ChatsPage /></Protected>} />
             <Route path="/chat/:id" element={<Protected><ChatsPage /></Protected>} />
+            <Route path="/orders/:id" element={<Protected><OrderTrackingPage /></Protected>} />
 
             <Route path="*" element={<div className="p-6">Halaman tidak ditemukan</div>} />
           </Routes>

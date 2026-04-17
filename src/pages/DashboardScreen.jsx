@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ChatWorkspace from '../components/ChatWorkspace'
+import OrderStatusTimeline from '../components/OrderStatusTimeline'
 import VendorProductsManager from '../components/VendorProductsManager'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
@@ -8,6 +9,7 @@ import { uploadImageFile } from '../lib/media'
 import { getGeolocationErrorMessage } from '../lib/network'
 import {
   formatOrderStatusLabel,
+  formatFulfillmentTypeLabel,
   formatPaymentMethodLabel,
   formatPaymentStatusLabel,
   formatPriceLabel,
@@ -41,12 +43,18 @@ function OrdersPanel({ currentUser, role }) {
   const toast = useToast()
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  async function fetchOrders() {
+  async function fetchOrders({ background = false, silent = false } = {}) {
     if (!currentUser || !role) return
 
-    setLoading(true)
+    if (background) {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+    }
+
     try {
       let query = supabase.from('orders').select('*').order('created_at', { ascending: false })
       query = role === 'vendor'
@@ -88,16 +96,22 @@ function OrdersPanel({ currentUser, role }) {
       setOrders(nextOrders)
     } catch (error) {
       console.error('fetchOrders', error)
-      toast.push(error.message || 'Gagal memuat pesanan', { type: 'error' })
+      if (!silent) {
+        toast.push(error.message || 'Gagal memuat pesanan', { type: 'error' })
+      }
     } finally {
-      setLoading(false)
+      if (background) {
+        setRefreshing(false)
+      } else {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
     if (!currentUser || !role) return undefined
 
-    fetchOrders()
+    void fetchOrders()
 
     const filter = role === 'vendor'
       ? `vendor_id=eq.${currentUser.id}`
@@ -106,12 +120,12 @@ function OrdersPanel({ currentUser, role }) {
     const channel = supabase
       .channel(`orders-${currentUser.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter }, () => {
-        fetchOrders()
+        void fetchOrders({ background: true, silent: true })
       })
       .subscribe()
 
     const intervalId = window.setInterval(() => {
-      void fetchOrders()
+      void fetchOrders({ background: true, silent: true })
     }, 8000)
 
     return () => {
@@ -129,7 +143,7 @@ function OrdersPanel({ currentUser, role }) {
       const { error } = await supabase.from('orders').update({ status }).eq('id', orderId)
       if (error) throw error
       toast.push('Status pesanan diperbarui', { type: 'success' })
-      fetchOrders()
+      void fetchOrders({ background: true, silent: true })
     } catch (error) {
       console.error('updateStatus', error)
       if (isSchemaCompatibilityError(error)) {
@@ -147,9 +161,12 @@ function OrdersPanel({ currentUser, role }) {
   return (
     <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
       <div className="mb-4">
-        <div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="font-semibold text-slate-900">Pesanan</h3>
           <p className="text-sm text-slate-500">Pantau transaksi terbaru Anda dan lanjutkan komunikasi dari sini.</p>
+          <div className="text-xs text-slate-400">
+            {refreshing ? 'Menyegarkan data...' : 'Update berjalan di background'}
+          </div>
         </div>
       </div>
 
@@ -188,9 +205,13 @@ function OrdersPanel({ currentUser, role }) {
                     </span>
                     {order.fulfillment_type && (
                       <span className="rounded-full bg-slate-100 px-3 py-1">
-                        {order.fulfillment_type === 'delivery' ? 'Antar' : 'Titik temu'}
+                        {formatFulfillmentTypeLabel(order.fulfillment_type)}
                       </span>
                     )}
+                  </div>
+
+                  <div className="mt-3">
+                    <OrderStatusTimeline status={order.status} />
                   </div>
 
                   {(order.meeting_point_label || order.customer_note || Number(order.total_amount || 0) > 0) && (
@@ -220,6 +241,12 @@ function OrdersPanel({ currentUser, role }) {
                     className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
                   >
                     Buka Chat
+                  </button>
+                  <button
+                    onClick={() => navigate(`/orders/${order.id}`)}
+                    className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
+                  >
+                    Lacak
                   </button>
 
                   {role === 'vendor' && getNextVendorStatusActions(order.status).map((action) => (

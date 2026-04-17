@@ -38,7 +38,7 @@ export const PAYMENT_STATUS_LABELS = {
 }
 
 export const FULFILLMENT_TYPE_LABELS = {
-  meetup: 'Titik Temu',
+  meetup: 'Titik temu',
   delivery: 'Antar',
 }
 
@@ -55,7 +55,7 @@ export function formatPaymentStatusLabel(status) {
 }
 
 export function formatFulfillmentTypeLabel(type) {
-  return FULFILLMENT_TYPE_LABELS[type] || 'Titik Temu'
+  return FULFILLMENT_TYPE_LABELS[type] || 'Titik temu'
 }
 
 export function getOrderStatusTone(status) {
@@ -96,14 +96,26 @@ export function getNextVendorStatusActions(status) {
 }
 
 export function getOrderStatusSteps(status) {
-  const currentIndex = ORDER_STATUS_SEQUENCE.indexOf(status)
-  const fallbackIndex = status === 'completed' ? ORDER_STATUS_SEQUENCE.length - 1 : currentIndex
+  if (status === 'cancelled' || status === 'rejected') {
+    return ['pending', status].map((step, index) => ({
+      key: step,
+      label: formatOrderStatusLabel(step),
+      complete: index === 0,
+      active: index === 1,
+      pending: false,
+    }))
+  }
+
+  const activeIndex = ORDER_STATUS_SEQUENCE.indexOf(status) >= 0
+    ? ORDER_STATUS_SEQUENCE.indexOf(status)
+    : 0
 
   return ORDER_STATUS_SEQUENCE.map((step, index) => ({
     key: step,
     label: formatOrderStatusLabel(step),
-    complete: fallbackIndex >= index && currentIndex !== -1,
-    active: step === status,
+    complete: activeIndex > index,
+    active: activeIndex === index,
+    pending: activeIndex < index,
   }))
 }
 
@@ -149,106 +161,6 @@ export function buildOrderChatMessage({ buyerName, entries, orderId = null }) {
   const summary = buildOrderItemsText(entries)
   const reference = orderId ? `Pesanan #${String(orderId).slice(0, 8)}\n` : ''
   return `${reference}Halo, saya ${buyerName} ingin memesan:\n${summary}\n\nSilakan konfirmasi stok atau detail pengirimannya ya.`
-}
-
-export function buildLegacyOrderMetadataText({
-  paymentMethod = 'cod',
-  fulfillmentType = 'meetup',
-  meetingPointLabel = '',
-  customerNote = '',
-}) {
-  const lines = [
-    `Pembayaran: ${formatPaymentMethodLabel(paymentMethod)}`,
-    `Serah terima: ${formatFulfillmentTypeLabel(fulfillmentType)}`,
-  ]
-
-  if (String(meetingPointLabel || '').trim()) {
-    lines.push(`Titik temu: ${String(meetingPointLabel).trim()}`)
-  }
-
-  if (String(customerNote || '').trim()) {
-    lines.push(`Catatan order: ${String(customerNote).trim()}`)
-  }
-
-  return lines.join('\n')
-}
-
-export function buildLegacyOrderSummary({
-  entries,
-  paymentMethod = 'cod',
-  fulfillmentType = 'meetup',
-  meetingPointLabel = '',
-  customerNote = '',
-}) {
-  return [
-    buildLegacyOrderMetadataText({
-      paymentMethod,
-      fulfillmentType,
-      meetingPointLabel,
-      customerNote,
-    }),
-    buildOrderItemsText(entries),
-  ].filter(Boolean).join('\n---\n')
-}
-
-export function parseLegacyOrderSummary(orderText) {
-  const raw = String(orderText || '').trim()
-  if (!raw) {
-    return {
-      paymentMethod: null,
-      fulfillmentType: null,
-      meetingPointLabel: '',
-      customerNote: '',
-      itemLines: [],
-    }
-  }
-
-  const [metadataBlock, itemsBlock = ''] = raw.split('\n---\n')
-  const metadataLines = metadataBlock.split('\n').map((line) => line.trim()).filter(Boolean)
-
-  const parsed = {
-    paymentMethod: null,
-    fulfillmentType: null,
-    meetingPointLabel: '',
-    customerNote: '',
-    itemLines: [],
-  }
-
-  for (const line of metadataLines) {
-    const normalized = line.toLowerCase()
-    if (normalized.startsWith('pembayaran:')) {
-      if (normalized.includes('qris')) parsed.paymentMethod = 'qris'
-      else if (normalized.includes('transfer')) parsed.paymentMethod = 'bank_transfer'
-      else parsed.paymentMethod = 'cod'
-    } else if (normalized.startsWith('serah terima:')) {
-      parsed.fulfillmentType = normalized.includes('antar') ? 'delivery' : 'meetup'
-    } else if (normalized.startsWith('titik temu:')) {
-      parsed.meetingPointLabel = line.split(':').slice(1).join(':').trim()
-    } else if (normalized.startsWith('catatan order:')) {
-      parsed.customerNote = line.split(':').slice(1).join(':').trim()
-    }
-  }
-
-  const itemsSource = itemsBlock || metadataBlock
-  parsed.itemLines = itemsSource
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => /^\d+\./.test(line) || line.startsWith('Catatan:'))
-
-  return parsed
-}
-
-export function resolveOrderDisplayData(order) {
-  const legacy = parseLegacyOrderSummary(order?.items)
-
-  return {
-    paymentMethod: order?.payment_method || legacy.paymentMethod || 'cod',
-    paymentStatus: order?.payment_status || 'unpaid',
-    fulfillmentType: order?.fulfillment_type || legacy.fulfillmentType || 'meetup',
-    meetingPointLabel: order?.meeting_point_label || legacy.meetingPointLabel || '',
-    customerNote: order?.customer_note || legacy.customerNote || '',
-    itemLines: legacy.itemLines,
-  }
 }
 
 export function buildOrderInsertPayload({
