@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import AdminPanel from '../components/AdminPanel'
 import ChatWorkspace from '../components/ChatWorkspace'
 import OrderStatusTimeline from '../components/OrderStatusTimeline'
 import VendorProductsManager from '../components/VendorProductsManager'
@@ -667,7 +668,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
             full_name: form.name.trim(),
             avatar_url: photoUrl,
           },
-        }, 'customer')
+        }, role)
         await refreshAuth()
         setProfile((current) => ({ ...current, name: form.name.trim(), photo_url: photoUrl }))
       }
@@ -934,12 +935,13 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
 }
 
 export default function DashboardScreen() {
-  const { user, role, loading } = useAuth()
+  const { user, role, loading, accountStatus } = useAuth()
   const toast = useToast()
   const location = useLocation()
   const [activeTab, setActiveTab] = useState('products')
   const [vendorProfile, setVendorProfile] = useState(null)
 
+  const isAdmin = role === 'admin'
   const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
   const handleVendorProfileSaved = useCallback((profile) => {
     setVendorProfile(profile)
@@ -948,7 +950,9 @@ export default function DashboardScreen() {
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const requestedTab = params.get('tab')
-    const allowedTabs = isVendor
+    const allowedTabs = isAdmin
+      ? ['admin', 'profile']
+      : isVendor
       ? ['products', 'chats', 'orders', 'profile']
       : ['chats', 'orders', 'profile']
 
@@ -958,9 +962,9 @@ export default function DashboardScreen() {
     }
 
     if (!requestedTab) {
-      setActiveTab(isVendor ? 'products' : 'orders')
+      setActiveTab(isAdmin ? 'admin' : isVendor ? 'products' : 'orders')
     }
-  }, [isVendor, location.search])
+  }, [isAdmin, isVendor, location.search])
 
   useEffect(() => {
     if (!user || !isVendor) {
@@ -992,7 +996,9 @@ export default function DashboardScreen() {
     return <div className="p-6 text-sm text-gray-500">Memuat dashboard...</div>
   }
 
-  const displayName = isVendor
+  const displayName = isAdmin
+    ? getDisplayName(user?.user_metadata?.full_name || user?.email, 'Admin')
+    : isVendor
     ? getDisplayName(vendorProfile?.name || user?.user_metadata?.full_name || user?.email, 'Pedagang')
     : getDisplayName(user?.user_metadata?.full_name || user?.email, 'Pelanggan')
 
@@ -1023,36 +1029,68 @@ export default function DashboardScreen() {
 
               <div className="mt-4 flex items-center gap-2">
                 <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  isVendor ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'
+                  isAdmin
+                    ? 'bg-sky-50 text-sky-700'
+                    : isVendor
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-slate-100 text-slate-700'
                 }`}>
-                  {isVendor ? 'Mode Pedagang' : 'Mode Pelanggan'}
+                  {isAdmin ? 'Mode Admin' : isVendor ? 'Mode Pedagang' : 'Mode Pelanggan'}
                 </span>
+                {accountStatus !== 'active' && !isAdmin ? (
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    accountStatus === 'blocked'
+                      ? 'bg-rose-50 text-rose-700'
+                      : 'bg-amber-50 text-amber-700'
+                  }`}>
+                    {accountStatus === 'blocked' ? 'Akun diblokir' : 'Akun ditangguhkan'}
+                  </span>
+                ) : null}
               </div>
             </div>
 
             <nav className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
               <div className="flex gap-2 overflow-x-auto pb-1">
+                {isAdmin && <TabButton id="admin" active={activeTab === 'admin'} onClick={setActiveTab}>Admin</TabButton>}
                 {isVendor && <TabButton id="products" active={activeTab === 'products'} onClick={setActiveTab}>Produk</TabButton>}
-                <TabButton id="chats" active={activeTab === 'chats'} onClick={setActiveTab}>Chat</TabButton>
-                <TabButton id="orders" active={activeTab === 'orders'} onClick={setActiveTab}>Pesanan</TabButton>
+                {!isAdmin && <TabButton id="chats" active={activeTab === 'chats'} onClick={setActiveTab}>Chat</TabButton>}
+                {!isAdmin && <TabButton id="orders" active={activeTab === 'orders'} onClick={setActiveTab}>Pesanan</TabButton>}
                 <TabButton id="profile" active={activeTab === 'profile'} onClick={setActiveTab}>Profil</TabButton>
               </div>
 
-              <p className="mt-3 text-sm leading-6 text-slate-500">Gunakan menu ini untuk berpindah antar fitur dengan cepat.</p>
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                {isAdmin
+                  ? 'Gunakan menu ini untuk memverifikasi pedagang dan melakukan moderasi dasar.'
+                  : 'Gunakan menu ini untuk berpindah antar fitur dengan cepat.'}
+              </p>
             </nav>
           </aside>
 
           <main className="space-y-4">
+            {accountStatus !== 'active' && !isAdmin ? (
+              <div className={`rounded-[28px] p-4 text-sm shadow-sm ring-1 ${
+                accountStatus === 'blocked'
+                  ? 'bg-rose-50 text-rose-700 ring-rose-100'
+                  : 'bg-amber-50 text-amber-700 ring-amber-100'
+              }`}>
+                {accountStatus === 'blocked'
+                  ? 'Akun ini sedang diblokir oleh admin. Beberapa fitur operasional bisa dibatasi sampai status akun dipulihkan.'
+                  : 'Akun ini sedang ditangguhkan oleh admin. Silakan selesaikan peninjauan sebelum kembali beroperasi penuh.'}
+              </div>
+            ) : null}
+
             <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h1 className="text-2xl font-semibold text-slate-900">
+                    {activeTab === 'admin' && 'Panel Admin'}
                     {activeTab === 'products' && 'Produk Saya'}
                     {activeTab === 'chats' && 'Percakapan'}
                     {activeTab === 'orders' && 'Pesanan'}
                     {activeTab === 'profile' && 'Profil Saya'}
                   </h1>
                   <p className="text-sm leading-6 text-slate-500">
+                    {activeTab === 'admin' && 'Verifikasi pedagang, tangguhkan akun bermasalah, dan pantau moderasi dasar.'}
                     {activeTab === 'products' && 'Kelola katalog produk dan foto dagangan Anda.'}
                     {activeTab === 'chats' && 'Balas pesan dari pelanggan atau pedagang lain.'}
                     {activeTab === 'orders' && 'Pantau transaksi terbaru dan ubah statusnya.'}
@@ -1062,9 +1100,10 @@ export default function DashboardScreen() {
               </div>
             </div>
 
+            {activeTab === 'admin' && isAdmin && <AdminPanel currentUser={user} />}
             {activeTab === 'products' && isVendor && <VendorProductsManager />}
-            {activeTab === 'chats' && <ChatWorkspace embedded />}
-            {activeTab === 'orders' && <OrdersPanel currentUser={user} role={role} />}
+            {activeTab === 'chats' && !isAdmin && <ChatWorkspace embedded />}
+            {activeTab === 'orders' && !isAdmin && <OrdersPanel currentUser={user} role={role} />}
             {activeTab === 'profile' && (
               <ProfilePanel currentUser={user} role={role} onVendorProfileSaved={handleVendorProfileSaved} />
             )}

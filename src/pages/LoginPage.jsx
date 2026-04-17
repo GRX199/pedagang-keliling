@@ -96,7 +96,7 @@ export default function LoginPage() {
       }
 
       toast.push('Login berhasil', { type: 'success' })
-      navigate('/map')
+      navigate('/')
     } catch (error) {
       console.error('auth unexpected error', error)
       toast.push(String(error.message || error), { type: 'error' })

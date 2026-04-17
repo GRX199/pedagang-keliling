@@ -6,6 +6,7 @@ import { supabase } from './supabase'
 const AuthContext = createContext({
   user: null,
   role: null,
+  accountStatus: 'active',
   loading: true,
   refreshAuth: async () => {},
 })
@@ -13,12 +14,49 @@ const AuthContext = createContext({
 export function AuthProvider({ children }){
   const [user, setUser] = useState(null)
   const [role, setRole] = useState(null)
+  const [accountStatus, setAccountStatus] = useState('active')
   const [loading, setLoading] = useState(true)
 
-  const determineRole = useCallback(async (uid) => {
-    if (!uid) return null
+  const determineAuthMeta = useCallback(async (uid) => {
+    if (!uid) {
+      return { role: null, accountStatus: 'active' }
+    }
 
     try {
+      let profile = null
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role, account_status')
+          .eq('id', uid)
+          .maybeSingle()
+
+        if (error) throw error
+        profile = data || null
+      } catch (profileError) {
+        const message = String(profileError?.message || '').toLowerCase()
+        if (message.includes('account_status')) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', uid)
+            .maybeSingle()
+
+          if (error) throw error
+          profile = data || null
+        } else {
+          throw profileError
+        }
+      }
+
+      if (profile?.role === 'admin') {
+        return {
+          role: 'admin',
+          accountStatus: profile.account_status || 'active',
+        }
+      }
+
       const { data, error } = await supabase
         .from('vendors')
         .select('id')
@@ -26,10 +64,16 @@ export function AuthProvider({ children }){
         .maybeSingle()
 
       if (error) throw error
-      return data?.id ? 'vendor' : 'customer'
+      return {
+        role: data?.id ? 'vendor' : (profile?.role === 'vendor' ? 'vendor' : 'customer'),
+        accountStatus: profile?.account_status || 'active',
+      }
     } catch (error) {
-      console.error('determineRole', error)
-      return 'customer'
+      console.error('determineAuthMeta', error)
+      return {
+        role: 'customer',
+        accountStatus: 'active',
+      }
     }
   }, [])
 
@@ -37,15 +81,17 @@ export function AuthProvider({ children }){
     setUser(sessionUser)
     if (!sessionUser) {
       setRole(null)
+      setAccountStatus('active')
       setLoading(false)
       return
     }
 
-    const nextRole = await determineRole(sessionUser.id)
+    const { role: nextRole, accountStatus: nextAccountStatus } = await determineAuthMeta(sessionUser.id)
     setRole(nextRole)
+    setAccountStatus(nextAccountStatus || 'active')
     await syncCurrentProfile(sessionUser, nextRole)
     setLoading(false)
-  }, [determineRole])
+  }, [determineAuthMeta])
 
   const refreshAuth = useCallback(async () => {
     setLoading(true)
@@ -92,9 +138,10 @@ export function AuthProvider({ children }){
   const value = useMemo(() => ({
     user,
     role,
+    accountStatus,
     loading,
     refreshAuth,
-  }), [loading, refreshAuth, role, user])
+  }), [accountStatus, loading, refreshAuth, role, user])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

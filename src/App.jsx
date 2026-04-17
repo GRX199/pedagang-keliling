@@ -45,14 +45,31 @@ function TopNav() {
     toast,
   })
 
-  const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
-  const accountLabel = isVendor ? 'Pedagang aktif' : 'Pelanggan aktif'
+  const isAdmin = role === 'admin'
+  const isVendor = !isAdmin && (role === 'vendor' || user?.user_metadata?.is_vendor === true)
+  const accountLabel = isAdmin ? 'Admin aktif' : isVendor ? 'Pedagang aktif' : 'Pelanggan aktif'
   const currentTab = new URLSearchParams(location.search).get('tab')
-  const effectiveTab = currentTab || (isVendor ? 'products' : 'orders')
+  const effectiveTab = currentTab || (isAdmin ? 'admin' : isVendor ? 'products' : 'orders')
 
   const navItems = user
     ? (
-      isVendor
+      isAdmin
+        ? [
+          {
+            to: '/dashboard?tab=admin',
+            label: 'Admin',
+            count: 0,
+            active: location.pathname === '/dashboard' && effectiveTab === 'admin',
+          },
+          { to: '/map', label: 'Peta', count: 0, active: location.pathname === '/map' },
+          {
+            to: '/dashboard?tab=profile',
+            label: 'Profil',
+            count: 0,
+            active: location.pathname === '/dashboard' && effectiveTab === 'profile',
+          },
+        ]
+        : isVendor
         ? [
           { to: '/map', label: 'Peta', count: 0, active: location.pathname === '/map' },
           {
@@ -126,7 +143,7 @@ function TopNav() {
       <div className="mx-auto max-w-6xl px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
-            <Link to={user ? '/map' : '/'} className="inline-flex items-center gap-3">
+            <Link to={user ? (isAdmin ? '/dashboard?tab=admin' : '/map') : '/'} className="inline-flex items-center gap-3">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white shadow-sm">
                 K
               </span>
@@ -193,15 +210,22 @@ function TopNav() {
 }
 
 function RootRedirect() {
-  const { user, loading } = useAuth()
+  const { user, role, loading } = useAuth()
   if (loading) return <div className="p-6">Memuat...</div>
-  return user ? <Navigate to="/map" replace /> : <LandingPage />
+  if (!user) return <LandingPage />
+  return role === 'admin'
+    ? <Navigate to="/dashboard?tab=admin" replace />
+    : <Navigate to="/map" replace />
 }
 
 function LoginGuard({ children }) {
-  const { user, loading } = useAuth()
+  const { user, role, loading } = useAuth()
   if (loading) return <div className="p-6">Memuat...</div>
-  if (user) return <Navigate to="/map" replace />
+  if (user) {
+    return role === 'admin'
+      ? <Navigate to="/dashboard?tab=admin" replace />
+      : <Navigate to="/map" replace />
+  }
   return children
 }
 

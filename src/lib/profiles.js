@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import { getDisplayName } from './vendor'
 
 function normalizeRole(value) {
+  if (value === 'admin') return 'admin'
   return value === 'vendor' ? 'vendor' : 'customer'
 }
 

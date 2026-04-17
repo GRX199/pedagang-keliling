@@ -89,6 +89,10 @@ function getVendorCategory(vendor) {
   return String(vendor?.category_primary || vendor?.map_category || '').trim()
 }
 
+function isVendorModeratedOut(vendor) {
+  return vendor?.account_status === 'suspended' || vendor?.account_status === 'blocked'
+}
+
 function getStoreLocationStatus(location, { owner = false } = {}) {
   const coordinates = getVendorCoordinates(location)
   if (!coordinates) {
@@ -348,6 +352,7 @@ export default function MapViewPage() {
       const missingCategoryVendorIds = vendorRows
         .filter((vendor) => !getVendorCategory(vendor))
         .map((vendor) => vendor.id)
+      const vendorIds = vendorRows.map((vendor) => vendor.id).filter(Boolean)
 
       const productCategoryMap = {}
       if (missingCategoryVendorIds.length > 0) {
@@ -370,9 +375,31 @@ export default function MapViewPage() {
         }
       }
 
+      const profileStatusMap = {}
+      if (vendorIds.length > 0) {
+        try {
+          const { data: profileRows, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, account_status')
+            .in('id', vendorIds)
+
+          if (profileError) throw profileError
+
+          for (const profile of profileRows || []) {
+            profileStatusMap[profile.id] = profile.account_status || 'active'
+          }
+        } catch (profileError) {
+          const message = String(profileError?.message || '').toLowerCase()
+          if (!message.includes('account_status')) {
+            console.warn('loadVendorAccountStatuses', profileError)
+          }
+        }
+      }
+
       setVendors(vendorRows.map((vendor) => ({
         ...vendor,
         map_category: productCategoryMap[vendor.id] || null,
+        account_status: profileStatusMap[vendor.id] || 'active',
       })))
     } catch (error) {
       console.error('loadVendors', error)
@@ -491,7 +518,7 @@ export default function MapViewPage() {
   const filteredVendors = useMemo(() => {
     return vendors.filter((vendor) => {
       const coordinates = getVendorCoordinates(vendor.location)
-      if (!vendor.online || !coordinates) return false
+      if (!vendor.online || !coordinates || isVendorModeratedOut(vendor)) return false
 
       const vendorCategory = getVendorCategory(vendor)
       if (selectedCategory !== 'all') {
@@ -519,7 +546,7 @@ export default function MapViewPage() {
   }, [debouncedQuery, onlyWithinRadius, radiusKm, selectedCategory, userLocation, vendors])
 
   const onlineVendors = useMemo(
-    () => vendors.filter((vendor) => vendor.online && getVendorCoordinates(vendor.location)),
+    () => vendors.filter((vendor) => vendor.online && !isVendorModeratedOut(vendor) && getVendorCoordinates(vendor.location)),
     [vendors]
   )
 
