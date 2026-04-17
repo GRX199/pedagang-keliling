@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { findOrCreateDirectChat, sendChatMessage } from '../lib/conversations'
+import {
+  formatFulfillmentTypeLabel,
+  formatOrderStatusLabel,
+  formatPaymentMethodLabel,
+  formatPaymentStatusLabel,
+  formatPriceLabel,
+  isActiveOrderStatus,
+} from '../lib/orders'
 import { loadIdentityMap } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -13,6 +22,112 @@ function getPartnerLabel(chat, currentUserId, vendorMap) {
   const partnerId = getPartnerId(chat, currentUserId)
   if (!partnerId) return 'Percakapan'
   return vendorMap[partnerId]?.name || 'Pengguna'
+}
+
+function pickFeaturedOrder(orderRows, preferredOrderId = null) {
+  if (!Array.isArray(orderRows) || orderRows.length === 0) return null
+
+  if (preferredOrderId) {
+    const preferred = orderRows.find((order) => String(order.id) === String(preferredOrderId))
+    if (preferred) return preferred
+  }
+
+  const activeOrder = orderRows.find((order) => isActiveOrderStatus(order.status))
+  if (activeOrder) return activeOrder
+
+  return orderRows[0] || null
+}
+
+function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOpenOrders, onTrackOrder }) {
+  if (!order) return null
+
+  const counterpartName = order.vendor_id === currentUser?.id
+    ? (order.buyer_name || partnerLabel || 'Pelanggan')
+    : (order.vendor_name || partnerLabel || 'Pedagang')
+
+  const isActive = isActiveOrderStatus(order.status)
+
+  return (
+    <div className="rounded-[24px] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-4 text-white shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-2xl">
+          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-300">Order Terkait</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="text-lg font-semibold tracking-tight">
+              Pesanan #{String(order.id).slice(0, 8)}
+            </div>
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-slate-100 ring-1 ring-white/10">
+              {formatOrderStatusLabel(order.status)}
+            </span>
+          </div>
+          <div className="mt-2 text-sm text-slate-200">
+            {counterpartName}
+            {relatedCount > 1 ? ` • ${relatedCount} transaksi terkait` : ''}
+          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            {isActive
+              ? 'Order aktif ini diprioritaskan supaya percakapan tetap fokus ke transaksi yang sedang berjalan.'
+              : 'Order terbaru yang terkait dengan percakapan ini tetap bisa dibuka lagi untuk klarifikasi atau tindak lanjut.'}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onTrackOrder}
+            className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
+          >
+            Lacak
+          </button>
+          <button
+            onClick={onOpenOrders}
+            className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+          >
+            Buka Pesanan
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+          <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Pembayaran</div>
+          <div className="mt-1 text-sm font-medium text-white">
+            {formatPaymentMethodLabel(order.payment_method)}
+          </div>
+          <div className="mt-1 text-xs text-slate-300">{formatPaymentStatusLabel(order.payment_status)}</div>
+        </div>
+
+        <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+          <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Serah Terima</div>
+          <div className="mt-1 text-sm font-medium text-white">
+            {formatFulfillmentTypeLabel(order.fulfillment_type)}
+          </div>
+          <div className="mt-1 text-xs text-slate-300">
+            {order.meeting_point_label || 'Akan dikonfirmasi di chat'}
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+          <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Total</div>
+          <div className="mt-1 text-sm font-medium text-white">
+            {Number(order.total_amount || 0) > 0 ? formatPriceLabel(order.total_amount) : 'Menyesuaikan harga produk'}
+          </div>
+          <div className="mt-1 text-xs text-slate-300">
+            {order.created_at ? new Date(order.created_at).toLocaleString('id-ID') : 'Baru dibuat'}
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+          <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Catatan</div>
+          <div className="mt-1 text-sm font-medium text-white">
+            {order.customer_note ? 'Ada catatan pelanggan' : 'Tanpa catatan khusus'}
+          </div>
+          <div className="mt-1 text-xs text-slate-300">
+            {order.customer_note || 'Gunakan chat ini untuk konfirmasi stok, waktu, atau titik temu.'}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ChatThread({ chatId, currentUser, onMessageActivity }) {
@@ -203,7 +318,8 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
   )
 }
 
-export default function ChatWorkspace({ initialVendorId = null, embedded = false }) {
+export default function ChatWorkspace({ initialVendorId = null, initialOrderId = null, embedded = false }) {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const toast = useToast()
   const [chats, setChats] = useState([])
@@ -212,10 +328,24 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
   const [loading, setLoading] = useState(false)
   const [creatingChat, setCreatingChat] = useState(false)
   const [showInboxMobile, setShowInboxMobile] = useState(true)
+  const [relatedOrders, setRelatedOrders] = useState([])
+  const [loadingRelatedOrders, setLoadingRelatedOrders] = useState(false)
 
   const selectedChat = useMemo(
     () => chats.find((chat) => chat.id === selectedChatId) || null,
     [chats, selectedChatId]
+  )
+  const selectedPartnerId = useMemo(
+    () => getPartnerId(selectedChat, user?.id),
+    [selectedChat, user?.id]
+  )
+  const selectedPartnerLabel = useMemo(
+    () => getPartnerLabel(selectedChat, user?.id, vendorMap),
+    [selectedChat, user?.id, vendorMap]
+  )
+  const featuredOrder = useMemo(
+    () => pickFeaturedOrder(relatedOrders, initialOrderId),
+    [initialOrderId, relatedOrders]
   )
 
   useEffect(() => {
@@ -410,6 +540,72 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
     })
   }
 
+  useEffect(() => {
+    if (!user?.id || !selectedPartnerId) {
+      setRelatedOrders([])
+      setLoadingRelatedOrders(false)
+      return undefined
+    }
+
+    let active = true
+
+    async function fetchRelatedOrders({ background = false, silent = false } = {}) {
+      if (!background) setLoadingRelatedOrders(true)
+
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .or(`and(vendor_id.eq.${user.id},buyer_id.eq.${selectedPartnerId}),and(vendor_id.eq.${selectedPartnerId},buyer_id.eq.${user.id})`)
+          .order('created_at', { ascending: false })
+          .limit(24)
+
+        if (error) throw error
+        if (!active) return
+
+        setRelatedOrders(data || [])
+      } catch (error) {
+        console.error('fetchRelatedOrders', error)
+        if (!silent && active) {
+          toast.push(error.message || 'Gagal memuat konteks pesanan di chat', { type: 'error' })
+        }
+      } finally {
+        if (active && !background) {
+          setLoadingRelatedOrders(false)
+        }
+      }
+    }
+
+    void fetchRelatedOrders()
+
+    const channel = supabase
+      .channel(`chat-orders-${user.id}-${selectedPartnerId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        const row = payload.new || payload.old
+        if (!row) return
+
+        const participants = [row.vendor_id, row.buyer_id]
+        if (!participants.includes(user.id) || !participants.includes(selectedPartnerId)) return
+
+        void fetchRelatedOrders({ background: true, silent: true })
+      })
+      .subscribe()
+
+    const intervalId = window.setInterval(() => {
+      void fetchRelatedOrders({ background: true, silent: true })
+    }, 10000)
+
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+      try {
+        supabase.removeChannel(channel)
+      } catch (error) {
+        console.error('removeRelatedOrdersChannel', error)
+      }
+    }
+  }, [selectedPartnerId, toast, user?.id])
+
   return (
     <div className={`grid gap-4 ${embedded ? 'grid-cols-1 xl:grid-cols-[320px_1fr]' : 'grid-cols-1 lg:grid-cols-[320px_1fr]'}`}>
       <div className={`rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 ${selectedChat && !showInboxMobile ? 'hidden lg:block' : ''}`}>
@@ -478,7 +674,7 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
                 <div>
                   <div className="text-sm text-slate-500">Sedang chat dengan</div>
                   <div className="font-semibold text-slate-900">
-                    {getPartnerLabel(selectedChat, user?.id, vendorMap)}
+                    {selectedPartnerLabel}
                   </div>
                 </div>
 
@@ -490,12 +686,33 @@ export default function ChatWorkspace({ initialVendorId = null, embedded = false
                 </button>
               </div>
             </div>
-            <div className={embedded ? 'h-[62vh] sm:h-[60vh]' : 'h-[72vh] sm:h-[70vh]'}>
+            <div className="space-y-3">
+              {loadingRelatedOrders ? (
+                <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                  Menautkan pesanan terkait ke percakapan ini...
+                </div>
+              ) : featuredOrder ? (
+                <OrderContextCard
+                  currentUser={user}
+                  order={featuredOrder}
+                  partnerLabel={selectedPartnerLabel}
+                  relatedCount={relatedOrders.length}
+                  onTrackOrder={() => navigate(`/orders/${featuredOrder.id}`)}
+                  onOpenOrders={() => navigate('/dashboard?tab=orders')}
+                />
+              ) : null}
+
+              <div
+                className={embedded
+                  ? (featuredOrder ? 'h-[52vh] sm:h-[50vh]' : 'h-[62vh] sm:h-[60vh]')
+                  : (featuredOrder ? 'h-[62vh] sm:h-[58vh]' : 'h-[72vh] sm:h-[70vh]')}
+              >
               <ChatThread
                 chatId={selectedChat.id}
                 currentUser={user}
                 onMessageActivity={handleMessageActivity}
               />
+              </div>
             </div>
           </>
         ) : (

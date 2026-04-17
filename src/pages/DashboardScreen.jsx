@@ -268,7 +268,7 @@ function OrdersPanel({ currentUser, role }) {
               Lacak
             </button>
             <button
-              onClick={() => navigate(`/chat/${isVendor ? order.buyer_id : order.vendor_id}`)}
+              onClick={() => navigate(`/chat/${isVendor ? order.buyer_id : order.vendor_id}?order=${order.id}`)}
               className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
             >
               Buka Chat
@@ -336,7 +336,7 @@ function OrdersPanel({ currentUser, role }) {
                   Buka Peta Pedagang
                 </button>
                 <button
-                  onClick={() => navigate(spotlightOrder ? `/chat/${spotlightOrder.vendor_id}` : '/chat')}
+                  onClick={() => navigate(spotlightOrder ? `/chat/${spotlightOrder.vendor_id}?order=${spotlightOrder.id}` : '/chat')}
                   className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
                 >
                   {spotlightOrder ? 'Buka Chat Terakhir' : 'Buka Chat'}
@@ -395,7 +395,7 @@ function OrdersPanel({ currentUser, role }) {
                     Lacak Sekarang
                   </button>
                   <button
-                    onClick={() => navigate(`/chat/${spotlightOrder.vendor_id}`)}
+                    onClick={() => navigate(`/chat/${spotlightOrder.vendor_id}?order=${spotlightOrder.id}`)}
                     className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
                   >
                     Chat Pedagang

@@ -277,7 +277,7 @@ export default function VendorStorePage() {
         successMessage = `${successMessage} ${notes.join(' ')}`
       }
       toast.push(successMessage, { type: notes.length > 0 ? 'info' : 'success' })
-      navigate(`/chat/${vendor.id}`)
+      navigate(createdOrder?.id ? `/chat/${vendor.id}?order=${createdOrder.id}` : `/chat/${vendor.id}`)
     } catch (error) {
       console.error('submitOrder', error)
       toast.push(error.message || 'Gagal mengirim pesanan', { type: 'error' })

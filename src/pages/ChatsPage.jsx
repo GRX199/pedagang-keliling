@@ -6,6 +6,7 @@ export default function ChatsPage() {
   const params = useParams()
   const [searchParams] = useSearchParams()
   const initialVendorId = params.id || searchParams.get('vendor')
+  const initialOrderId = searchParams.get('order')
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -17,7 +18,7 @@ export default function ChatsPage() {
           </p>
         </div>
 
-        <ChatWorkspace initialVendorId={initialVendorId} />
+        <ChatWorkspace initialVendorId={initialVendorId} initialOrderId={initialOrderId} />
       </div>
     </div>
   )

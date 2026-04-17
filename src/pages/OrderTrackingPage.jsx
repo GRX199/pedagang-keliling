@@ -561,7 +561,7 @@ export default function OrderTrackingPage() {
 
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => navigate(`/chat/${partnerId}`)}
+                onClick={() => navigate(`/chat/${partnerId}?order=${order.id}`)}
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
               >
                 Buka Chat
