@@ -85,6 +85,10 @@ function normalizeCategoryValue(value) {
   return String(value || '').trim().toLowerCase()
 }
 
+function getVendorCategory(vendor) {
+  return String(vendor?.category_primary || vendor?.map_category || '').trim()
+}
+
 function getStoreLocationStatus(location, { owner = false } = {}) {
   const coordinates = getVendorCoordinates(location)
   if (!coordinates) {
@@ -128,12 +132,13 @@ function buildPopupContent(vendor, actions = []) {
   status.style.color = vendor.online ? '#15803d' : '#6b7280'
   wrapper.appendChild(status)
 
-  if (vendor.category_primary) {
+  const vendorCategory = getVendorCategory(vendor)
+  if (vendorCategory) {
     const category = document.createElement('div')
     category.style.fontSize = '12px'
     category.style.marginTop = '6px'
     category.style.color = '#475569'
-    category.textContent = `Kategori: ${formatVendorCategoryLabel(vendor.category_primary)}`
+    category.textContent = `Kategori: ${formatVendorCategoryLabel(vendorCategory)}`
     wrapper.appendChild(category)
   }
 
@@ -338,7 +343,37 @@ export default function MapViewPage() {
         .select('id, name, description, photo_url, location, online, category_primary')
 
       if (error) throw error
-      setVendors(data || [])
+
+      const vendorRows = data || []
+      const missingCategoryVendorIds = vendorRows
+        .filter((vendor) => !getVendorCategory(vendor))
+        .map((vendor) => vendor.id)
+
+      const productCategoryMap = {}
+      if (missingCategoryVendorIds.length > 0) {
+        const { data: productRows, error: productError } = await supabase
+          .from('products')
+          .select('vendor_id, category_name, is_available, created_at')
+          .in('vendor_id', missingCategoryVendorIds)
+          .order('created_at', { ascending: false })
+
+        if (!productError) {
+          for (const product of productRows || []) {
+            const categoryName = String(product?.category_name || '').trim()
+            if (!categoryName) continue
+            if (!productCategoryMap[product.vendor_id]) {
+              productCategoryMap[product.vendor_id] = categoryName
+            }
+          }
+        } else {
+          console.warn('loadVendorProductCategories', productError)
+        }
+      }
+
+      setVendors(vendorRows.map((vendor) => ({
+        ...vendor,
+        map_category: productCategoryMap[vendor.id] || null,
+      })))
     } catch (error) {
       console.error('loadVendors', error)
       toast.push(error.message || 'Gagal memuat pedagang', { type: 'error' })
@@ -458,12 +493,13 @@ export default function MapViewPage() {
       const coordinates = getVendorCoordinates(vendor.location)
       if (!vendor.online || !coordinates) return false
 
+      const vendorCategory = getVendorCategory(vendor)
       if (selectedCategory !== 'all') {
-        if (normalizeCategoryValue(vendor.category_primary) !== selectedCategory) return false
+        if (normalizeCategoryValue(vendorCategory) !== selectedCategory) return false
       }
 
       if (debouncedQuery) {
-        const haystack = `${vendor.name || ''} ${vendor.description || ''} ${vendor.category_primary || ''}`.toLowerCase()
+        const haystack = `${vendor.name || ''} ${vendor.description || ''} ${vendorCategory}`.toLowerCase()
         if (!haystack.includes(debouncedQuery)) return false
       }
 
@@ -491,7 +527,7 @@ export default function MapViewPage() {
     const categoryMap = new Map()
 
     for (const vendor of onlineVendors) {
-      const rawCategory = String(vendor.category_primary || '').trim()
+      const rawCategory = getVendorCategory(vendor)
       if (!rawCategory) continue
 
       const key = normalizeCategoryValue(rawCategory)
@@ -786,27 +822,45 @@ export default function MapViewPage() {
                     }}
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
-                  Reset
-                </button>
+                    Reset
+                  </button>
+                </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <div className="font-medium text-slate-800">Filter kategori</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedCategory('all')}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                      selectedCategory === 'all'
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    Semua kategori
+                  </button>
+                  {categoryOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setSelectedCategory(option.value)}
+                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                        selectedCategory === option.value
+                          ? 'bg-emerald-600 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {formatVendorCategoryLabel(option.label)}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 text-xs text-slate-500">
+                  {categoryOptions.length > 0
+                    ? 'Kategori dibaca dari profil toko atau kategori produk yang tersedia.'
+                    : 'Kategori belum muncul karena data kategori toko atau kategori produk belum diisi.'}
+                </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                  <div className="font-medium text-slate-800">Kategori pedagang</div>
-                  <select
-                    value={selectedCategory}
-                    onChange={(event) => setSelectedCategory(event.target.value)}
-                    className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none focus:border-slate-400"
-                  >
-                    <option value="all">Semua kategori online</option>
-                    {categoryOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {formatVendorCategoryLabel(option.label)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                   <div className="font-medium text-slate-800">Radius pencarian</div>
                   <input
@@ -908,9 +962,9 @@ export default function MapViewPage() {
                             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
                               Online
                             </span>
-                            {vendor.category_primary ? (
+                            {getVendorCategory(vendor) ? (
                               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                                {formatVendorCategoryLabel(vendor.category_primary)}
+                                {formatVendorCategoryLabel(getVendorCategory(vendor))}
                               </span>
                             ) : null}
                           </div>
@@ -1060,9 +1114,9 @@ export default function MapViewPage() {
                     <div className="mt-1 text-xs text-slate-500">
                       Sinkron terakhir: {getVendorLocationUpdatedAtLabel(selectedVendor.location)}
                     </div>
-                    {selectedVendor.category_primary ? (
+                    {getVendorCategory(selectedVendor) ? (
                       <div className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                        {formatVendorCategoryLabel(selectedVendor.category_primary)}
+                        {formatVendorCategoryLabel(getVendorCategory(selectedVendor))}
                       </div>
                     ) : null}
                   </div>
