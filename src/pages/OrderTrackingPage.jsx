@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import OrderStatusTimeline from '../components/OrderStatusTimeline'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
@@ -96,8 +95,7 @@ export default function OrderTrackingPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
-  const [mapReady, setMapReady] = useState(false)
-  const [mapIssue, setMapIssue] = useState('')
+  const [mapNotice, setMapNotice] = useState('Menyiapkan peta tracking...')
 
   const mapRef = useRef(null)
   const containerRef = useRef(null)
@@ -191,6 +189,10 @@ export default function OrderTrackingPage() {
   useEffect(() => {
     if (!containerRef.current) return undefined
 
+    if (containerRef.current._leaflet_id) {
+      containerRef.current._leaflet_id = undefined
+    }
+
     const map = L.map(containerRef.current, {
       zoomControl: true,
       attributionControl: true,
@@ -203,12 +205,11 @@ export default function OrderTrackingPage() {
     })
 
     tileLayer.on('load', () => {
-      setMapReady(true)
-      setMapIssue('')
+      setMapNotice('')
     })
 
     tileLayer.on('tileerror', () => {
-      setMapIssue('Peta belum berhasil dimuat. Coba buka ulang halaman ini.')
+      setMapNotice('Sebagian tile peta belum termuat, tetapi tracking tetap bisa dipakai.')
     })
 
     tileLayer.addTo(map)
@@ -221,8 +222,14 @@ export default function OrderTrackingPage() {
       }
     }
 
+    map.whenReady(() => {
+      setMapNotice('')
+      invalidate()
+    })
+
     const frameId = window.requestAnimationFrame(invalidate)
     const timeoutId = window.setTimeout(invalidate, 300)
+    const timeoutIdLate = window.setTimeout(invalidate, 1200)
     window.addEventListener('resize', invalidate)
     const resizeObserver = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(() => invalidate())
@@ -235,6 +242,7 @@ export default function OrderTrackingPage() {
     return () => {
       window.cancelAnimationFrame(frameId)
       window.clearTimeout(timeoutId)
+      window.clearTimeout(timeoutIdLate)
       window.removeEventListener('resize', invalidate)
       resizeObserver?.disconnect()
 
@@ -244,7 +252,7 @@ export default function OrderTrackingPage() {
         console.error('removeTrackingMap', error)
       }
       mapRef.current = null
-      setMapReady(false)
+      setMapNotice('Menyiapkan peta tracking...')
     }
   }, [])
 
@@ -428,17 +436,12 @@ export default function OrderTrackingPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-3">
           <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Titik Pedagang</div>
-            <div className="mt-2 text-sm font-medium text-slate-900">{vendorLocationLabel}</div>
-            <div className="mt-1 text-xs text-slate-500">{vendor?.online ? 'Posisi realtime pedagang aktif' : 'Memakai titik terakhir yang tersedia'}</div>
-          </div>
-          <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Titik Pelanggan</div>
-            <div className="mt-2 text-sm font-medium text-slate-900">{customerLocationLabel}</div>
+            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Status Tracking</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatOrderStatusLabel(order.status)}</div>
             <div className="mt-1 text-xs text-slate-500">
-              {order?.buyer_id === user?.id && userLocation ? 'Mengikuti posisi Anda saat ini' : 'Memakai titik yang tersimpan saat checkout'}
+              {routeReady ? 'Peta dan rute aktif diperbarui di background' : 'Tracking akan lengkap setelah kedua posisi tersedia'}
             </div>
           </div>
           <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
@@ -477,12 +480,10 @@ export default function OrderTrackingPage() {
               </div>
               <div className="relative">
                 <div ref={containerRef} className="tracking-map h-[56vh] min-h-[360px] rounded-[22px]" />
-                {(!mapReady || mapIssue) && (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[22px] bg-slate-900/8 px-6 text-center text-sm font-medium text-slate-600">
-                    {mapIssue || 'Menyiapkan peta tracking...'}
-                  </div>
-                )}
               </div>
+              {mapNotice && (
+                <div className="px-3 pb-2 pt-3 text-xs text-slate-500">{mapNotice}</div>
+              )}
             </div>
 
             <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
@@ -552,11 +553,10 @@ export default function OrderTrackingPage() {
             <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
               <h2 className="text-lg font-semibold text-slate-900">Status Rute</h2>
               <div className="mt-4 space-y-2 text-sm text-slate-600">
-                <div>Lokasi pedagang: {vendorLocationLabel}</div>
-                <div>Lokasi pelanggan: {customerLocationLabel}</div>
                 <div>Jarak rute: {formatDistance(routeDistance)}</div>
                 <div>ETA: {routeEtaLabel}</div>
                 <div>Status online pedagang: {vendor?.online ? 'Online' : 'Offline'}</div>
+                <div>{routeReady ? 'Marker dan garis rute mengikuti posisi terbaru yang tersedia.' : 'Tracking akan lebih akurat setelah data lokasi lengkap.'}</div>
               </div>
             </div>
           </aside>
