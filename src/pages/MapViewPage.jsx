@@ -15,7 +15,6 @@ import { supabase } from '../lib/supabase'
 import {
   createVendorLocationPayload,
   getVendorCoordinates,
-  getVendorLocationLabel,
   getVendorLocationUpdatedAtLabel,
 } from '../lib/vendor'
 
@@ -73,6 +72,27 @@ function formatDistanceLabel(distanceMeters) {
   return `${(distanceMeters / 1000).toFixed(1)} km dari Anda`
 }
 
+function getViewerLocationStatus(userLocation) {
+  if (!userLocation) {
+    return 'Belum aktif. Tekan "Lokasi Saya" agar jarak pedagang bisa dihitung otomatis.'
+  }
+
+  return 'Lokasi Anda aktif dan sudah dipakai untuk menghitung pedagang terdekat.'
+}
+
+function getStoreLocationStatus(location, { owner = false } = {}) {
+  const coordinates = getVendorCoordinates(location)
+  if (!coordinates) {
+    return owner
+      ? 'Lokasi toko belum dibagikan. Aktifkan mode online agar posisi toko bisa muncul di peta pelanggan.'
+      : 'Lokasi toko belum tersedia di peta.'
+  }
+
+  return owner
+    ? 'Lokasi toko sudah tersinkron dan siap tampil ke pelanggan saat toko online.'
+    : 'Lokasi toko aktif di peta dan siap dipakai untuk estimasi jarak.'
+}
+
 function createActionButton(label, colors, onClick) {
   const button = document.createElement('button')
   button.type = 'button'
@@ -88,7 +108,7 @@ function createActionButton(label, colors, onClick) {
   return button
 }
 
-function buildPopupContent(vendor, actions) {
+function buildPopupContent(vendor, actions = []) {
   const wrapper = document.createElement('div')
   wrapper.style.minWidth = '220px'
 
@@ -134,26 +154,15 @@ function buildPopupContent(vendor, actions) {
   actionsRow.style.justifyContent = 'flex-end'
   actionsRow.style.marginTop = '10px'
 
-  actionsRow.appendChild(createActionButton('Profil', {
-    border: '#d1d5db',
-    background: '#ffffff',
-    color: '#111827',
-  }, actions.onView))
-
-  actionsRow.appendChild(createActionButton('Chat', {
-    border: '#2563eb',
-    background: '#2563eb',
-    color: '#ffffff',
-  }, actions.onChat))
-
-  actionsRow.appendChild(createActionButton('Order', {
-    border: '#16a34a',
-    background: '#16a34a',
-    color: '#ffffff',
-  }, actions.onOrder))
+  for (const action of actions) {
+    if (!action?.label || typeof action.onClick !== 'function') continue
+    actionsRow.appendChild(createActionButton(action.label, action.colors, action.onClick))
+  }
 
   L.DomEvent.disableClickPropagation(wrapper)
-  wrapper.appendChild(actionsRow)
+  if (actionsRow.childElementCount > 0) {
+    wrapper.appendChild(actionsRow)
+  }
   return wrapper
 }
 
@@ -175,13 +184,27 @@ export default function MapViewPage() {
   const [userLocation, setUserLocation] = useState(null)
   const [radiusKm, setRadiusKm] = useState(2.5)
   const [onlyWithinRadius, setOnlyWithinRadius] = useState(false)
-  const [availabilityFilter, setAvailabilityFilter] = useState('online')
   const [syncingStoreLocation, setSyncingStoreLocation] = useState(false)
 
   const serverOrigin = getServerOrigin()
   const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
   const myVendorId = user?.id
   const clusterEnabled = true
+
+  const applyViewerLocation = useCallback((lat, lng) => {
+    const map = mapRef.current
+    setUserLocation({ lat, lng })
+
+    if (!map) return
+
+    if (map._userMarker) map.removeLayer(map._userMarker)
+    map._userMarker = L.circleMarker([lat, lng], {
+      radius: 8,
+      color: '#2563eb',
+      fillColor: '#2563eb',
+      fillOpacity: 0.9,
+    }).addTo(map)
+  }, [])
 
   const syncMyVendorLocation = useCallback(async (coords, options = {}) => {
     if (!isVendor || !myVendorId) return
@@ -190,7 +213,7 @@ export default function MapViewPage() {
     if (!nextLocation) return
 
     const previousLocation = lastSyncedLocationRef.current
-    if (!hasMeaningfulLocationChange(previousLocation, nextLocation)) {
+    if (!options.force && !hasMeaningfulLocationChange(previousLocation, nextLocation)) {
       return
     }
 
@@ -224,6 +247,41 @@ export default function MapViewPage() {
       setSyncingStoreLocation(false)
     }
   }, [isVendor, myVendorId, toast])
+
+  const syncStoreLocationNow = useCallback(() => {
+    if (!isVendor || !myVendorId) return
+    if (!navigator.geolocation) {
+      toast.push('Browser ini tidak mendukung akses lokasi', { type: 'error' })
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude
+        const lng = position.coords.longitude
+
+        applyViewerLocation(lat, lng)
+        mapRef.current?.flyTo([lat, lng], 16, {
+          animate: true,
+          duration: 0.6,
+        })
+
+        void syncMyVendorLocation({
+          lat,
+          lng,
+          accuracy: position.coords.accuracy,
+        }, { force: true })
+      },
+      (error) => {
+        toast.push(getGeolocationErrorMessage(error), { type: 'error' })
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 10000,
+      }
+    )
+  }, [applyViewerLocation, isVendor, myVendorId, syncMyVendorLocation, toast])
 
   function requestCurrentLocation(options = {}) {
     mapRef.current?.locate({
@@ -310,23 +368,7 @@ export default function MapViewPage() {
 
     map.on('locationfound', (event) => {
       const { lat, lng } = event.latlng
-      setUserLocation({ lat, lng })
-
-      if (map._userMarker) map.removeLayer(map._userMarker)
-      map._userMarker = L.circleMarker([lat, lng], {
-        radius: 8,
-        color: '#2563eb',
-        fillColor: '#2563eb',
-        fillOpacity: 0.9,
-      }).addTo(map)
-
-      if (isVendor && myVendorId) {
-        void syncMyVendorLocation({
-          lat,
-          lng,
-          accuracy: event.accuracy,
-        }, { silentSuccess: true, silentError: true })
-      }
+      applyViewerLocation(lat, lng)
     })
 
     map.on('locationerror', (error) => {
@@ -341,7 +383,7 @@ export default function MapViewPage() {
       }
       mapRef.current = null
     }
-  }, [isVendor, myVendorId, syncMyVendorLocation, toast])
+  }, [applyViewerLocation, toast])
 
   useEffect(() => {
     loadVendors()
@@ -366,7 +408,12 @@ export default function MapViewPage() {
     if (!selectedVendor) return
 
     const nextVendor = vendors.find((vendor) => vendor.id === selectedVendor.id)
-    if (nextVendor && nextVendor !== selectedVendor) {
+    if (!nextVendor || !nextVendor.online || !getVendorCoordinates(nextVendor.location)) {
+      setSelectedVendor(null)
+      return
+    }
+
+    if (nextVendor !== selectedVendor) {
       setSelectedVendor(nextVendor)
     }
   }, [selectedVendor, vendors])
@@ -388,20 +435,18 @@ export default function MapViewPage() {
 
     autoLocateAttemptedRef.current = true
     toast.push('Izinkan lokasi agar posisi toko Anda muncul di peta pelanggan.', { type: 'info' })
-    requestCurrentLocation({ maxZoom: 16 })
-  }, [isVendor, myVendorId, toast, vendors])
+    syncStoreLocationNow()
+  }, [isVendor, myVendorId, syncStoreLocationNow, toast, vendors])
 
   const filteredVendors = useMemo(() => {
     return vendors.filter((vendor) => {
       const coordinates = getVendorCoordinates(vendor.location)
-      if (!coordinates) return false
+      if (!vendor.online || !coordinates) return false
 
       if (debouncedQuery) {
         const haystack = `${vendor.name || ''} ${vendor.description || ''}`.toLowerCase()
         if (!haystack.includes(debouncedQuery)) return false
       }
-
-      if (availabilityFilter === 'online' && !vendor.online) return false
 
       if (onlyWithinRadius) {
         if (!userLocation) return false
@@ -416,7 +461,7 @@ export default function MapViewPage() {
 
       return true
     })
-  }, [availabilityFilter, debouncedQuery, onlyWithinRadius, radiusKm, userLocation, vendors])
+  }, [debouncedQuery, onlyWithinRadius, radiusKm, userLocation, vendors])
 
   const onlineVendors = useMemo(
     () => vendors.filter((vendor) => vendor.online && getVendorCoordinates(vendor.location)),
@@ -433,8 +478,7 @@ export default function MapViewPage() {
   }, [onlineVendors, radiusKm, userLocation])
 
   const onlineListVendors = useMemo(() => {
-    const rows = filteredVendors.filter((vendor) => vendor.online)
-    return [...rows].sort((left, right) => {
+    return [...filteredVendors].sort((left, right) => {
       const leftDistance = getVendorDistance(left, userLocation)
       const rightDistance = getVendorDistance(right, userLocation)
 
@@ -468,11 +512,59 @@ export default function MapViewPage() {
       if (!coordinates) return
 
       const marker = L.marker([coordinates.lat, coordinates.lng])
-      marker.bindPopup(buildPopupContent(vendor, {
-        onView: () => focusVendor(vendor),
-        onChat: () => navigate(`/chat/${vendor.id}`),
-        onOrder: () => navigate(`/vendor/${vendor.id}#order-summary`),
-      }), { maxWidth: 320 })
+      const isOwnVendor = isVendor && vendor.id === myVendorId
+      const popupActions = isOwnVendor
+        ? [
+          {
+            label: 'Pilih',
+            colors: {
+              border: '#d1d5db',
+              background: '#ffffff',
+              color: '#111827',
+            },
+            onClick: () => focusVendor(vendor),
+          },
+          {
+            label: 'Kelola',
+            colors: {
+              border: '#16a34a',
+              background: '#16a34a',
+              color: '#ffffff',
+            },
+            onClick: () => navigate('/dashboard?tab=products'),
+          },
+        ]
+        : [
+          {
+            label: 'Detail',
+            colors: {
+              border: '#d1d5db',
+              background: '#ffffff',
+              color: '#111827',
+            },
+            onClick: () => focusVendor(vendor),
+          },
+          {
+            label: 'Chat',
+            colors: {
+              border: '#2563eb',
+              background: '#2563eb',
+              color: '#ffffff',
+            },
+            onClick: () => navigate(`/chat/${vendor.id}`),
+          },
+          {
+            label: 'Order',
+            colors: {
+              border: '#16a34a',
+              background: '#16a34a',
+              color: '#ffffff',
+            },
+            onClick: () => navigate(`/vendor/${vendor.id}#order-summary`),
+          },
+        ]
+
+      marker.bindPopup(buildPopupContent(vendor, popupActions), { maxWidth: 320 })
 
       group.addLayer(marker)
       bounds.push([coordinates.lat, coordinates.lng])
@@ -497,7 +589,7 @@ export default function MapViewPage() {
       }
       clusterRef.current = null
     }
-  }, [clusterEnabled, filteredVendors, focusVendor, navigate])
+  }, [clusterEnabled, filteredVendors, focusVendor, isVendor, myVendorId, navigate])
 
   async function getAccessToken() {
     try {
@@ -563,11 +655,17 @@ export default function MapViewPage() {
   const myVendorRow = vendors.find((vendor) => vendor.id === myVendorId)
   const toggleLabel = myVendorRow?.online ? 'Jadikan Offline' : 'Jadikan Online'
   const myVendorLocation = myVendorRow?.location
-  const myVendorCoordinates = getVendorCoordinates(myVendorLocation)
   const filteredVendorCount = filteredVendors.length
-  const selectedVendorCoordinates = getVendorCoordinates(selectedVendor?.location)
   const onlineVendorCount = onlineVendors.length
   const selectedVendorDistance = getVendorDistance(selectedVendor, userLocation)
+  const selectedVendorIsMine = isVendor && selectedVendor?.id === myVendorId
+  const heroBadge = isVendor ? 'Mode Pedagang' : 'Mode Pelanggan'
+  const heroTitle = isVendor
+    ? 'Pantau toko Anda dan tetap siap menerima pesanan dari peta.'
+    : 'Temukan pedagang online terdekat dan lanjutkan transaksi dari peta.'
+  const heroDescription = isVendor
+    ? 'Kelilingku menempatkan pedagang pada mode operasional yang lebih ringkas: online, lokasi otomatis tersinkron, lalu pesanan dan chat bisa dipantau dari dashboard.'
+    : 'Halaman utama difokuskan untuk pelanggan: cari pedagang aktif, cek yang paling dekat, lalu lanjutkan chat atau pesan tanpa banyak pindah layar.'
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -576,13 +674,13 @@ export default function MapViewPage() {
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
               <div className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white">
-                Peta Pedagang
+                {heroBadge}
               </div>
               <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-                Fokus ke pedagang online yang paling relevan untuk dibuka dulu.
+                {heroTitle}
               </h1>
               <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-                Cari toko aktif, lihat siapa yang masuk radius Anda, lalu buka chat atau pesan tanpa perlu banyak pindah halaman.
+                {heroDescription}
               </p>
             </div>
 
@@ -604,10 +702,10 @@ export default function MapViewPage() {
               </button>
               {isVendor && (
                 <button
-                  onClick={() => requestCurrentLocation({ maxZoom: 16 })}
+                  onClick={syncStoreLocationNow}
                   className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
                 >
-                  {syncingStoreLocation ? 'Menyinkronkan...' : 'Bagikan Lokasi Toko'}
+                  {syncingStoreLocation ? 'Menyinkronkan...' : 'Sinkron Toko'}
                 </button>
               )}
             </div>
@@ -627,26 +725,6 @@ export default function MapViewPage() {
 
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => setAvailabilityFilter('online')}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    availabilityFilter === 'online'
-                      ? 'bg-slate-900 text-white'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  Hanya Online
-                </button>
-                <button
-                  onClick={() => setAvailabilityFilter('all')}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    availabilityFilter === 'all'
-                      ? 'bg-slate-900 text-white'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  Semua Toko
-                </button>
-                <button
                   onClick={() => setOnlyWithinRadius((current) => !current)}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                     onlyWithinRadius
@@ -659,7 +737,6 @@ export default function MapViewPage() {
                 <button
                   onClick={() => {
                     setQuery('')
-                    setAvailabilityFilter('online')
                     setOnlyWithinRadius(false)
                   }}
                   className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -683,11 +760,7 @@ export default function MapViewPage() {
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                   <div className="font-medium text-slate-800">Status lokasi Anda</div>
-                  <div className="mt-2">
-                    {userLocation
-                      ? `${userLocation.lat.toFixed(5)}, ${userLocation.lng.toFixed(5)}`
-                      : 'Belum aktif. Tekan "Lokasi Saya" agar jarak pedagang bisa dihitung.'}
-                  </div>
+                  <div className="mt-2">{getViewerLocationStatus(userLocation)}</div>
                   <div className="mt-2 text-xs text-slate-500">
                     Radius dipakai untuk menghitung toko yang paling dekat dan paling relevan.
                   </div>
@@ -744,6 +817,7 @@ export default function MapViewPage() {
                 onlineListVendors.map((vendor) => {
                   const vendorDistance = getVendorDistance(vendor, userLocation)
                   const active = selectedVendor?.id === vendor.id
+                  const isOwnVendor = isVendor && vendor.id === myVendorId
 
                   return (
                     <div
@@ -780,24 +854,43 @@ export default function MapViewPage() {
                       </div>
 
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <button
-                          onClick={() => focusVendor(vendor)}
-                          className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Pilih Toko
-                        </button>
-                        <button
-                          onClick={() => navigate(`/chat/${vendor.id}`)}
-                          className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Chat
-                        </button>
-                        <button
-                          onClick={() => navigate(`/vendor/${vendor.id}#order-summary`)}
-                          className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700"
-                        >
-                          Pesan Sekarang
-                        </button>
+                        {isOwnVendor ? (
+                          <>
+                            <button
+                              onClick={() => focusVendor(vendor)}
+                              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                              Pantau Toko
+                            </button>
+                            <button
+                              onClick={() => navigate('/dashboard?tab=products')}
+                              className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700"
+                            >
+                              Kelola Produk
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => focusVendor(vendor)}
+                              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                              Pilih Toko
+                            </button>
+                            <button
+                              onClick={() => navigate(`/chat/${vendor.id}`)}
+                              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                              Chat
+                            </button>
+                            <button
+                              onClick={() => navigate(`/vendor/${vendor.id}#order-summary`)}
+                              className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700"
+                            >
+                              Pesan Sekarang
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   )
@@ -824,10 +917,13 @@ export default function MapViewPage() {
                 <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
                   <div className="text-sm font-medium text-slate-800">Lokasi toko</div>
                   <div className="mt-2 text-sm text-slate-600">
-                    {myVendorCoordinates ? getVendorLocationLabel(myVendorLocation) : 'Lokasi toko belum dibagikan'}
+                    {getStoreLocationStatus(myVendorLocation, { owner: true })}
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
                     Sinkron terakhir: {getVendorLocationUpdatedAtLabel(myVendorLocation)}
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    Saat toko online, lokasi akan terus diperbarui otomatis di background.
                   </div>
                 </div>
 
@@ -839,10 +935,10 @@ export default function MapViewPage() {
                     {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
                   </button>
                   <button
-                    onClick={() => requestCurrentLocation({ maxZoom: 16 })}
+                    onClick={syncStoreLocationNow}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                   >
-                    {syncingStoreLocation ? 'Sinkron Lokasi...' : 'Perbarui Lokasi Toko'}
+                    {syncingStoreLocation ? 'Sinkron Lokasi...' : 'Sinkron Sekarang'}
                   </button>
                   <button
                     onClick={() => navigate('/dashboard?tab=products')}
@@ -892,14 +988,14 @@ export default function MapViewPage() {
 
                   <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
                     <div className="font-medium text-slate-800">Lokasi toko</div>
-                    <div className="mt-1">{getVendorLocationLabel(selectedVendor.location)}</div>
+                    <div className="mt-1">{getStoreLocationStatus(selectedVendor.location, { owner: selectedVendorIsMine })}</div>
                     <div className="mt-1 text-xs text-slate-500">
-                      {selectedVendorCoordinates ? 'Lokasi siap dipakai untuk perkiraan jarak dan arah.' : 'Pedagang belum membagikan lokasi.'}
+                      Sinkron terakhir: {getVendorLocationUpdatedAtLabel(selectedVendor.location)}
                     </div>
                   </div>
 
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    {isVendor && myVendorId === selectedVendor.id ? (
+                    {selectedVendorIsMine ? (
                       <>
                         <button
                           onClick={toggleMyOnlineStatus}
@@ -963,7 +1059,7 @@ export default function MapViewPage() {
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Peta pedagang sekitar</h2>
                 <p className="text-sm leading-6 text-slate-500">
-                  Peta diletakkan di bawah agar daftar toko dan aksi utama lebih cepat dijangkau di HP.
+                  Peta utama hanya menampilkan pedagang yang sedang online agar keputusan pelanggan tetap cepat dan fokus.
                 </p>
               </div>
               <div className="text-sm text-slate-500">
@@ -977,11 +1073,7 @@ export default function MapViewPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200/70">
-            <div>
-              {availabilityFilter === 'online'
-                ? 'Peta sedang menampilkan toko yang online dulu.'
-                : 'Peta sedang menampilkan semua toko sesuai pencarian.'}
-            </div>
+            <div>Peta fokus ke pedagang online yang cocok dengan pencarian dan filter radius Anda.</div>
             {userLocation ? (
               <div>{onlineVendorsWithinRadius.length} pedagang online dalam radius {radiusKm} km</div>
             ) : (

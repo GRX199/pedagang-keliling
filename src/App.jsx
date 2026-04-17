@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import VendorLiveLocationSync from './components/VendorLiveLocationSync'
 import { useToast } from './components/ToastProvider'
 import { useAuth } from './lib/auth'
 import { useRealtimeNotifications } from './lib/notifications'
@@ -43,6 +44,10 @@ function TopNav() {
     toast,
   })
 
+  const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
+  const dashboardLabel = isVendor ? 'Dashboard' : 'Akun'
+  const accountLabel = isVendor ? 'Pedagang aktif' : 'Pelanggan aktif'
+
   const navItems = user ? [
     { to: '/map', label: 'Peta', count: 0, active: location.pathname === '/map' },
     {
@@ -52,7 +57,12 @@ function TopNav() {
       active: location.pathname === '/dashboard' && new URLSearchParams(location.search).get('tab') === 'orders',
     },
     { to: '/chat', label: 'Chat', count: notificationCounts.messages, active: location.pathname.startsWith('/chat') },
-    { to: '/dashboard', label: 'Dashboard', count: 0, active: location.pathname === '/dashboard' && new URLSearchParams(location.search).get('tab') !== 'orders' },
+    {
+      to: '/dashboard',
+      label: dashboardLabel,
+      count: 0,
+      active: location.pathname === '/dashboard' && new URLSearchParams(location.search).get('tab') !== 'orders',
+    },
   ] : []
 
   function renderNavItem(item, compact = false) {
@@ -118,7 +128,7 @@ function TopNav() {
                   <div className="max-w-[220px] truncate font-medium text-slate-900">
                     {user.user_metadata?.full_name || user.email}
                   </div>
-                  <div className="text-xs text-slate-500">Akun aktif</div>
+                  <div className="text-xs text-slate-500">{accountLabel}</div>
                 </div>
                 <button
                   onClick={handleLogout}
@@ -166,6 +176,7 @@ export default function App() {
   return (
     <>
       <TopNav />
+      <VendorLiveLocationSync />
       <main className="min-h-[calc(100vh-73px)]">
         <Suspense fallback={<RouteFallback />}>
           <Routes>
