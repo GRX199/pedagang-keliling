@@ -14,6 +14,7 @@ import {
 import { supabase } from '../lib/supabase'
 import {
   createVendorLocationPayload,
+  formatVendorCategoryLabel,
   getVendorCoordinates,
   getVendorLocationUpdatedAtLabel,
 } from '../lib/vendor'
@@ -80,6 +81,10 @@ function getViewerLocationStatus(userLocation) {
   return 'Lokasi Anda aktif dan sudah dipakai untuk menghitung pedagang terdekat.'
 }
 
+function normalizeCategoryValue(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
 function getStoreLocationStatus(location, { owner = false } = {}) {
   const coordinates = getVendorCoordinates(location)
   if (!coordinates) {
@@ -122,6 +127,15 @@ function buildPopupContent(vendor, actions = []) {
   status.textContent = vendor.online ? 'Sedang online' : 'Sedang offline'
   status.style.color = vendor.online ? '#15803d' : '#6b7280'
   wrapper.appendChild(status)
+
+  if (vendor.category_primary) {
+    const category = document.createElement('div')
+    category.style.fontSize = '12px'
+    category.style.marginTop = '6px'
+    category.style.color = '#475569'
+    category.textContent = `Kategori: ${formatVendorCategoryLabel(vendor.category_primary)}`
+    wrapper.appendChild(category)
+  }
 
   if (vendor.photo_url) {
     const imageWrap = document.createElement('div')
@@ -180,6 +194,7 @@ export default function MapViewPage() {
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedVendor, setSelectedVendor] = useState(null)
   const [userLocation, setUserLocation] = useState(null)
   const [radiusKm, setRadiusKm] = useState(2.5)
@@ -223,7 +238,7 @@ export default function MapViewPage() {
         .from('vendors')
         .update({ location: nextLocation })
         .eq('id', myVendorId)
-        .select('id, name, description, photo_url, location, online')
+        .select('id, name, description, photo_url, location, online, category_primary')
         .maybeSingle()
 
       if (error) throw error
@@ -320,7 +335,7 @@ export default function MapViewPage() {
     try {
       const { data, error } = await supabase
         .from('vendors')
-        .select('id, name, description, photo_url, location, online')
+        .select('id, name, description, photo_url, location, online, category_primary')
 
       if (error) throw error
       setVendors(data || [])
@@ -443,8 +458,12 @@ export default function MapViewPage() {
       const coordinates = getVendorCoordinates(vendor.location)
       if (!vendor.online || !coordinates) return false
 
+      if (selectedCategory !== 'all') {
+        if (normalizeCategoryValue(vendor.category_primary) !== selectedCategory) return false
+      }
+
       if (debouncedQuery) {
-        const haystack = `${vendor.name || ''} ${vendor.description || ''}`.toLowerCase()
+        const haystack = `${vendor.name || ''} ${vendor.description || ''} ${vendor.category_primary || ''}`.toLowerCase()
         if (!haystack.includes(debouncedQuery)) return false
       }
 
@@ -461,12 +480,36 @@ export default function MapViewPage() {
 
       return true
     })
-  }, [debouncedQuery, onlyWithinRadius, radiusKm, userLocation, vendors])
+  }, [debouncedQuery, onlyWithinRadius, radiusKm, selectedCategory, userLocation, vendors])
 
   const onlineVendors = useMemo(
     () => vendors.filter((vendor) => vendor.online && getVendorCoordinates(vendor.location)),
     [vendors]
   )
+
+  const categoryOptions = useMemo(() => {
+    const categoryMap = new Map()
+
+    for (const vendor of onlineVendors) {
+      const rawCategory = String(vendor.category_primary || '').trim()
+      if (!rawCategory) continue
+
+      const key = normalizeCategoryValue(rawCategory)
+      if (!categoryMap.has(key)) {
+        categoryMap.set(key, rawCategory)
+      }
+    }
+
+    return [...categoryMap.entries()]
+      .sort((left, right) => left[1].localeCompare(right[1], 'id'))
+      .map(([value, label]) => ({ value, label }))
+  }, [onlineVendors])
+
+  useEffect(() => {
+    if (selectedCategory === 'all') return
+    if (categoryOptions.some((option) => option.value === selectedCategory)) return
+    setSelectedCategory('all')
+  }, [categoryOptions, selectedCategory])
 
   const onlineVendorsWithinRadius = useMemo(() => {
     if (!userLocation) return []
@@ -659,6 +702,7 @@ export default function MapViewPage() {
   const onlineVendorCount = onlineVendors.length
   const selectedVendorDistance = getVendorDistance(selectedVendor, userLocation)
   const selectedVendorIsMine = isVendor && selectedVendor?.id === myVendorId
+  const selectedCategoryLabel = categoryOptions.find((option) => option.value === selectedCategory)?.label || 'Semua kategori'
   const heroBadge = isVendor ? 'Mode Pedagang' : 'Mode Pelanggan'
   const heroTitle = isVendor
     ? 'Pantau toko Anda dan tetap siap menerima pesanan dari peta.'
@@ -712,9 +756,9 @@ export default function MapViewPage() {
           </div>
 
           <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-slate-700">Cari pedagang aktif</label>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-700">Cari pedagang aktif</label>
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
@@ -723,7 +767,7 @@ export default function MapViewPage() {
                 />
               </div>
 
-              <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setOnlyWithinRadius((current) => !current)}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition ${
@@ -734,18 +778,35 @@ export default function MapViewPage() {
                 >
                   {onlyWithinRadius ? 'Radius Aktif' : 'Filter Radius'}
                 </button>
-                <button
-                  onClick={() => {
-                    setQuery('')
-                    setOnlyWithinRadius(false)
-                  }}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  <button
+                    onClick={() => {
+                      setQuery('')
+                      setSelectedCategory('all')
+                      setOnlyWithinRadius(false)
+                    }}
+                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   Reset
                 </button>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <div className="font-medium text-slate-800">Kategori pedagang</div>
+                  <select
+                    value={selectedCategory}
+                    onChange={(event) => setSelectedCategory(event.target.value)}
+                    className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none focus:border-slate-400"
+                  >
+                    <option value="all">Semua kategori online</option>
+                    {categoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {formatVendorCategoryLabel(option.label)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
                 <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                   <div className="font-medium text-slate-800">Radius pencarian</div>
                   <input
@@ -787,7 +848,9 @@ export default function MapViewPage() {
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Hasil Ditampilkan</div>
                 <div className="mt-2 text-3xl font-semibold text-slate-900">{filteredVendorCount}</div>
                 <div className="mt-1 text-sm text-slate-500">
-                  Sesuai pencarian, status toko, dan filter radius yang aktif.
+                  {selectedCategory === 'all'
+                    ? 'Sesuai pencarian, status toko, dan filter radius yang aktif.'
+                    : `Difokuskan ke kategori ${formatVendorCategoryLabel(selectedCategoryLabel)}.`}
                 </div>
               </div>
             </div>
@@ -845,6 +908,11 @@ export default function MapViewPage() {
                             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
                               Online
                             </span>
+                            {vendor.category_primary ? (
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                                {formatVendorCategoryLabel(vendor.category_primary)}
+                              </span>
+                            ) : null}
                           </div>
                           <div className="mt-1 text-sm text-slate-500">{formatDistanceLabel(vendorDistance)}</div>
                           <div className="mt-2 text-sm leading-6 text-slate-600">
@@ -992,6 +1060,11 @@ export default function MapViewPage() {
                     <div className="mt-1 text-xs text-slate-500">
                       Sinkron terakhir: {getVendorLocationUpdatedAtLabel(selectedVendor.location)}
                     </div>
+                    {selectedVendor.category_primary ? (
+                      <div className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                        {formatVendorCategoryLabel(selectedVendor.category_primary)}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">

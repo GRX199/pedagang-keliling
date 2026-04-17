@@ -416,10 +416,12 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
     }
   }
 
-  async function fetchChats(preferredChatId = null) {
+  async function fetchChats({ preferredChatId = null, background = false, silent = false } = {}) {
     if (!user) return
 
-    setLoading(true)
+    if (!background) {
+      setLoading(true)
+    }
     try {
       const { data, error } = await supabase
         .from('chats')
@@ -443,28 +445,32 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
       })
     } catch (error) {
       console.error('fetchChats', error)
-      toast.push(error.message || 'Gagal memuat daftar chat', { type: 'error' })
+      if (!silent) {
+        toast.push(error.message || 'Gagal memuat daftar chat', { type: 'error' })
+      }
     } finally {
-      setLoading(false)
+      if (!background) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
     if (!user) return undefined
 
-    fetchChats()
+    void fetchChats()
 
     const channel = supabase
       .channel(`chats-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, (payload) => {
         const participants = payload.new?.participants || payload.old?.participants || []
         if (!participants.includes(user.id)) return
-        fetchChats()
+        void fetchChats({ background: true, silent: true })
       })
       .subscribe()
 
     const intervalId = window.setInterval(() => {
-      void fetchChats()
+      void fetchChats({ background: true, silent: true })
     }, 10000)
 
     return () => {
@@ -488,7 +494,7 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
         const chat = await findOrCreateDirectChat(user.id, initialVendorId)
         if (active) {
           setSelectedChatId(chat.id)
-          fetchChats(chat.id)
+          void fetchChats({ preferredChatId: chat.id, background: true, silent: true })
         }
       } catch (error) {
         console.error('ensureDirectChat', error)
