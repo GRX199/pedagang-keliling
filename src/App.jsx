@@ -12,6 +12,7 @@ const VendorProfile = lazy(() => import('./pages/VendorStorePage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const ChatsPage = lazy(() => import('./pages/ChatsPage'))
 const OrderTrackingPage = lazy(() => import('./pages/OrderTrackingPage'))
+const LandingPage = lazy(() => import('./pages/LandingPage'))
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -125,7 +126,7 @@ function TopNav() {
       <div className="mx-auto max-w-6xl px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
-            <Link to="/" className="inline-flex items-center gap-3">
+            <Link to={user ? '/map' : '/'} className="inline-flex items-center gap-3">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white shadow-sm">
                 K
               </span>
@@ -166,9 +167,17 @@ function TopNav() {
                 </button>
               </>
             ) : (
-              <Link to="/login" className="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
-                Login / Daftar
-              </Link>
+              <div className="flex items-center gap-2">
+                <a
+                  href="/#cara-kerja"
+                  className="hidden rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:inline-flex"
+                >
+                  Cara Kerja
+                </a>
+                <Link to="/login" className="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                  Login / Daftar
+                </Link>
+              </div>
             )}
           </div>
         </div>
@@ -186,7 +195,7 @@ function TopNav() {
 function RootRedirect() {
   const { user, loading } = useAuth()
   if (loading) return <div className="p-6">Memuat...</div>
-  return user ? <Navigate to="/map" replace /> : <Navigate to="/login" replace />
+  return user ? <Navigate to="/map" replace /> : <LandingPage />
 }
 
 function LoginGuard({ children }) {
