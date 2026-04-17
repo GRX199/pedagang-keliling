@@ -12,6 +12,7 @@ import {
   formatPaymentStatusLabel,
   formatPriceLabel,
 } from '../lib/orders'
+import { fetchDrivingRoute } from '../lib/routing'
 import { supabase } from '../lib/supabase'
 import { getVendorCoordinates } from '../lib/vendor'
 
@@ -75,6 +76,17 @@ function formatEta(distanceMeters, status) {
   return remainingMinutes > 0 ? `${hours} jam ${remainingMinutes} menit` : `${hours} jam`
 }
 
+function formatDurationFromSeconds(durationSeconds) {
+  if (typeof durationSeconds !== 'number') return null
+
+  const minutes = Math.max(1, Math.round(durationSeconds / 60))
+  if (minutes < 60) return `${minutes} menit`
+
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return remainingMinutes > 0 ? `${hours} jam ${remainingMinutes} menit` : `${hours} jam`
+}
+
 function describeVendorPoint(hasLiveLocation, hasFallbackLocation) {
   if (hasLiveLocation) return 'Lokasi pedagang aktif tersedia'
   if (hasFallbackLocation) return 'Memakai lokasi terakhir pedagang'
@@ -101,6 +113,8 @@ export default function OrderTrackingPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
   const [mapNotice, setMapNotice] = useState('Menyiapkan peta tracking...')
+  const [routeData, setRouteData] = useState(null)
+  const [routeNotice, setRouteNotice] = useState('')
 
   const mapRef = useRef(null)
   const containerRef = useRef(null)
@@ -108,6 +122,8 @@ export default function OrderTrackingPage() {
   const customerMarkerRef = useRef(null)
   const routeLineRef = useRef(null)
   const tileLayerRef = useRef(null)
+  const lastRouteKeyRef = useRef('')
+  const routeAbortRef = useRef(null)
 
   async function loadOrder({ background = false, silent = false } = {}) {
     if (!id) return
@@ -328,8 +344,9 @@ export default function OrderTrackingPage() {
   }, [order?.customer_location, order?.meeting_point_location])
 
   const customerCoordinates = useMemo(() => {
+    if (savedCustomerCoordinates) return savedCustomerCoordinates
     if (order?.buyer_id === user?.id && userLocation) return userLocation
-    return savedCustomerCoordinates
+    return null
   }, [order?.buyer_id, savedCustomerCoordinates, user?.id, userLocation])
 
   const customerLocationLabel = useMemo(() => {
@@ -345,6 +362,80 @@ export default function OrderTrackingPage() {
   }, [vendorHasFallbackLocation, vendorHasLiveLocation])
 
   useEffect(() => {
+    if (!vendorCoordinates || !customerCoordinates) {
+      routeAbortRef.current?.abort()
+      routeAbortRef.current = null
+      lastRouteKeyRef.current = ''
+      setRouteData(null)
+      setRouteNotice('')
+      return undefined
+    }
+
+    const routeKey = [
+      vendorCoordinates.lat.toFixed(4),
+      vendorCoordinates.lng.toFixed(4),
+      customerCoordinates.lat.toFixed(4),
+      customerCoordinates.lng.toFixed(4),
+    ].join('|')
+
+    if (lastRouteKeyRef.current === routeKey) {
+      return undefined
+    }
+
+    lastRouteKeyRef.current = routeKey
+    routeAbortRef.current?.abort()
+
+    const abortController = new AbortController()
+    routeAbortRef.current = abortController
+    setRouteNotice('Menghitung rute jalan...')
+
+    async function loadDrivingRoute() {
+      try {
+        const nextRoute = await fetchDrivingRoute({
+          from: vendorCoordinates,
+          to: customerCoordinates,
+          signal: abortController.signal,
+        })
+
+        if (abortController.signal.aborted) return
+
+        setRouteData({
+          ...nextRoute,
+          mode: 'road',
+        })
+        setRouteNotice('')
+      } catch (error) {
+        if (abortController.signal.aborted) return
+
+        console.error('loadDrivingRoute', error)
+
+        setRouteData({
+          distanceMeters: haversineDistance(
+            vendorCoordinates.lat,
+            vendorCoordinates.lng,
+            customerCoordinates.lat,
+            customerCoordinates.lng
+          ),
+          durationSeconds: null,
+          latLngs: [
+            [vendorCoordinates.lat, vendorCoordinates.lng],
+            [customerCoordinates.lat, customerCoordinates.lng],
+          ],
+          mode: 'fallback',
+          provider: null,
+        })
+        setRouteNotice('Rute jalan belum tersedia, jadi sementara memakai garis lurus cadangan.')
+      }
+    }
+
+    void loadDrivingRoute()
+
+    return () => {
+      abortController.abort()
+    }
+  }, [customerCoordinates, vendorCoordinates])
+
+  useEffect(() => {
     const map = mapRef.current
     if (!map) return
 
@@ -357,6 +448,14 @@ export default function OrderTrackingPage() {
     })
 
     const points = []
+    const routeLatLngs = routeData?.latLngs || (
+      vendorCoordinates && customerCoordinates
+        ? [
+          [vendorCoordinates.lat, vendorCoordinates.lng],
+          [customerCoordinates.lat, customerCoordinates.lng],
+        ]
+        : null
+    )
 
     if (vendorCoordinates) {
       const latLng = [vendorCoordinates.lat, vendorCoordinates.lng]
@@ -392,23 +491,18 @@ export default function OrderTrackingPage() {
       customerMarkerRef.current = null
     }
 
-    if (vendorCoordinates && customerCoordinates) {
-      const nextRoute = [
-        [vendorCoordinates.lat, vendorCoordinates.lng],
-        [customerCoordinates.lat, customerCoordinates.lng],
-      ]
-
+    if (routeLatLngs && routeLatLngs.length > 1) {
       if (!routeLineRef.current) {
-        routeLineRef.current = L.polyline(nextRoute, {
+        routeLineRef.current = L.polyline(routeLatLngs, {
           color: '#0f766e',
           weight: 4,
           opacity: 0.9,
-          dashArray: order?.status === 'on_the_way' || order?.status === 'arrived' ? null : '10 10',
+          dashArray: routeData?.mode === 'road' ? null : '10 10',
         }).addTo(map)
       } else {
-        routeLineRef.current.setLatLngs(nextRoute)
+        routeLineRef.current.setLatLngs(routeLatLngs)
         routeLineRef.current.setStyle({
-          dashArray: order?.status === 'on_the_way' || order?.status === 'arrived' ? null : '10 10',
+          dashArray: routeData?.mode === 'road' ? null : '10 10',
         })
       }
     } else if (routeLineRef.current) {
@@ -416,21 +510,28 @@ export default function OrderTrackingPage() {
       routeLineRef.current = null
     }
 
-    if (points.length > 1) {
+    if (routeLatLngs && routeLatLngs.length > 1) {
+      map.fitBounds(routeLatLngs, { padding: [56, 56], maxZoom: 16 })
+    } else if (points.length > 1) {
       map.fitBounds(points, { padding: [56, 56], maxZoom: 16 })
     } else if (points.length === 1) {
       map.setView(points[0], 15)
     } else {
       map.setView(DEFAULT_CENTER, 5)
     }
-  }, [customerCoordinates, customerLocationLabel, order?.status, vendorCoordinates, vendorLocationLabel, vendor?.name])
+  }, [customerCoordinates, customerLocationLabel, routeData, vendorCoordinates, vendorLocationLabel, vendor?.name])
 
   const routeDistance = useMemo(() => {
+    if (typeof routeData?.distanceMeters === 'number') return routeData.distanceMeters
     if (!vendorCoordinates || !customerCoordinates) return null
     return haversineDistance(vendorCoordinates.lat, vendorCoordinates.lng, customerCoordinates.lat, customerCoordinates.lng)
-  }, [customerCoordinates, vendorCoordinates])
+  }, [customerCoordinates, routeData?.distanceMeters, vendorCoordinates])
 
-  const routeEtaLabel = useMemo(() => formatEta(routeDistance, order?.status), [order?.status, routeDistance])
+  const routeEtaLabel = useMemo(() => {
+    const routedDuration = formatDurationFromSeconds(routeData?.durationSeconds)
+    if (routedDuration) return routedDuration
+    return formatEta(routeDistance, order?.status)
+  }, [order?.status, routeData?.durationSeconds, routeDistance])
 
   if (loading) {
     return <div className="p-6 text-sm text-slate-500">Memuat tracking pesanan...</div>
@@ -484,7 +585,9 @@ export default function OrderTrackingPage() {
             <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Status Tracking</div>
             <div className="mt-2 text-lg font-semibold text-slate-900">{formatOrderStatusLabel(order.status)}</div>
             <div className="mt-1 text-xs text-slate-500">
-              {routeReady ? 'Peta dan rute aktif diperbarui di background' : 'Tracking akan lengkap setelah kedua posisi tersedia'}
+              {routeReady
+                ? (routeData?.mode === 'road' ? 'Peta dan rute jalan aktif diperbarui di background' : 'Tracking aktif dengan fallback garis lurus')
+                : 'Tracking akan lengkap setelah kedua posisi tersedia'}
             </div>
           </div>
           <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
@@ -519,13 +622,20 @@ export default function OrderTrackingPage() {
                     Pelanggan
                   </span>
                 </div>
-                <span>{routeReady ? 'Garis menunjukkan jalur lurus saat ini' : 'Menunggu dua titik lengkap'}</span>
+                <span>
+                  {routeReady
+                    ? (routeData?.mode === 'road' ? 'Rute mengikuti jalan yang tersedia saat ini' : 'Menampilkan garis lurus cadangan')
+                    : 'Menunggu dua titik lengkap'}
+                </span>
               </div>
               <div className="relative">
                 <div ref={containerRef} className="tracking-map h-[56vh] min-h-[360px] rounded-[22px]" />
               </div>
               {mapNotice && (
                 <div className="px-3 pb-2 pt-3 text-xs text-slate-500">{mapNotice}</div>
+              )}
+              {routeNotice && (
+                <div className="px-3 pb-2 text-xs text-slate-500">{routeNotice}</div>
               )}
             </div>
 
@@ -599,7 +709,13 @@ export default function OrderTrackingPage() {
                 <div>Jarak rute: {formatDistance(routeDistance)}</div>
                 <div>ETA: {routeEtaLabel}</div>
                 <div>Status online pedagang: {vendor?.online ? 'Online' : 'Offline'}</div>
-                <div>{routeReady ? 'Marker dan garis rute mengikuti posisi terbaru yang tersedia.' : 'Tracking akan lebih akurat setelah data lokasi lengkap.'}</div>
+                <div>
+                  {routeReady
+                    ? (routeData?.mode === 'road'
+                      ? 'Rute mengikuti jalan yang tersedia dari layanan routing.'
+                      : 'Rute jalan belum tersedia, jadi sementara memakai garis lurus.')
+                    : 'Tracking akan lebih akurat setelah data lokasi lengkap.'}
+                </div>
               </div>
             </div>
           </aside>
