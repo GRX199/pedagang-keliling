@@ -15,6 +15,8 @@ import {
   formatPriceLabel,
   getNextVendorStatusActions,
   getOrderStatusTone,
+  isActiveOrderStatus,
+  isHistoryOrderStatus,
   isSchemaCompatibilityError,
 } from '../lib/orders'
 import { syncCurrentProfile } from '../lib/profiles'
@@ -39,12 +41,31 @@ function TabButton({ id, active, onClick, children }) {
   )
 }
 
+function OrdersSummaryCard({ label, value, hint, tone = 'default' }) {
+  const toneClass = tone === 'primary'
+    ? 'bg-slate-900 text-white'
+    : tone === 'success'
+      ? 'bg-emerald-50 text-slate-900 ring-1 ring-emerald-100'
+      : 'bg-slate-50 text-slate-900 ring-1 ring-slate-200'
+
+  const hintClass = tone === 'primary' ? 'text-slate-300' : 'text-slate-500'
+
+  return (
+    <div className={`rounded-[24px] p-4 ${toneClass}`}>
+      <div className="text-xs font-medium uppercase tracking-[0.16em] opacity-80">{label}</div>
+      <div className="mt-2 text-3xl font-semibold">{value}</div>
+      <div className={`mt-1 text-sm ${hintClass}`}>{hint}</div>
+    </div>
+  )
+}
+
 function OrdersPanel({ currentUser, role }) {
   const toast = useToast()
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const isVendor = role === 'vendor'
 
   async function fetchOrders({ background = false, silent = false } = {}) {
     if (!currentUser || !role) return
@@ -154,131 +175,249 @@ function OrdersPanel({ currentUser, role }) {
     }
   }
 
+  function renderOrderItems(order) {
+    if (Array.isArray(order.order_items) && order.order_items.length > 0) {
+      return (
+        <div className="mt-2 space-y-1 text-sm text-slate-600">
+          {order.order_items.map((item) => (
+            <div key={item.id}>
+              {item.product_name_snapshot} x{item.quantity}
+              {item.item_note ? ` • ${item.item_note}` : ''}
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    return (
+      <div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{order.items || '-'}</div>
+    )
+  }
+
+  function renderOrderCard(order, variant = 'active') {
+    const title = isVendor ? (order.buyer_name || 'Pelanggan') : (order.vendor_name || 'Pedagang')
+    const isHighlighted = variant === 'active'
+
+    return (
+      <div
+        key={order.id}
+        className={`rounded-[24px] border p-4 transition ${
+          isHighlighted
+            ? 'border-slate-900/10 bg-white shadow-sm'
+            : 'border-slate-200 bg-slate-50/70'
+        }`}
+      >
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="font-medium text-slate-900">{title}</div>
+              <span className={`rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide ${getOrderStatusTone(order.status)}`}>
+                {formatOrderStatusLabel(order.status)}
+              </span>
+            </div>
+
+            {renderOrderItems(order)}
+
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+              <span className="rounded-full bg-slate-100 px-3 py-1">
+                {formatPaymentMethodLabel(order.payment_method)}
+              </span>
+              <span className="rounded-full bg-slate-100 px-3 py-1">
+                {formatPaymentStatusLabel(order.payment_status)}
+              </span>
+              {order.fulfillment_type && (
+                <span className="rounded-full bg-slate-100 px-3 py-1">
+                  {formatFulfillmentTypeLabel(order.fulfillment_type)}
+                </span>
+              )}
+            </div>
+
+            {isHighlighted && (
+              <div className="mt-3">
+                <OrderStatusTimeline status={order.status} />
+              </div>
+            )}
+
+            {(order.meeting_point_label || order.customer_note || Number(order.total_amount || 0) > 0) && (
+              <div className="mt-3 space-y-1 text-sm text-slate-500">
+                {order.meeting_point_label && <div>Titik temu: {order.meeting_point_label}</div>}
+                {order.customer_note && <div>Catatan: {order.customer_note}</div>}
+                {Number(order.total_amount || 0) > 0 && (
+                  <div className="font-medium text-slate-700">
+                    Total: {formatPriceLabel(order.total_amount)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mt-2 text-xs text-slate-400">
+              {order.created_at ? new Date(order.created_at).toLocaleString('id-ID') : '-'}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => navigate(`/orders/${order.id}`)}
+              className={`rounded-2xl px-3 py-2 text-sm font-medium ${
+                isHighlighted
+                  ? 'bg-slate-900 text-white'
+                  : 'border border-slate-200 bg-white text-slate-700'
+              }`}
+            >
+              Lacak
+            </button>
+            <button
+              onClick={() => navigate(`/chat/${isVendor ? order.buyer_id : order.vendor_id}`)}
+              className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
+            >
+              Buka Chat
+            </button>
+
+            {isVendor && getNextVendorStatusActions(order.status).map((action) => (
+              <button
+                key={action.value}
+                onClick={() => updateStatus(order.id, action.value)}
+                className={`rounded-2xl px-3 py-2 text-sm font-medium ${
+                  action.tone === 'danger'
+                    ? 'border border-red-200 bg-red-50 text-red-600'
+                    : action.tone === 'success'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-900 text-white'
+                }`}
+              >
+                {action.label}
+              </button>
+            ))}
+
+            {!isVendor && order.status === 'pending' && (
+              <button
+                onClick={() => updateStatus(order.id, 'cancelled')}
+                className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600"
+              >
+                Batalkan
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return <div className="rounded-[28px] bg-white p-5 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200/80">Memuat pesanan...</div>
   }
 
+  const activeOrders = orders.filter((order) => isActiveOrderStatus(order.status))
+  const historyOrders = orders.filter((order) => isHistoryOrderStatus(order.status))
+  const pendingOrders = orders.filter((order) => order.status === 'pending')
+  const completedOrders = orders.filter((order) => order.status === 'completed')
+
   return (
     <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-      <div className="mb-4">
+      <div className="mb-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="font-semibold text-slate-900">Pesanan</h3>
-          <p className="text-sm text-slate-500">Pantau transaksi terbaru Anda dan lanjutkan komunikasi dari sini.</p>
+          <div>
+            <h3 className="font-semibold text-slate-900">Pesanan</h3>
+            <p className="text-sm text-slate-500">
+              {isVendor
+                ? 'Pantau order masuk, lanjutkan status, dan buka chat dari satu tempat.'
+                : 'Pantau pesanan aktif lebih cepat, lalu buka tracking atau chat saat dibutuhkan.'}
+            </p>
+          </div>
           <div className="text-xs text-slate-400">
             {refreshing ? 'Menyegarkan data...' : 'Update berjalan di background'}
           </div>
         </div>
       </div>
 
-      <div className="space-y-3">
-        {orders.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-            Belum ada pesanan.
-          </div>
-        ) : (
-          orders.map((order) => (
-            <div key={order.id} className="rounded-[24px] border border-slate-200 p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="font-medium text-slate-900">
-                    {role === 'vendor' ? (order.buyer_name || 'Pelanggan') : (order.vendor_name || 'Pedagang')}
-                  </div>
-                  {Array.isArray(order.order_items) && order.order_items.length > 0 ? (
-                    <div className="mt-2 space-y-1 text-sm text-slate-600">
-                      {order.order_items.map((item) => (
-                        <div key={item.id}>
-                          {item.product_name_snapshot} x{item.quantity}
-                          {item.item_note ? ` • ${item.item_note}` : ''}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{order.items || '-'}</div>
-                  )}
-
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                    <span className="rounded-full bg-slate-100 px-3 py-1">
-                      {formatPaymentMethodLabel(order.payment_method)}
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-3 py-1">
-                      {formatPaymentStatusLabel(order.payment_status)}
-                    </span>
-                    {order.fulfillment_type && (
-                      <span className="rounded-full bg-slate-100 px-3 py-1">
-                        {formatFulfillmentTypeLabel(order.fulfillment_type)}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-3">
-                    <OrderStatusTimeline status={order.status} />
-                  </div>
-
-                  {(order.meeting_point_label || order.customer_note || Number(order.total_amount || 0) > 0) && (
-                    <div className="mt-3 space-y-1 text-sm text-slate-500">
-                      {order.meeting_point_label && <div>Titik temu: {order.meeting_point_label}</div>}
-                      {order.customer_note && <div>Catatan: {order.customer_note}</div>}
-                      {Number(order.total_amount || 0) > 0 && (
-                        <div className="font-medium text-slate-700">
-                          Total: {formatPriceLabel(order.total_amount)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="mt-2 text-xs text-slate-400">
-                    {order.created_at ? new Date(order.created_at).toLocaleString('id-ID') : '-'}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide ${getOrderStatusTone(order.status)}`}>
-                    {formatOrderStatusLabel(order.status)}
-                  </span>
-
-                  <button
-                    onClick={() => navigate(`/chat/${role === 'vendor' ? order.buyer_id : order.vendor_id}`)}
-                    className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
-                  >
-                    Buka Chat
-                  </button>
-                  <button
-                    onClick={() => navigate(`/orders/${order.id}`)}
-                    className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
-                  >
-                    Lacak
-                  </button>
-
-                  {role === 'vendor' && getNextVendorStatusActions(order.status).map((action) => (
-                    <button
-                      key={action.value}
-                      onClick={() => updateStatus(order.id, action.value)}
-                      className={`rounded-2xl px-3 py-2 text-sm font-medium ${
-                        action.tone === 'danger'
-                          ? 'border border-red-200 bg-red-50 text-red-600'
-                          : action.tone === 'success'
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-900 text-white'
-                      }`}
-                    >
-                      {action.label}
-                    </button>
-                  ))}
-
-                  {role === 'customer' && order.status === 'pending' && (
-                    <button
-                      onClick={() => updateStatus(order.id, 'cancelled')}
-                      className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600"
-                    >
-                      Batalkan
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
+      <div className="grid gap-3 md:grid-cols-3">
+        <OrdersSummaryCard
+          label={isVendor ? 'Aktif Sekarang' : 'Pesanan Aktif'}
+          value={activeOrders.length}
+          hint={isVendor ? 'Perlu dipantau atau dilanjutkan statusnya.' : 'Masih berjalan dan siap dilacak.'}
+          tone="primary"
+        />
+        <OrdersSummaryCard
+          label={isVendor ? 'Menunggu Respon' : 'Menunggu Konfirmasi'}
+          value={pendingOrders.length}
+          hint={isVendor ? 'Segera cek agar pelanggan tidak menunggu lama.' : 'Pedagang belum memberi keputusan akhir.'}
+          tone="default"
+        />
+        <OrdersSummaryCard
+          label="Riwayat Selesai"
+          value={completedOrders.length}
+          hint={isVendor ? 'Order yang sudah selesai ditutup.' : 'Pesanan yang berhasil diselesaikan.'}
+          tone="success"
+        />
       </div>
+
+      {orders.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+          <div>Belum ada pesanan.</div>
+          <button
+            onClick={() => navigate('/map')}
+            className="mt-4 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white"
+          >
+            Buka Peta Pedagang
+          </button>
+        </div>
+      ) : (
+        <div className="mt-5 space-y-6">
+          <section>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  {isVendor ? 'Order Aktif' : 'Pesanan Aktif'}
+                </h4>
+                <p className="text-sm text-slate-500">
+                  {isVendor
+                    ? 'Bagian ini diprioritaskan untuk order yang sedang berjalan.'
+                    : 'Fokus ke order yang masih butuh tracking, chat, atau keputusan lanjutan.'}
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                {activeOrders.length} aktif
+              </span>
+            </div>
+
+            {activeOrders.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                {isVendor ? 'Tidak ada order aktif saat ini.' : 'Tidak ada pesanan aktif saat ini.'}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeOrders.map((order) => renderOrderCard(order, 'active'))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Riwayat</h4>
+                <p className="text-sm text-slate-500">
+                  {isVendor
+                    ? 'Order yang selesai, dibatalkan, atau ditolak tetap bisa dibuka kembali saat diperlukan.'
+                    : 'Riwayat membantu Anda melihat transaksi yang sudah selesai atau tidak lanjut.'}
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                {historyOrders.length} riwayat
+              </span>
+            </div>
+
+            {historyOrders.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                Belum ada riwayat pesanan.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {historyOrders.map((order) => renderOrderCard(order, 'history'))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   )
 }
@@ -604,18 +743,19 @@ export default function DashboardScreen() {
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const requestedTab = params.get('tab')
-    const allowedTabs = ['products', 'chats', 'orders', 'profile']
+    const allowedTabs = isVendor
+      ? ['products', 'chats', 'orders', 'profile']
+      : ['chats', 'orders', 'profile']
 
     if (requestedTab && allowedTabs.includes(requestedTab)) {
       setActiveTab(requestedTab)
+      return
     }
-  }, [location.search])
 
-  useEffect(() => {
-    if (!isVendor && activeTab === 'products') {
-      setActiveTab('chats')
+    if (!requestedTab) {
+      setActiveTab(isVendor ? 'products' : 'orders')
     }
-  }, [activeTab, isVendor])
+  }, [isVendor, location.search])
 
   useEffect(() => {
     if (!user || !isVendor) {

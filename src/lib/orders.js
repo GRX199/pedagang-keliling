@@ -23,6 +23,20 @@ export const ORDER_STATUS_LABELS = {
   rejected: 'Ditolak',
 }
 
+export const ACTIVE_ORDER_STATUSES = [
+  'pending',
+  'accepted',
+  'preparing',
+  'on_the_way',
+  'arrived',
+]
+
+export const HISTORY_ORDER_STATUSES = [
+  'completed',
+  'cancelled',
+  'rejected',
+]
+
 export const PAYMENT_METHOD_LABELS = {
   cod: 'COD',
   qris: 'QRIS',
@@ -93,6 +107,14 @@ export function getNextVendorStatusActions(status) {
     default:
       return []
   }
+}
+
+export function isActiveOrderStatus(status) {
+  return ACTIVE_ORDER_STATUSES.includes(status)
+}
+
+export function isHistoryOrderStatus(status) {
+  return HISTORY_ORDER_STATUSES.includes(status)
 }
 
 export function getOrderStatusSteps(status) {
