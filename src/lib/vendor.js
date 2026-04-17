@@ -26,6 +26,17 @@ export function getVendorCoordinates(location) {
   return null
 }
 
+export function createLocationPayload({ lat, lng, accuracy = null }) {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null
+
+  return {
+    lat,
+    lng,
+    accuracy: typeof accuracy === 'number' ? Math.round(accuracy) : null,
+    updated_at: new Date().toISOString(),
+  }
+}
+
 export function getVendorLocationLabel(location) {
   const coordinates = getVendorCoordinates(location)
   if (!coordinates) return 'Lokasi belum dibagikan'
@@ -39,14 +50,7 @@ export function getDisplayName(value, fallback = 'Pengguna') {
 }
 
 export function createVendorLocationPayload({ lat, lng, accuracy = null }) {
-  if (typeof lat !== 'number' || typeof lng !== 'number') return null
-
-  return {
-    lat,
-    lng,
-    accuracy: typeof accuracy === 'number' ? Math.round(accuracy) : null,
-    updated_at: new Date().toISOString(),
-  }
+  return createLocationPayload({ lat, lng, accuracy })
 }
 
 export function getVendorLocationUpdatedAtLabel(location) {

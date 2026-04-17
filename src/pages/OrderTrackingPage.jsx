@@ -17,16 +17,6 @@ import { getVendorCoordinates, getVendorLocationLabel } from '../lib/vendor'
 
 const DEFAULT_CENTER = [-2.5489, 118.0149]
 
-const DefaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-})
-
-L.Marker.prototype.options.icon = DefaultIcon
-
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const toRad = (value) => (value * Math.PI) / 180
   const radius = 6371000
@@ -40,10 +30,46 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 }
 
 function formatDistance(distanceMeters) {
-  if (typeof distanceMeters !== 'number') return 'Aktifkan lokasi untuk menghitung jarak'
+  if (typeof distanceMeters !== 'number') return 'Menunggu titik lokasi lengkap'
   if (distanceMeters < 1000) return `${Math.round(distanceMeters)} m`
   return `${(distanceMeters / 1000).toFixed(1)} km`
 }
+
+function estimateEtaMinutes(distanceMeters, status) {
+  if (typeof distanceMeters !== 'number') return null
+
+  let speedKmh = 12
+  if (status === 'on_the_way') speedKmh = 18
+  if (status === 'arrived') speedKmh = 4
+
+  return Math.max(1, Math.round(distanceMeters / ((speedKmh * 1000) / 60)))
+}
+
+function formatEta(distanceMeters, status) {
+  const minutes = estimateEtaMinutes(distanceMeters, status)
+  if (minutes === null) return 'ETA menunggu dua titik lokasi'
+  if (minutes < 60) return `${minutes} menit`
+
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return remainingMinutes > 0 ? `${hours} jam ${remainingMinutes} menit` : `${hours} jam`
+}
+
+function createRouteIcon(label, accentClass, haloClass) {
+  return L.divIcon({
+    className: '',
+    html: `
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-4 w-4 rounded-full ${accentClass} ring-4 ${haloClass}"></span>
+        <span class="rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">${label}</span>
+      </div>
+    `,
+    iconAnchor: [10, 10],
+  })
+}
+
+const vendorIcon = createRouteIcon('Pedagang', 'bg-emerald-500', 'ring-emerald-100')
+const customerIcon = createRouteIcon('Pelanggan', 'bg-sky-500', 'ring-sky-100')
 
 export default function OrderTrackingPage() {
   const { id } = useParams()
@@ -61,7 +87,8 @@ export default function OrderTrackingPage() {
   const mapRef = useRef(null)
   const containerRef = useRef(null)
   const vendorMarkerRef = useRef(null)
-  const userMarkerRef = useRef(null)
+  const customerMarkerRef = useRef(null)
+  const routeLineRef = useRef(null)
 
   async function loadOrder({ background = false, silent = false } = {}) {
     if (!id) return
@@ -149,7 +176,10 @@ export default function OrderTrackingPage() {
   useEffect(() => {
     if (!containerRef.current) return undefined
 
-    const map = L.map(containerRef.current).setView(DEFAULT_CENTER, 5)
+    const map = L.map(containerRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+    }).setView(DEFAULT_CENTER, 5)
     mapRef.current = map
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -157,7 +187,23 @@ export default function OrderTrackingPage() {
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map)
 
+    const invalidate = () => {
+      try {
+        map.invalidateSize()
+      } catch (error) {
+        console.error('invalidateTrackingMap', error)
+      }
+    }
+
+    const frameId = window.requestAnimationFrame(invalidate)
+    const timeoutId = window.setTimeout(invalidate, 300)
+    window.addEventListener('resize', invalidate)
+
     return () => {
+      window.cancelAnimationFrame(frameId)
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('resize', invalidate)
+
       try {
         map.remove()
       } catch (error) {
@@ -190,49 +236,107 @@ export default function OrderTrackingPage() {
     return () => navigator.geolocation.clearWatch(watchId)
   }, [])
 
+  const vendorCoordinates = useMemo(() => {
+    return getVendorCoordinates(vendor?.location) || getVendorCoordinates(order?.vendor_location_snapshot)
+  }, [order?.vendor_location_snapshot, vendor?.location])
+
+  const savedCustomerCoordinates = useMemo(() => {
+    return getVendorCoordinates(order?.meeting_point_location) || getVendorCoordinates(order?.customer_location)
+  }, [order?.customer_location, order?.meeting_point_location])
+
+  const customerCoordinates = useMemo(() => {
+    if (order?.buyer_id === user?.id && userLocation) return userLocation
+    return savedCustomerCoordinates
+  }, [order?.buyer_id, savedCustomerCoordinates, user?.id, userLocation])
+
+  const customerLocationLabel = useMemo(() => {
+    if (order?.buyer_id === user?.id && userLocation) return 'Lokasi Anda saat ini'
+    if (order?.meeting_point_label) return order.meeting_point_label
+    if (savedCustomerCoordinates) return getVendorLocationLabel(order?.meeting_point_location || order?.customer_location)
+    return 'Titik pelanggan belum tersedia'
+  }, [order?.buyer_id, order?.customer_location, order?.meeting_point_label, order?.meeting_point_location, savedCustomerCoordinates, user?.id, userLocation])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
 
+    window.requestAnimationFrame(() => {
+      try {
+        map.invalidateSize()
+      } catch (error) {
+        console.error('resizeTrackingMap', error)
+      }
+    })
+
     const points = []
-    const vendorCoordinates = getVendorCoordinates(vendor?.location)
 
     if (vendorCoordinates) {
+      const latLng = [vendorCoordinates.lat, vendorCoordinates.lng]
       if (!vendorMarkerRef.current) {
-        vendorMarkerRef.current = L.marker([vendorCoordinates.lat, vendorCoordinates.lng]).addTo(map)
+        vendorMarkerRef.current = L.marker(latLng, { icon: vendorIcon }).addTo(map)
       } else {
-        vendorMarkerRef.current.setLatLng([vendorCoordinates.lat, vendorCoordinates.lng])
+        vendorMarkerRef.current.setLatLng(latLng)
       }
-      vendorMarkerRef.current.bindPopup(`${vendor?.name || 'Pedagang'}\n${formatOrderStatusLabel(order?.status)}`)
-      points.push([vendorCoordinates.lat, vendorCoordinates.lng])
+      vendorMarkerRef.current.bindPopup(`<strong>${vendor?.name || 'Pedagang'}</strong><br/>${formatOrderStatusLabel(order?.status)}`)
+      points.push(latLng)
+    } else if (vendorMarkerRef.current) {
+      map.removeLayer(vendorMarkerRef.current)
+      vendorMarkerRef.current = null
     }
 
-    if (userLocation) {
-      if (!userMarkerRef.current) {
-        userMarkerRef.current = L.circleMarker([userLocation.lat, userLocation.lng], {
-          radius: 8,
-          color: '#2563eb',
-          fillColor: '#2563eb',
-          fillOpacity: 0.9,
+    if (customerCoordinates) {
+      const latLng = [customerCoordinates.lat, customerCoordinates.lng]
+      if (!customerMarkerRef.current) {
+        customerMarkerRef.current = L.marker(latLng, { icon: customerIcon }).addTo(map)
+      } else {
+        customerMarkerRef.current.setLatLng(latLng)
+      }
+      customerMarkerRef.current.bindPopup(`<strong>Pelanggan</strong><br/>${customerLocationLabel}`)
+      points.push(latLng)
+    } else if (customerMarkerRef.current) {
+      map.removeLayer(customerMarkerRef.current)
+      customerMarkerRef.current = null
+    }
+
+    if (vendorCoordinates && customerCoordinates) {
+      const nextRoute = [
+        [vendorCoordinates.lat, vendorCoordinates.lng],
+        [customerCoordinates.lat, customerCoordinates.lng],
+      ]
+
+      if (!routeLineRef.current) {
+        routeLineRef.current = L.polyline(nextRoute, {
+          color: '#0f766e',
+          weight: 4,
+          opacity: 0.9,
+          dashArray: order?.status === 'on_the_way' || order?.status === 'arrived' ? null : '10 10',
         }).addTo(map)
       } else {
-        userMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng])
+        routeLineRef.current.setLatLngs(nextRoute)
+        routeLineRef.current.setStyle({
+          dashArray: order?.status === 'on_the_way' || order?.status === 'arrived' ? null : '10 10',
+        })
       }
-      points.push([userLocation.lat, userLocation.lng])
+    } else if (routeLineRef.current) {
+      map.removeLayer(routeLineRef.current)
+      routeLineRef.current = null
     }
 
     if (points.length > 1) {
-      map.fitBounds(points, { padding: [48, 48] })
+      map.fitBounds(points, { padding: [56, 56], maxZoom: 16 })
     } else if (points.length === 1) {
       map.setView(points[0], 15)
+    } else {
+      map.setView(DEFAULT_CENTER, 5)
     }
-  }, [order?.status, userLocation, vendor])
+  }, [customerCoordinates, customerLocationLabel, order?.status, vendor?.name, vendorCoordinates])
 
-  const vendorCoordinates = getVendorCoordinates(vendor?.location)
-  const vendorDistance = useMemo(() => {
-    if (!vendorCoordinates || !userLocation) return null
-    return haversineDistance(userLocation.lat, userLocation.lng, vendorCoordinates.lat, vendorCoordinates.lng)
-  }, [userLocation, vendorCoordinates])
+  const routeDistance = useMemo(() => {
+    if (!vendorCoordinates || !customerCoordinates) return null
+    return haversineDistance(vendorCoordinates.lat, vendorCoordinates.lng, customerCoordinates.lat, customerCoordinates.lng)
+  }, [customerCoordinates, vendorCoordinates])
+
+  const routeEtaLabel = useMemo(() => formatEta(routeDistance, order?.status), [order?.status, routeDistance])
 
   if (loading) {
     return <div className="p-6 text-sm text-slate-500">Memuat tracking pesanan...</div>
@@ -243,6 +347,7 @@ export default function OrderTrackingPage() {
   }
 
   const partnerId = order.buyer_id === user?.id ? order.vendor_id : order.buyer_id
+  const routeReady = Boolean(vendorCoordinates && customerCoordinates)
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -280,6 +385,33 @@ export default function OrderTrackingPage() {
           </div>
         </section>
 
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Titik Pedagang</div>
+            <div className="mt-2 text-sm font-medium text-slate-900">{getVendorLocationLabel(vendor?.location || order?.vendor_location_snapshot)}</div>
+            <div className="mt-1 text-xs text-slate-500">{vendor?.online ? 'Posisi realtime pedagang aktif' : 'Memakai titik terakhir yang tersedia'}</div>
+          </div>
+          <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Titik Pelanggan</div>
+            <div className="mt-2 text-sm font-medium text-slate-900">{customerLocationLabel}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {order?.buyer_id === user?.id && userLocation ? 'Mengikuti posisi Anda saat ini' : 'Memakai titik yang tersimpan saat checkout'}
+            </div>
+          </div>
+          <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Jarak Saat Ini</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatDistance(routeDistance)}</div>
+            <div className="mt-1 text-xs text-slate-500">{routeReady ? 'Dihitung dari dua titik aktif di peta' : 'Menunggu data lokasi lengkap'}</div>
+          </div>
+          <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Estimasi Tiba</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{routeEtaLabel}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {order.status === 'on_the_way' ? 'Pedagang sedang menuju titik pelanggan' : 'Akan makin akurat saat pedagang bergerak'}
+            </div>
+          </div>
+        </section>
+
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_360px]">
           <div className="space-y-4">
             <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
@@ -287,7 +419,20 @@ export default function OrderTrackingPage() {
             </div>
 
             <div className="overflow-hidden rounded-[28px] bg-white p-2 shadow-sm ring-1 ring-slate-200/80">
-              <div ref={containerRef} className="h-[52vh] rounded-[22px]" />
+              <div className="flex items-center justify-between px-3 pb-2 pt-1 text-xs text-slate-500">
+                <div className="flex items-center gap-4">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-emerald-500" />
+                    Pedagang
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-sky-500" />
+                    Pelanggan
+                  </span>
+                </div>
+                <span>{routeReady ? 'Garis menunjukkan jalur lurus saat ini' : 'Menunggu dua titik lengkap'}</span>
+              </div>
+              <div ref={containerRef} className="h-[56vh] min-h-[360px] rounded-[22px]" />
             </div>
 
             <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
@@ -355,11 +500,13 @@ export default function OrderTrackingPage() {
             </div>
 
             <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-              <h2 className="text-lg font-semibold text-slate-900">Posisi Pedagang</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Status Rute</h2>
               <div className="mt-4 space-y-2 text-sm text-slate-600">
-                <div>Lokasi toko: {getVendorLocationLabel(vendor?.location)}</div>
-                <div>Jarak dari Anda: {formatDistance(vendorDistance)}</div>
-                <div>Status online: {vendor?.online ? 'Online' : 'Offline'}</div>
+                <div>Lokasi pedagang: {getVendorLocationLabel(vendor?.location || order?.vendor_location_snapshot)}</div>
+                <div>Lokasi pelanggan: {customerLocationLabel}</div>
+                <div>Jarak rute: {formatDistance(routeDistance)}</div>
+                <div>ETA: {routeEtaLabel}</div>
+                <div>Status online pedagang: {vendor?.online ? 'Online' : 'Offline'}</div>
               </div>
             </div>
           </aside>

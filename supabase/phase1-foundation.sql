@@ -50,6 +50,8 @@ alter table public.orders
   add column if not exists fulfillment_type text not null default 'meetup',
   add column if not exists meeting_point_label text,
   add column if not exists meeting_point_location jsonb,
+  add column if not exists customer_location jsonb,
+  add column if not exists vendor_location_snapshot jsonb,
   add column if not exists customer_note text,
   add column if not exists subtotal_amount numeric(12,2) not null default 0,
   add column if not exists delivery_fee numeric(12,2) not null default 0,

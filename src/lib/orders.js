@@ -172,7 +172,10 @@ export function buildOrderInsertPayload({
   paymentMethod = 'cod',
   fulfillmentType = 'meetup',
   meetingPointLabel = '',
+  meetingPointLocation = null,
   customerNote = '',
+  customerLocation = null,
+  vendorLocationSnapshot = null,
 }) {
   const totals = getCartTotals(entries)
 
@@ -187,7 +190,10 @@ export function buildOrderInsertPayload({
     payment_status: paymentMethod === 'cod' ? 'unpaid' : 'pending_confirmation',
     fulfillment_type: fulfillmentType,
     meeting_point_label: String(meetingPointLabel || '').trim() || null,
+    meeting_point_location: meetingPointLocation || null,
     customer_note: String(customerNote || '').trim() || null,
+    customer_location: customerLocation || null,
+    vendor_location_snapshot: vendorLocationSnapshot || null,
     subtotal_amount: totals.estimatedTotal,
     delivery_fee: 0,
     total_amount: totals.estimatedTotal,

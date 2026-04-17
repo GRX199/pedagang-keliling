@@ -10,6 +10,10 @@ Dokumen ini dipakai jika project Supabase Anda sudah berjalan dan Anda ingin men
 
 - [phase1-foundation.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/phase1-foundation.sql)
 
+Jika database Anda sudah pernah menjalankan `phase1-foundation.sql` versi lama dan hanya ingin menambahkan tracking dua titik pelanggan-pedagang, jalankan juga:
+
+- [order-tracking-upgrade.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/order-tracking-upgrade.sql)
+
 ## Apa Yang Ditambahkan
 
 - role `admin` di `profiles`
@@ -33,6 +37,7 @@ Dokumen ini dipakai jika project Supabase Anda sudah berjalan dan Anda ingin men
 - vendor menerima order lalu ubah status bertahap
 - pelanggan menerima update status
 - kirim pesan dan pastikan notifikasi tetap masuk
+- buka halaman tracking order dan pastikan dua titik lokasi serta garis rute tampil
 
 ## Catatan Kompatibilitas
 

@@ -14,7 +14,29 @@ import {
   isSchemaCompatibilityError,
 } from '../lib/orders'
 import { supabase } from '../lib/supabase'
-import { getVendorLocationLabel } from '../lib/vendor'
+import { createLocationPayload, getVendorLocationLabel } from '../lib/vendor'
+
+function getCurrentLocationSnapshot() {
+  if (!navigator.geolocation) return Promise.resolve(null)
+
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve(createLocationPayload({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        }))
+      },
+      () => resolve(null),
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 60000,
+      }
+    )
+  })
+}
 
 export default function VendorStorePage() {
   const { id } = useParams()
@@ -142,6 +164,7 @@ export default function VendorStorePage() {
     setSubmittingOrder(true)
     try {
       const buyerName = user.user_metadata?.full_name || user.email || 'Pelanggan'
+      const customerLocation = await getCurrentLocationSnapshot()
       const directChat = await findOrCreateDirectChat(user.id, id)
       const orderPayload = buildOrderInsertPayload({
         vendorId: id,
@@ -153,6 +176,9 @@ export default function VendorStorePage() {
         fulfillmentType,
         meetingPointLabel,
         customerNote,
+        meetingPointLocation: customerLocation,
+        customerLocation,
+        vendorLocationSnapshot: vendor?.location || null,
       })
 
       let createdOrder = null
@@ -170,24 +196,41 @@ export default function VendorStorePage() {
         createdOrder = data
       } catch (error) {
         if (!isSchemaCompatibilityError(error)) throw error
+        try {
+          const compatibilityPayload = { ...orderPayload }
+          delete compatibilityPayload.customer_location
+          delete compatibilityPayload.vendor_location_snapshot
 
-        structuredOrderSaved = false
-        const { data, error: fallbackError } = await supabase
-          .from('orders')
-          .insert([{
-            vendor_id: id,
-            vendor_name: vendor?.name || 'Pedagang',
-            buyer_id: user.id,
-            buyer_name: buyerName,
-            items: buildOrderItemsText(cartEntries),
-            status: 'pending',
-          }])
-          .select()
-          .single()
+          const { data, error: compatibilityError } = await supabase
+            .from('orders')
+            .insert([compatibilityPayload])
+            .select()
+            .single()
 
-        if (fallbackError) throw fallbackError
-        createdOrder = data
-        notes.push('Database masih memakai model order lama, jadi detail pembayaran dan titik temu belum tersimpan penuh.')
+          if (compatibilityError) throw compatibilityError
+          createdOrder = data
+          notes.push('Tracking dua titik akan aktif penuh setelah migration tracking terbaru dijalankan.')
+        } catch (compatibilityError) {
+          if (!isSchemaCompatibilityError(compatibilityError)) throw compatibilityError
+
+          structuredOrderSaved = false
+          const { data, error: fallbackError } = await supabase
+            .from('orders')
+            .insert([{
+              vendor_id: id,
+              vendor_name: vendor?.name || 'Pedagang',
+              buyer_id: user.id,
+              buyer_name: buyerName,
+              items: buildOrderItemsText(cartEntries),
+              status: 'pending',
+            }])
+            .select()
+            .single()
+
+          if (fallbackError) throw fallbackError
+          createdOrder = data
+          notes.push('Database masih memakai model order lama, jadi detail pembayaran dan titik temu belum tersimpan penuh.')
+        }
       }
 
       if (createdOrder?.id) {
@@ -226,6 +269,9 @@ export default function VendorStorePage() {
       if (!structuredOrderSaved) {
         setPaymentMethod('cod')
         setFulfillmentType('meetup')
+      }
+      if (!customerLocation) {
+        notes.push('Lokasi pelanggan belum ikut tersimpan, jadi tracking peta hanya akan memakai data yang tersedia saat ini.')
       }
       if (notes.length > 0) {
         successMessage = `${successMessage} ${notes.join(' ')}`
