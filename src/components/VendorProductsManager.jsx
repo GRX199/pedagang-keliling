@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { uploadImageFile } from '../lib/media'
+import { isSchemaCompatibilityError } from '../lib/orders'
 import { supabase } from '../lib/supabase'
 import { useToast } from './ToastProvider'
 
@@ -22,6 +23,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
+  const [stock, setStock] = useState('')
+  const [categoryName, setCategoryName] = useState('')
+  const [isAvailable, setIsAvailable] = useState(true)
   const [file, setFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
 
@@ -30,6 +34,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editPrice, setEditPrice] = useState('')
+  const [editStock, setEditStock] = useState('')
+  const [editCategoryName, setEditCategoryName] = useState('')
+  const [editIsAvailable, setEditIsAvailable] = useState(true)
   const [editFile, setEditFile] = useState(null)
   const [editPreview, setEditPreview] = useState(null)
 
@@ -90,6 +97,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
     setName('')
     setDescription('')
     setPrice('')
+    setStock('')
+    setCategoryName('')
+    setIsAvailable(true)
     setFile(null)
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl)
@@ -127,6 +137,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
     setEditName(product.name || '')
     setEditDescription(product.description || '')
     setEditPrice(product.price ?? '')
+    setEditStock(product.stock ?? '')
+    setEditCategoryName(product.category_name || '')
+    setEditIsAvailable(product.is_available !== false)
     setEditFile(null)
     if (editPreview) {
       URL.revokeObjectURL(editPreview)
@@ -137,6 +150,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
   function closeEditModal() {
     setEditing(false)
     setEditId(null)
+    setEditStock('')
+    setEditCategoryName('')
+    setEditIsAvailable(true)
     setEditFile(null)
     if (editPreview) {
       URL.revokeObjectURL(editPreview)
@@ -168,6 +184,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
         name: name.trim(),
         description: description.trim() || null,
         price: price === '' ? null : Number(price),
+        stock: stock === '' ? null : Number(stock),
+        category_name: categoryName.trim() || null,
+        is_available: isAvailable,
         image_url: imageUrl,
       }
 
@@ -179,6 +198,10 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
       fetchProducts()
     } catch (error) {
       console.error('addProduct', error)
+      if (isSchemaCompatibilityError(error)) {
+        toast.push('Database belum memuat field stok, kategori, dan availability terbaru. Jalankan phase1-foundation.sql lalu coba lagi.', { type: 'error' })
+        return
+      }
       toast.push(error.message || 'Gagal menambahkan produk', { type: 'error' })
     } finally {
       setSubmitting(false)
@@ -196,6 +219,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
         name: editName.trim(),
         description: editDescription.trim() || null,
         price: editPrice === '' ? null : Number(editPrice),
+        stock: editStock === '' ? null : Number(editStock),
+        category_name: editCategoryName.trim() || null,
+        is_available: editIsAvailable,
       }
 
       if (editFile) {
@@ -214,6 +240,10 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
       fetchProducts()
     } catch (error) {
       console.error('saveEdit', error)
+      if (isSchemaCompatibilityError(error)) {
+        toast.push('Database belum memuat field operasional produk terbaru. Jalankan phase1-foundation.sql lalu coba lagi.', { type: 'error' })
+        return
+      }
       toast.push(error.message || 'Gagal menyimpan perubahan produk', { type: 'error' })
     } finally {
       setSubmitting(false)
@@ -267,6 +297,32 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
             onChange={(event) => setPrice(event.target.value)}
             placeholder="Harga (Rp)"
           />
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+              value={categoryName}
+              onChange={(event) => setCategoryName(event.target.value)}
+              placeholder="Kategori produk, misalnya sayur atau minuman"
+            />
+            <input
+              type="number"
+              min="0"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+              value={stock}
+              onChange={(event) => setStock(event.target.value)}
+              placeholder="Stok (opsional)"
+            />
+          </div>
+
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={isAvailable}
+              onChange={(event) => setIsAvailable(event.target.checked)}
+            />
+            Produk ini sedang tersedia untuk dipesan
+          </label>
 
           <div>
             <label className="block text-sm font-medium text-slate-700">Foto produk</label>
@@ -323,6 +379,23 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
                   <div className="font-semibold text-slate-900">{product.name}</div>
                   <div className="text-sm leading-6 text-slate-600">{product.description || 'Tanpa deskripsi'}</div>
                   <div className="text-sm font-medium text-slate-900">{formatPrice(product.price)}</div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className={`rounded-full px-3 py-1 font-medium ${
+                      product.is_available === false
+                        ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-100'
+                        : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
+                    }`}>
+                      {product.is_available === false ? 'Tidak tersedia' : 'Tersedia'}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                      Stok: {Number.isFinite(Number(product.stock)) ? Number(product.stock) : 'fleksibel'}
+                    </span>
+                    {product.category_name && (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                        {product.category_name}
+                      </span>
+                    )}
+                  </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <button
@@ -379,6 +452,32 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
                 onChange={(event) => setEditPrice(event.target.value)}
                 placeholder="Harga (Rp)"
               />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  value={editCategoryName}
+                  onChange={(event) => setEditCategoryName(event.target.value)}
+                  placeholder="Kategori produk"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  value={editStock}
+                  onChange={(event) => setEditStock(event.target.value)}
+                  placeholder="Stok"
+                />
+              </div>
+
+              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={editIsAvailable}
+                  onChange={(event) => setEditIsAvailable(event.target.checked)}
+                />
+                Produk ini sedang tersedia untuk dipesan
+              </label>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700">Ganti foto produk</label>

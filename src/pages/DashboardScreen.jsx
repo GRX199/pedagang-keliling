@@ -22,8 +22,13 @@ import {
 import { syncCurrentProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import {
+  buildOperatingHoursPayload,
+  formatVendorCategoryLabel,
+  formatVendorServiceMode,
+  formatVendorServiceRadius,
   createVendorLocationPayload,
   getDisplayName,
+  getOperatingHoursText,
   getVendorLocationLabel,
   getVendorLocationUpdatedAtLabel,
 } from '../lib/vendor'
@@ -539,7 +544,15 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
   const [saving, setSaving] = useState(false)
   const [savingLocation, setSavingLocation] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
-  const [form, setForm] = useState({ name: '', description: '', photo_url: '' })
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    photo_url: '',
+    category_primary: '',
+    service_radius_km: '',
+    operating_hours_text: '',
+    service_mode: 'meetup',
+  })
 
   useEffect(() => {
     if (!currentUser) return undefined
@@ -559,6 +572,12 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
             name: nextProfile?.name || '',
             description: nextProfile?.description || '',
             photo_url: nextProfile?.photo_url || '',
+            category_primary: nextProfile?.category_primary || '',
+            service_radius_km: nextProfile?.service_radius_km ?? '',
+            operating_hours_text: getOperatingHoursText(nextProfile?.operating_hours) === 'Belum diatur'
+              ? ''
+              : getOperatingHoursText(nextProfile?.operating_hours),
+            service_mode: nextProfile?.service_mode || 'meetup',
           })
           onVendorProfileSaved?.(nextProfile)
           return
@@ -579,6 +598,10 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
           name: nextProfile.name,
           description: '',
           photo_url: nextProfile.photo_url,
+          category_primary: '',
+          service_radius_km: '',
+          operating_hours_text: '',
+          service_mode: 'meetup',
         })
       } catch (error) {
         console.error('loadProfile', error)
@@ -612,6 +635,10 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
           name: form.name.trim() || 'Pedagang',
           description: form.description.trim() || null,
           photo_url: photoUrl,
+          category_primary: form.category_primary.trim() || null,
+          service_radius_km: form.service_radius_km === '' ? null : Number(form.service_radius_km),
+          operating_hours: buildOperatingHoursPayload(form.operating_hours_text),
+          service_mode: form.service_mode || 'meetup',
         }
 
         const { data, error } = await supabase
@@ -651,6 +678,10 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
       setForm((current) => ({ ...current, photo_url: photoUrl }))
     } catch (error) {
       console.error('saveProfile', error)
+      if (role === 'vendor' && isSchemaCompatibilityError(error)) {
+        toast.push('Database belum memuat field operasional toko terbaru. Jalankan phase1-foundation.sql lalu coba lagi.', { type: 'error' })
+        return
+      }
       toast.push(error.message || 'Gagal menyimpan profil', { type: 'error' })
     } finally {
       setSaving(false)
@@ -766,6 +797,29 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                     Lihat Produk
                   </button>
                 </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Verifikasi</div>
+                    <div className="mt-1 font-medium text-slate-900">{profile.is_verified ? 'Terverifikasi' : 'Belum diverifikasi'}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Kategori Utama</div>
+                    <div className="mt-1 font-medium text-slate-900">{formatVendorCategoryLabel(profile.category_primary)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Area Layanan</div>
+                    <div className="mt-1 font-medium text-slate-900">{formatVendorServiceRadius(profile.service_radius_km)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Metode Layanan</div>
+                    <div className="mt-1 font-medium text-slate-900">{formatVendorServiceMode(profile.service_mode)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Jam Operasional</div>
+                    <div className="mt-1 text-sm leading-6 text-slate-700">{getOperatingHoursText(profile.operating_hours)}</div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -788,12 +842,49 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
             />
 
             {role === 'vendor' && (
-              <textarea
-                className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3"
-                value={form.description}
-                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                placeholder="Deskripsi singkat toko"
-              />
+              <>
+                <textarea
+                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  value={form.description}
+                  onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="Deskripsi singkat toko"
+                />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                    value={form.category_primary}
+                    onChange={(event) => setForm((current) => ({ ...current, category_primary: event.target.value }))}
+                    placeholder="Kategori utama, misalnya bakso atau sayur"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                    value={form.service_radius_km}
+                    onChange={(event) => setForm((current) => ({ ...current, service_radius_km: event.target.value }))}
+                    placeholder="Radius layanan (km)"
+                  />
+                </div>
+
+                <select
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  value={form.service_mode}
+                  onChange={(event) => setForm((current) => ({ ...current, service_mode: event.target.value }))}
+                >
+                  <option value="meetup">Titik temu</option>
+                  <option value="delivery">Antar ke pelanggan</option>
+                  <option value="both">Antar dan titik temu</option>
+                </select>
+
+                <textarea
+                  className="min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  value={form.operating_hours_text}
+                  onChange={(event) => setForm((current) => ({ ...current, operating_hours_text: event.target.value }))}
+                  placeholder="Contoh: Senin-Sabtu 07.00-12.00, Minggu libur"
+                />
+              </>
             )}
 
             <div>
@@ -822,6 +913,12 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                     name: profile.name || '',
                     description: profile.description || '',
                     photo_url: profile.photo_url || '',
+                    category_primary: profile.category_primary || '',
+                    service_radius_km: profile.service_radius_km ?? '',
+                    operating_hours_text: getOperatingHoursText(profile.operating_hours) === 'Belum diatur'
+                      ? ''
+                      : getOperatingHoursText(profile.operating_hours),
+                    service_mode: profile.service_mode || 'meetup',
                   })
                 }}
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"

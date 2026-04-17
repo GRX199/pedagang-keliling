@@ -14,7 +14,34 @@ import {
   isSchemaCompatibilityError,
 } from '../lib/orders'
 import { supabase } from '../lib/supabase'
-import { createLocationPayload, getVendorLocationLabel } from '../lib/vendor'
+import {
+  createLocationPayload,
+  formatVendorCategoryLabel,
+  formatVendorServiceMode,
+  formatVendorServiceRadius,
+  getOperatingHoursText,
+} from '../lib/vendor'
+
+function getProductStockLabel(product) {
+  const stock = Number(product?.stock)
+  if (Number.isFinite(stock)) {
+    if (stock <= 0) return 'Stok habis'
+    return `Stok ${stock}`
+  }
+
+  return 'Stok fleksibel'
+}
+
+function isProductOrderable(product) {
+  const stock = Number(product?.stock)
+  if (product?.is_available === false) return false
+  if (Number.isFinite(stock) && stock <= 0) return false
+  return true
+}
+
+function getStoreLocationStatus(location) {
+  return location ? 'Lokasi aktif tersedia di peta pelanggan.' : 'Lokasi belum dibagikan.'
+}
 
 function getCurrentLocationSnapshot() {
   if (!navigator.geolocation) return Promise.resolve(null)
@@ -105,22 +132,84 @@ export default function VendorStorePage() {
     }
   }, [id, toast])
 
+  useEffect(() => {
+    setCart((current) => {
+      let changed = false
+      const nextCart = {}
+
+      for (const product of products) {
+        const currentEntry = current[product.id]
+        if (!currentEntry?.quantity) continue
+        if (!isProductOrderable(product)) {
+          changed = true
+          continue
+        }
+
+        const numericStock = Number(product.stock)
+        const maxQuantity = Number.isFinite(numericStock) && numericStock > 0
+          ? numericStock
+          : currentEntry.quantity
+        const safeQuantity = Math.min(currentEntry.quantity, maxQuantity)
+        if (safeQuantity !== currentEntry.quantity) {
+          changed = true
+        }
+
+        nextCart[product.id] = {
+          ...currentEntry,
+          quantity: safeQuantity,
+        }
+      }
+
+      return changed ? nextCart : current
+    })
+  }, [products])
+
   const cartEntries = useMemo(() => getCartEntries(cart, products), [cart, products])
   const cartTotals = useMemo(() => getCartTotals(cartEntries), [cartEntries])
+  const availableProductsCount = useMemo(
+    () => products.filter((product) => isProductOrderable(product)).length,
+    [products]
+  )
+  const productCards = useMemo(() => {
+    if (isOwner) return products
 
-  function updateQuantity(productId, nextQuantity) {
+    return [...products].sort((left, right) => {
+      const leftOrderable = isProductOrderable(left)
+      const rightOrderable = isProductOrderable(right)
+
+      if (leftOrderable !== rightOrderable) {
+        return leftOrderable ? -1 : 1
+      }
+
+      return (left.name || '').localeCompare(right.name || '', 'id')
+    })
+  }, [isOwner, products])
+
+  function updateQuantity(product, nextQuantity) {
     setCart((current) => {
+      if (!product) return current
+
+      if (!isProductOrderable(product)) {
+        const { [product.id]: _removed, ...rest } = current
+        return rest
+      }
+
+      const numericStock = Number(product.stock)
+      const maxQuantity = Number.isFinite(numericStock) && numericStock > 0
+        ? numericStock
+        : Number.POSITIVE_INFINITY
       const quantity = Math.max(0, Number(nextQuantity) || 0)
+      const safeQuantity = Math.min(quantity, maxQuantity)
       if (quantity === 0) {
-        const { [productId]: _removed, ...rest } = current
+        const { [product.id]: _removed, ...rest } = current
         return rest
       }
 
       return {
         ...current,
-        [productId]: {
-          quantity,
-          note: current[productId]?.note || '',
+        [product.id]: {
+          quantity: safeQuantity,
+          note: current[product.id]?.note || '',
         },
       }
     })
@@ -158,6 +247,11 @@ export default function VendorStorePage() {
 
     if (cartEntries.length === 0) {
       toast.push('Pilih minimal satu produk terlebih dahulu', { type: 'error' })
+      return
+    }
+
+    if (cartEntries.some((entry) => !isProductOrderable(entry.product))) {
+      toast.push('Ada produk yang sudah tidak tersedia. Periksa kembali pilihan Anda.', { type: 'error' })
       return
     }
 
@@ -325,19 +419,30 @@ export default function VendorStorePage() {
 
                 <h1 className="mt-4 text-2xl font-semibold text-slate-900">{vendor.name}</h1>
                 <p className="mt-2 text-sm leading-6 text-slate-600">{vendor.description || 'Pedagang lokal siap melayani Anda.'}</p>
-                <span className={`mt-3 rounded-full px-3 py-1 text-xs font-medium ${
-                  vendor.online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  {vendor.online ? 'Sedang Online' : 'Sedang Offline'}
-                </span>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    vendor.online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {vendor.online ? 'Sedang Online' : 'Sedang Offline'}
+                  </span>
+                  {vendor.is_verified && (
+                    <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+                      Terverifikasi
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
               <h2 className="font-semibold text-slate-900">Info Toko</h2>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
-                <div>Lokasi: {getVendorLocationLabel(vendor.location)}</div>
-                <div>Produk tersedia: {products.length}</div>
+                <div>Kategori: {formatVendorCategoryLabel(vendor.category_primary)}</div>
+                <div>Mode layanan: {formatVendorServiceMode(vendor.service_mode)}</div>
+                <div>Area layanan: {formatVendorServiceRadius(vendor.service_radius_km)}</div>
+                <div>Jam operasional: {getOperatingHoursText(vendor.operating_hours)}</div>
+                <div>Lokasi: {getStoreLocationStatus(vendor.location)}</div>
+                <div>Produk siap dipesan: {availableProductsCount}</div>
               </div>
 
               <div className="mt-4 flex flex-col gap-2">
@@ -523,6 +628,25 @@ export default function VendorStorePage() {
           </aside>
 
           <main className="space-y-4">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Kategori</div>
+                <div className="mt-2 font-semibold text-slate-900">{formatVendorCategoryLabel(vendor.category_primary)}</div>
+              </div>
+              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Metode Layanan</div>
+                <div className="mt-2 font-semibold text-slate-900">{formatVendorServiceMode(vendor.service_mode)}</div>
+              </div>
+              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Area Layanan</div>
+                <div className="mt-2 font-semibold text-slate-900">{formatVendorServiceRadius(vendor.service_radius_km)}</div>
+              </div>
+              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Jam Operasional</div>
+                <div className="mt-2 text-sm font-medium leading-6 text-slate-900">{getOperatingHoursText(vendor.operating_hours)}</div>
+              </div>
+            </section>
+
             <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -540,17 +664,20 @@ export default function VendorStorePage() {
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {products.length === 0 ? (
+                {productCards.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
                     Belum ada produk yang dipublikasikan.
                   </div>
                 ) : (
-                  products.map((product) => {
+                  productCards.map((product) => {
                     const quantity = cart[product.id]?.quantity || 0
                     const note = cart[product.id]?.note || ''
+                    const orderable = isOwner || isProductOrderable(product)
 
                     return (
-                      <div key={product.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+                      <div key={product.id} className={`overflow-hidden rounded-[24px] border bg-white shadow-sm ${
+                        orderable ? 'border-slate-200' : 'border-slate-200/70 opacity-80'
+                      }`}>
                         {product.image_url ? (
                           <img src={product.image_url} alt={product.name} className="h-44 w-full object-cover" />
                         ) : (
@@ -561,11 +688,32 @@ export default function VendorStorePage() {
 
                         <div className="space-y-3 p-4">
                           <div>
-                            <div className="font-semibold text-slate-900">{product.name}</div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="font-semibold text-slate-900">{product.name}</div>
+                              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                                orderable
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : 'bg-rose-50 text-rose-700'
+                              }`}>
+                                {orderable ? 'Siap dipesan' : 'Belum tersedia'}
+                              </span>
+                            </div>
                             <div className="mt-1 text-sm leading-6 text-slate-600">{product.description || 'Tanpa deskripsi'}</div>
                           </div>
 
-                          <div className="text-sm font-medium text-slate-900">{formatPriceLabel(product.price)}</div>
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                              {formatPriceLabel(product.price)}
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                              {getProductStockLabel(product)}
+                            </span>
+                            {product.category_name && (
+                              <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                                {product.category_name}
+                              </span>
+                            )}
+                          </div>
 
                           {!isOwner && (
                             <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
@@ -574,7 +722,7 @@ export default function VendorStorePage() {
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => updateQuantity(product.id, quantity - 1)}
+                                    onClick={() => updateQuantity(product, quantity - 1)}
                                     disabled={quantity === 0}
                                     className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg text-slate-700 disabled:opacity-50"
                                   >
@@ -583,15 +731,22 @@ export default function VendorStorePage() {
                                   <div className="min-w-8 text-center text-sm font-semibold text-slate-900">{quantity}</div>
                                   <button
                                     type="button"
-                                    onClick={() => updateQuantity(product.id, quantity + 1)}
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg text-slate-700"
+                                    onClick={() => updateQuantity(product, quantity + 1)}
+                                    disabled={!orderable}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg text-slate-700 disabled:opacity-50"
                                   >
                                     +
                                   </button>
                                 </div>
                               </div>
 
-                              {quantity > 0 && (
+                              {!orderable && (
+                                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+                                  Produk ini sedang tidak tersedia untuk dipesan. Anda masih bisa chat pedagang untuk klarifikasi.
+                                </div>
+                              )}
+
+                              {quantity > 0 && orderable && (
                                 <textarea
                                   value={note}
                                   onChange={(event) => updateNote(product.id, event.target.value)}

@@ -65,3 +65,49 @@ export function getVendorLocationUpdatedAtLabel(location) {
     timeStyle: 'short',
   })
 }
+
+export function formatVendorServiceMode(mode) {
+  switch (mode) {
+    case 'delivery':
+      return 'Antar ke pelanggan'
+    case 'both':
+      return 'Antar dan titik temu'
+    case 'meetup':
+    default:
+      return 'Titik temu'
+  }
+}
+
+export function formatVendorCategoryLabel(categoryName) {
+  return String(categoryName || '').trim() || 'Belum diatur'
+}
+
+export function formatVendorServiceRadius(serviceRadiusKm) {
+  const radius = Number(serviceRadiusKm)
+  if (!Number.isFinite(radius) || radius <= 0) {
+    return 'Menyesuaikan area sekitar pedagang'
+  }
+
+  return `Sekitar ${radius.toLocaleString('id-ID', { maximumFractionDigits: 1 })} km`
+}
+
+export function getOperatingHoursText(operatingHours) {
+  if (!operatingHours) return 'Belum diatur'
+
+  if (typeof operatingHours === 'string') {
+    return String(operatingHours).trim() || 'Belum diatur'
+  }
+
+  if (typeof operatingHours?.text === 'string') {
+    return String(operatingHours.text).trim() || 'Belum diatur'
+  }
+
+  return 'Belum diatur'
+}
+
+export function buildOperatingHoursPayload(value) {
+  const text = String(value || '').trim()
+  if (!text) return null
+
+  return { text }
+}
