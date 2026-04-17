@@ -307,7 +307,7 @@ export default function OrderTrackingPage() {
       tileLayerRef.current = null
       setMapNotice('Menyiapkan peta tracking...')
     }
-  }, [loading, order])
+  }, [loading])
 
   useEffect(() => {
     if (!navigator.geolocation) return undefined
