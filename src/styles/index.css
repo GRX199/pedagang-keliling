@@ -46,3 +46,66 @@ select {
 .leaflet-container {
   background: #dfe9f2;
 }
+
+.tracking-map {
+  width: 100%;
+  min-height: 360px;
+}
+
+.leaflet-container,
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.tracking-route-marker {
+  background: transparent;
+  border: 0;
+}
+
+.tracking-route-marker__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tracking-route-marker__dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 4px solid transparent;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.tracking-route-marker__dot--vendor {
+  background: #10b981;
+}
+
+.tracking-route-marker__dot-halo--vendor {
+  border-color: #d1fae5;
+}
+
+.tracking-route-marker__dot--customer {
+  background: #0ea5e9;
+}
+
+.tracking-route-marker__dot-halo--customer {
+  border-color: #dbeafe;
+}
+
+.tracking-route-marker__label {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  white-space: nowrap;
+}
