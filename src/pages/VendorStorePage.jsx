@@ -5,10 +5,13 @@ import { useAuth } from '../lib/auth'
 import { findOrCreateDirectChat, sendChatMessage } from '../lib/conversations'
 import {
   buildOrderChatMessage,
+  buildOrderInsertPayload,
+  buildOrderItemRows,
   buildOrderItemsText,
   formatPriceLabel,
   getCartEntries,
   getCartTotals,
+  isSchemaCompatibilityError,
 } from '../lib/orders'
 import { supabase } from '../lib/supabase'
 import { getVendorLocationLabel } from '../lib/vendor'
@@ -24,6 +27,10 @@ export default function VendorStorePage() {
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState({})
   const [submittingOrder, setSubmittingOrder] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState('cod')
+  const [fulfillmentType, setFulfillmentType] = useState('meetup')
+  const [meetingPointLabel, setMeetingPointLabel] = useState('')
+  const [customerNote, setCustomerNote] = useState('')
 
   const isOwner = user?.id === id
 
@@ -109,6 +116,8 @@ export default function VendorStorePage() {
 
   function clearCart() {
     setCart({})
+    setMeetingPointLabel('')
+    setCustomerNote('')
   }
 
   async function submitOrder(event) {
@@ -133,25 +142,75 @@ export default function VendorStorePage() {
     setSubmittingOrder(true)
     try {
       const buyerName = user.user_metadata?.full_name || user.email || 'Pelanggan'
-      const orderText = buildOrderItemsText(cartEntries)
       const directChat = await findOrCreateDirectChat(user.id, id)
+      const orderPayload = buildOrderInsertPayload({
+        vendorId: id,
+        vendorName: vendor?.name || 'Pedagang',
+        buyerId: user.id,
+        buyerName,
+        entries: cartEntries,
+        paymentMethod,
+        fulfillmentType,
+        meetingPointLabel,
+        customerNote,
+      })
 
-      const { data: createdOrder, error } = await supabase
-        .from('orders')
-        .insert([{
-          vendor_id: id,
-          vendor_name: vendor?.name || 'Pedagang',
-          buyer_id: user.id,
-          buyer_name: buyerName,
-          items: orderText,
-          status: 'pending',
-        }])
-        .select()
-        .single()
+      let createdOrder = null
+      let structuredOrderSaved = true
+      const notes = []
 
-      if (error) throw error
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .insert([orderPayload])
+          .select()
+          .single()
 
-      let successMessage = 'Pesanan berhasil dikirim dan chat dibuka untuk tindak lanjut'
+        if (error) throw error
+        createdOrder = data
+      } catch (error) {
+        if (!isSchemaCompatibilityError(error)) throw error
+
+        structuredOrderSaved = false
+        const { data, error: fallbackError } = await supabase
+          .from('orders')
+          .insert([{
+            vendor_id: id,
+            vendor_name: vendor?.name || 'Pedagang',
+            buyer_id: user.id,
+            buyer_name: buyerName,
+            items: buildOrderItemsText(cartEntries),
+            status: 'pending',
+          }])
+          .select()
+          .single()
+
+        if (fallbackError) throw fallbackError
+        createdOrder = data
+        notes.push('Database masih memakai model order lama, jadi detail pembayaran dan titik temu belum tersimpan penuh.')
+      }
+
+      if (createdOrder?.id) {
+        try {
+          const orderItemsPayload = buildOrderItemRows({
+            orderId: createdOrder.id,
+            vendorId: id,
+            entries: cartEntries,
+          })
+
+          if (orderItemsPayload.length > 0) {
+            const { error: itemsError } = await supabase.from('order_items').insert(orderItemsPayload)
+            if (itemsError) throw itemsError
+          }
+        } catch (itemsError) {
+          console.error('submitOrder.orderItems', itemsError)
+          if (!isSchemaCompatibilityError(itemsError)) {
+            notes.push('Pesanan masuk, tetapi item order terstruktur belum tersimpan sempurna.')
+          }
+        }
+      }
+
+      let successMessage = 'Pesanan berhasil dikirim dan chat dibuka untuk tindak lanjut.'
       try {
         await sendChatMessage(directChat.id, user.id, buildOrderChatMessage({
           buyerName,
@@ -160,11 +219,18 @@ export default function VendorStorePage() {
         }))
       } catch (messageError) {
         console.error('submitOrder.sendChatMessage', messageError)
-        successMessage = 'Pesanan sudah masuk ke pedagang, tetapi ringkasan otomatis di chat belum terkirim.'
+        notes.push('Ringkasan otomatis di chat belum terkirim.')
       }
 
       clearCart()
-      toast.push(successMessage, { type: 'success' })
+      if (!structuredOrderSaved) {
+        setPaymentMethod('cod')
+        setFulfillmentType('meetup')
+      }
+      if (notes.length > 0) {
+        successMessage = `${successMessage} ${notes.join(' ')}`
+      }
+      toast.push(successMessage, { type: notes.length > 0 ? 'info' : 'success' })
       navigate(`/chat/${vendor.id}`)
     } catch (error) {
       console.error('submitOrder', error)
@@ -293,6 +359,90 @@ export default function VendorStorePage() {
                       <div className="mt-1 font-medium text-slate-900">
                         Estimasi nilai menu: {cartTotals.estimatedTotal > 0 ? formatPriceLabel(cartTotals.estimatedTotal) : 'Menyesuaikan harga produk'}
                       </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                      <div className="text-sm font-medium text-slate-900">Metode Pembayaran</div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('cod')}
+                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
+                            paymentMethod === 'cod'
+                              ? 'bg-slate-900 text-white'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          COD
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('qris')}
+                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
+                            paymentMethod === 'qris'
+                              ? 'bg-slate-900 text-white'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          QRIS
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('bank_transfer')}
+                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
+                            paymentMethod === 'bank_transfer'
+                              ? 'bg-slate-900 text-white'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          Transfer
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                      <div className="text-sm font-medium text-slate-900">Metode Serah Terima</div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => setFulfillmentType('meetup')}
+                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
+                            fulfillmentType === 'meetup'
+                              ? 'bg-emerald-600 text-white'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          Titik Temu
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFulfillmentType('delivery')}
+                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
+                            fulfillmentType === 'delivery'
+                              ? 'bg-emerald-600 text-white'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          Antar
+                        </button>
+                      </div>
+
+                      <input
+                        value={meetingPointLabel}
+                        onChange={(event) => setMeetingPointLabel(event.target.value)}
+                        className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+                        placeholder={fulfillmentType === 'delivery' ? 'Alamat singkat atau patokan antar' : 'Contoh: depan gang, minimarket dekat rumah'}
+                      />
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                      <label className="text-sm font-medium text-slate-900">Catatan Pesanan</label>
+                      <textarea
+                        value={customerNote}
+                        onChange={(event) => setCustomerNote(event.target.value)}
+                        className="mt-3 min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+                        placeholder="Contoh: saya tunggu di depan rumah, tolong hubungi saat sudah dekat"
+                      />
                     </div>
 
                     {!user ? (

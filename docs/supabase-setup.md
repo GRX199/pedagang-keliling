@@ -17,6 +17,7 @@ Panduan ini cocok untuk codebase di folder ini setelah refactor terakhir.
 2. Buat query baru.
 3. Paste seluruh isi file [schema.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/schema.sql).
 4. Jalankan query sampai selesai.
+5. Setelah itu jalankan juga [phase1-foundation.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/phase1-foundation.sql).
 
 Schema itu sudah menyiapkan:
 - tabel `vendors`
@@ -24,10 +25,15 @@ Schema itu sudah menyiapkan:
 - tabel `chats`
 - tabel `messages`
 - tabel `orders`
+- tabel `categories`
+- tabel `vendor_categories`
+- tabel `order_items`
+- tabel `notifications`
 - trigger untuk `updated_at`
 - trigger auto-create row vendor saat signup dengan role vendor
+- trigger notifikasi order dan pesan
 - policy RLS untuk semua fitur utama
-- realtime publication untuk `vendors`, `chats`, `messages`, dan `orders`
+- realtime publication untuk `vendors`, `chats`, `messages`, `orders`, dan `notifications`
 
 ## 3. Buat storage bucket
 

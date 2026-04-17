@@ -1,3 +1,7 @@
+-- Base schema for Kelilingku.
+-- After running this file, continue with supabase/phase1-foundation.sql
+-- to enable richer order workflow, notifications, categories, and admin-ready fields.
+
 create extension if not exists pgcrypto;
 
 create or replace function public.sort_uuid_array(input uuid[])

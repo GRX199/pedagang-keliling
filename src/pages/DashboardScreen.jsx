@@ -6,6 +6,15 @@ import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
 import { uploadImageFile } from '../lib/media'
 import { getGeolocationErrorMessage } from '../lib/network'
+import {
+  formatOrderStatusLabel,
+  formatPaymentMethodLabel,
+  formatPaymentStatusLabel,
+  formatPriceLabel,
+  getNextVendorStatusActions,
+  getOrderStatusTone,
+  isSchemaCompatibilityError,
+} from '../lib/orders'
 import { syncCurrentProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import {
@@ -46,7 +55,37 @@ function OrdersPanel({ currentUser, role }) {
 
       const { data, error } = await query
       if (error) throw error
-      setOrders(data || [])
+
+      let nextOrders = data || []
+      try {
+        const orderIds = nextOrders.map((order) => order.id).filter(Boolean)
+        if (orderIds.length > 0) {
+          const { data: orderItems, error: orderItemsError } = await supabase
+            .from('order_items')
+            .select('*')
+            .in('order_id', orderIds)
+            .order('created_at', { ascending: true })
+
+          if (orderItemsError) throw orderItemsError
+
+          const itemsMap = (orderItems || []).reduce((accumulator, item) => {
+            if (!accumulator[item.order_id]) accumulator[item.order_id] = []
+            accumulator[item.order_id].push(item)
+            return accumulator
+          }, {})
+
+          nextOrders = nextOrders.map((order) => ({
+            ...order,
+            order_items: itemsMap[order.id] || [],
+          }))
+        }
+      } catch (orderItemsError) {
+        if (!isSchemaCompatibilityError(orderItemsError)) {
+          console.error('fetchOrders.orderItems', orderItemsError)
+        }
+      }
+
+      setOrders(nextOrders)
     } catch (error) {
       console.error('fetchOrders', error)
       toast.push(error.message || 'Gagal memuat pesanan', { type: 'error' })
@@ -93,6 +132,10 @@ function OrdersPanel({ currentUser, role }) {
       fetchOrders()
     } catch (error) {
       console.error('updateStatus', error)
+      if (isSchemaCompatibilityError(error)) {
+        toast.push('Database belum memakai workflow status terbaru. Jalankan migration foundation terlebih dahulu.', { type: 'error' })
+        return
+      }
       toast.push(error.message || 'Gagal mengubah status pesanan', { type: 'error' })
     }
   }
@@ -123,15 +166,53 @@ function OrdersPanel({ currentUser, role }) {
                   <div className="font-medium text-slate-900">
                     {role === 'vendor' ? (order.buyer_name || 'Pelanggan') : (order.vendor_name || 'Pedagang')}
                   </div>
-                  <div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{order.items || '-'}</div>
+                  {Array.isArray(order.order_items) && order.order_items.length > 0 ? (
+                    <div className="mt-2 space-y-1 text-sm text-slate-600">
+                      {order.order_items.map((item) => (
+                        <div key={item.id}>
+                          {item.product_name_snapshot} x{item.quantity}
+                          {item.item_note ? ` • ${item.item_note}` : ''}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{order.items || '-'}</div>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-3 py-1">
+                      {formatPaymentMethodLabel(order.payment_method)}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1">
+                      {formatPaymentStatusLabel(order.payment_status)}
+                    </span>
+                    {order.fulfillment_type && (
+                      <span className="rounded-full bg-slate-100 px-3 py-1">
+                        {order.fulfillment_type === 'delivery' ? 'Antar' : 'Titik temu'}
+                      </span>
+                    )}
+                  </div>
+
+                  {(order.meeting_point_label || order.customer_note || Number(order.total_amount || 0) > 0) && (
+                    <div className="mt-3 space-y-1 text-sm text-slate-500">
+                      {order.meeting_point_label && <div>Titik temu: {order.meeting_point_label}</div>}
+                      {order.customer_note && <div>Catatan: {order.customer_note}</div>}
+                      {Number(order.total_amount || 0) > 0 && (
+                        <div className="font-medium text-slate-700">
+                          Total: {formatPriceLabel(order.total_amount)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="mt-2 text-xs text-slate-400">
                     {order.created_at ? new Date(order.created_at).toLocaleString('id-ID') : '-'}
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-700">
-                    {order.status || 'pending'}
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide ${getOrderStatusTone(order.status)}`}>
+                    {formatOrderStatusLabel(order.status)}
                   </span>
 
                   <button
@@ -141,22 +222,21 @@ function OrdersPanel({ currentUser, role }) {
                     Buka Chat
                   </button>
 
-                  {role === 'vendor' && order.status === 'pending' && (
-                    <>
-                      <button
-                        onClick={() => updateStatus(order.id, 'accepted')}
-                        className="rounded-2xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white"
-                      >
-                        Terima
-                      </button>
-                      <button
-                        onClick={() => updateStatus(order.id, 'rejected')}
-                        className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600"
-                      >
-                        Tolak
-                      </button>
-                    </>
-                  )}
+                  {role === 'vendor' && getNextVendorStatusActions(order.status).map((action) => (
+                    <button
+                      key={action.value}
+                      onClick={() => updateStatus(order.id, action.value)}
+                      className={`rounded-2xl px-3 py-2 text-sm font-medium ${
+                        action.tone === 'danger'
+                          ? 'border border-red-200 bg-red-50 text-red-600'
+                          : action.tone === 'success'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-900 text-white'
+                      }`}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
 
                   {role === 'customer' && order.status === 'pending' && (
                     <button
