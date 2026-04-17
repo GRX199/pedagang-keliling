@@ -45,25 +45,53 @@ function TopNav() {
   })
 
   const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
-  const dashboardLabel = isVendor ? 'Dashboard' : 'Akun'
   const accountLabel = isVendor ? 'Pedagang aktif' : 'Pelanggan aktif'
+  const currentTab = new URLSearchParams(location.search).get('tab')
+  const effectiveTab = currentTab || (isVendor ? 'products' : 'orders')
 
-  const navItems = user ? [
-    { to: '/map', label: 'Peta', count: 0, active: location.pathname === '/map' },
-    {
-      to: '/dashboard?tab=orders',
-      label: 'Pesanan',
-      count: notificationCounts.orders,
-      active: location.pathname === '/dashboard' && new URLSearchParams(location.search).get('tab') === 'orders',
-    },
-    { to: '/chat', label: 'Chat', count: notificationCounts.messages, active: location.pathname.startsWith('/chat') },
-    {
-      to: '/dashboard',
-      label: dashboardLabel,
-      count: 0,
-      active: location.pathname === '/dashboard' && new URLSearchParams(location.search).get('tab') !== 'orders',
-    },
-  ] : []
+  const navItems = user
+    ? (
+      isVendor
+        ? [
+          { to: '/map', label: 'Peta', count: 0, active: location.pathname === '/map' },
+          {
+            to: '/dashboard?tab=orders',
+            label: 'Pesanan',
+            count: notificationCounts.orders,
+            active: location.pathname === '/dashboard' && effectiveTab === 'orders',
+          },
+          { to: '/chat', label: 'Chat', count: notificationCounts.messages, active: location.pathname.startsWith('/chat') },
+          {
+            to: '/dashboard?tab=products',
+            label: 'Produk',
+            count: 0,
+            active: location.pathname === '/dashboard' && effectiveTab === 'products',
+          },
+          {
+            to: '/dashboard?tab=profile',
+            label: 'Profil',
+            count: 0,
+            active: location.pathname === '/dashboard' && effectiveTab === 'profile',
+          },
+        ]
+        : [
+          { to: '/map', label: 'Peta', count: 0, active: location.pathname === '/map' },
+          {
+            to: '/dashboard?tab=orders',
+            label: 'Pesanan',
+            count: notificationCounts.orders,
+            active: location.pathname === '/dashboard' && effectiveTab === 'orders',
+          },
+          { to: '/chat', label: 'Chat', count: notificationCounts.messages, active: location.pathname.startsWith('/chat') },
+          {
+            to: '/dashboard?tab=profile',
+            label: 'Profil',
+            count: 0,
+            active: location.pathname === '/dashboard' && effectiveTab === 'profile',
+          },
+        ]
+    )
+    : []
 
   function renderNavItem(item, compact = false) {
     return (

@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadIdentityMap } from './profiles'
 import { supabase } from './supabase'
+import { getVendorCoordinates } from './vendor'
+
+const PROXIMITY_ALERT_THRESHOLDS = [
+  { distanceMeters: 500, label: 'sudah dalam radius 500 meter dari titik temu Anda.' },
+  { distanceMeters: 150, label: 'sudah sangat dekat dengan titik temu Anda.' },
+]
 
 function statusLabel(status) {
   switch (status) {
@@ -23,8 +29,28 @@ function statusLabel(status) {
   }
 }
 
-function isOrdersScreen(pathname, search) {
-  return pathname === '/dashboard' && new URLSearchParams(search).get('tab') === 'orders'
+function isOrdersScreen(pathname, search, role = null) {
+  const requestedTab = new URLSearchParams(search).get('tab')
+  return (
+    (pathname === '/dashboard' && (requestedTab === 'orders' || (!requestedTab && role === 'customer'))) ||
+    pathname.startsWith('/orders/')
+  )
+}
+
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const toRad = (value) => (value * Math.PI) / 180
+  const radius = 6371000
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+
+  return 2 * radius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function getOrderDestination(order) {
+  return getVendorCoordinates(order?.meeting_point_location) || getVendorCoordinates(order?.customer_location)
 }
 
 function rememberValue(setRef, value, maxSize = 200) {
@@ -64,6 +90,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
   const chatIdsRef = useRef(new Set())
   const knownMessageIdsRef = useRef(new Set())
   const knownOrderEventKeysRef = useRef(new Set())
+  const knownProximityKeysRef = useRef(new Set())
   const knownNotificationIdsRef = useRef(new Set())
   const latestNotificationAtRef = useRef(null)
 
@@ -72,16 +99,17 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
     if (pathname.startsWith('/chat')) {
       setCounts((current) => ({ ...current, messages: 0 }))
     }
-    if (isOrdersScreen(pathname, search)) {
+    if (isOrdersScreen(pathname, search, role)) {
       setCounts((current) => ({ ...current, orders: 0 }))
     }
-  }, [pathname, search])
+  }, [pathname, role, search])
 
   useEffect(() => {
     if (!user) {
       chatIdsRef.current = new Set()
       knownMessageIdsRef.current = new Set()
       knownOrderEventKeysRef.current = new Set()
+      knownProximityKeysRef.current = new Set()
       knownNotificationIdsRef.current = new Set()
       latestNotificationAtRef.current = null
       setCounts({ messages: 0, orders: 0 })
@@ -108,7 +136,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
       latestNotificationAtRef.current = notification.created_at || latestNotificationAtRef.current
       const bucket = getNotificationBucket(notification.type)
       const onChatScreen = routeRef.current.pathname.startsWith('/chat')
-      const onOrdersPage = isOrdersScreen(routeRef.current.pathname, routeRef.current.search)
+      const onOrdersPage = isOrdersScreen(routeRef.current.pathname, routeRef.current.search, role)
       const shouldMute =
         (bucket === 'messages' && onChatScreen) ||
         (bucket === 'orders' && onOrdersPage)
@@ -202,6 +230,75 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
       chatIdsRef.current = new Set((data || []).map((chat) => chat.id))
     }
 
+    async function monitorCustomerOrderProximity() {
+      if (!active || role !== 'customer') return
+      if (document.visibilityState === 'hidden') return
+
+      try {
+        const { data: orderRows, error: orderError } = await supabase
+          .from('orders')
+          .select('id, status, vendor_id, vendor_name, vendor_location_snapshot, meeting_point_location, customer_location')
+          .eq('buyer_id', user.id)
+          .in('status', ['on_the_way', 'arrived'])
+          .order('updated_at', { ascending: false })
+          .limit(12)
+
+        if (orderError) throw orderError
+
+        const activeOrders = (orderRows || []).filter((order) => getOrderDestination(order))
+        if (activeOrders.length === 0) return
+
+        const vendorIds = [...new Set(activeOrders.map((order) => order.vendor_id).filter(Boolean))]
+        const vendorMap = {}
+
+        if (vendorIds.length > 0) {
+          const { data: vendorRows, error: vendorError } = await supabase
+            .from('vendors')
+            .select('id, name, location, online')
+            .in('id', vendorIds)
+
+          if (vendorError) throw vendorError
+
+          for (const vendor of vendorRows || []) {
+            vendorMap[vendor.id] = vendor
+          }
+        }
+
+        for (const order of activeOrders) {
+          const vendor = vendorMap[order.vendor_id]
+          const vendorCoordinates = getVendorCoordinates(vendor?.location) || getVendorCoordinates(order.vendor_location_snapshot)
+          const destinationCoordinates = getOrderDestination(order)
+
+          if (!vendorCoordinates || !destinationCoordinates) continue
+
+          const distance = haversineDistance(
+            vendorCoordinates.lat,
+            vendorCoordinates.lng,
+            destinationCoordinates.lat,
+            destinationCoordinates.lng
+          )
+
+          for (const threshold of PROXIMITY_ALERT_THRESHOLDS) {
+            if (distance > threshold.distanceMeters) continue
+
+            const proximityKey = `proximity:${order.id}:${threshold.distanceMeters}`
+            const isNewAlert = rememberValue(knownProximityKeysRef, proximityKey)
+            if (!isNewAlert) continue
+
+            const onOrdersPage = isOrdersScreen(routeRef.current.pathname, routeRef.current.search, role)
+            if (!onOrdersPage) {
+              toast.push(`Pedagang ${vendor?.name || order.vendor_name || 'Anda'} ${threshold.label}`, {
+                type: 'info',
+              })
+              setCounts((current) => ({ ...current, orders: current.orders + 1 }))
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('monitorCustomerOrderProximity', error)
+      }
+    }
+
     async function handleIncomingMessage(message, { quiet = false } = {}) {
       if (!active || !message || message.from_user === user.id) return
       if (!chatIdsRef.current.has(message.chat_id)) return
@@ -239,7 +336,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
         toast.push(`Pesanan baru dari ${order.buyer_name || 'pelanggan'}`, { type: 'success' })
       }
 
-      if (!isOrdersScreen(routeRef.current.pathname, routeRef.current.search)) {
+      if (!isOrdersScreen(routeRef.current.pathname, routeRef.current.search, role)) {
         setCounts((current) => ({ ...current, orders: current.orders + 1 }))
       }
     }
@@ -257,7 +354,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
         })
       }
 
-      if (!isOrdersScreen(routeRef.current.pathname, routeRef.current.search)) {
+      if (!isOrdersScreen(routeRef.current.pathname, routeRef.current.search, role)) {
         setCounts((current) => ({ ...current, orders: current.orders + 1 }))
       }
     }
@@ -400,9 +497,16 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
 
     void startNotifications()
 
+    const proximityPollId = window.setInterval(() => {
+      void monitorCustomerOrderProximity()
+    }, 15000)
+
+    void monitorCustomerOrderProximity()
+
     return () => {
       active = false
       if (pollId) window.clearInterval(pollId)
+      window.clearInterval(proximityPollId)
       cleanupChannels()
     }
   }, [role, toast, user])
