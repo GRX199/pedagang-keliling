@@ -9,6 +9,7 @@ import {
   buildOrderItemRows,
   buildOrderItemsText,
   formatPriceLabel,
+  formatPaymentMethodLabel,
   getCartEntries,
   getCartTotals,
   isSchemaCompatibilityError,
@@ -353,6 +354,8 @@ export default function VendorStorePage() {
           buyerName,
           entries: cartEntries,
           orderId: createdOrder?.id,
+          paymentMethod,
+          fulfillmentType,
         }))
       } catch (messageError) {
         console.error('submitOrder.sendChatMessage', messageError)
@@ -366,6 +369,9 @@ export default function VendorStorePage() {
       }
       if (!customerLocation) {
         notes.push('Lokasi pelanggan belum ikut tersimpan, jadi tracking peta hanya akan memakai data yang tersedia saat ini.')
+      }
+      if (paymentMethod !== 'cod') {
+        notes.push('Buka chat atau detail pesanan untuk mengirim konfirmasi pembayaran setelah transfer atau scan QRIS dilakukan.')
       }
       if (notes.length > 0) {
         successMessage = `${successMessage} ${notes.join(' ')}`
@@ -548,6 +554,11 @@ export default function VendorStorePage() {
                         >
                           Transfer
                         </button>
+                      </div>
+                      <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        {paymentMethod === 'cod'
+                          ? 'Pembayaran dilakukan saat bertemu pedagang. Cocok untuk transaksi yang ingin diselesaikan langsung di titik temu atau saat pesanan tiba.'
+                          : `${formatPaymentMethodLabel(paymentMethod)} memakai konfirmasi manual. Setelah order dibuat, kirim konfirmasi pembayaran dari chat atau halaman pesanan agar pedagang bisa memeriksa.`}
                       </div>
                     </div>
 

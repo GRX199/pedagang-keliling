@@ -11,6 +11,9 @@ import { getGeolocationErrorMessage } from '../lib/network'
 import {
   formatOrderStatusLabel,
   formatFulfillmentTypeLabel,
+  getBuyerPaymentActions,
+  getPaymentGuidance,
+  getVendorPaymentActions,
   formatPaymentMethodLabel,
   formatPaymentStatusLabel,
   formatPriceLabel,
@@ -182,6 +185,22 @@ function OrdersPanel({ currentUser, role }) {
     }
   }
 
+  async function updatePaymentStatus(orderId, paymentStatus) {
+    try {
+      const { error } = await supabase.from('orders').update({ payment_status: paymentStatus }).eq('id', orderId)
+      if (error) throw error
+      toast.push('Status pembayaran diperbarui', { type: 'success' })
+      void fetchOrders({ background: true, silent: true })
+    } catch (error) {
+      console.error('updatePaymentStatus', error)
+      if (isSchemaCompatibilityError(error)) {
+        toast.push('Database belum memuat flow pembayaran terbaru. Jalankan migration foundation lalu coba lagi.', { type: 'error' })
+        return
+      }
+      toast.push(error.message || 'Gagal memperbarui status pembayaran', { type: 'error' })
+    }
+  }
+
   function renderOrderItems(order) {
     if (Array.isArray(order.order_items) && order.order_items.length > 0) {
       return (
@@ -204,6 +223,9 @@ function OrdersPanel({ currentUser, role }) {
   function renderOrderCard(order, variant = 'active') {
     const title = isVendor ? (order.buyer_name || 'Pelanggan') : (order.vendor_name || 'Pedagang')
     const isHighlighted = variant === 'active'
+    const vendorPaymentActions = isVendor ? getVendorPaymentActions(order) : []
+    const buyerPaymentActions = !isVendor ? getBuyerPaymentActions(order) : []
+    const paymentGuidance = getPaymentGuidance(order, isVendor ? 'vendor' : 'customer')
 
     return (
       <div
@@ -245,8 +267,9 @@ function OrdersPanel({ currentUser, role }) {
               </div>
             )}
 
-            {(order.meeting_point_label || order.customer_note || Number(order.total_amount || 0) > 0) && (
+            {(paymentGuidance || order.meeting_point_label || order.customer_note || Number(order.total_amount || 0) > 0) && (
               <div className="mt-3 space-y-1 text-sm text-slate-500">
+                {paymentGuidance && <div>Pembayaran: {paymentGuidance}</div>}
                 {order.meeting_point_label && <div>Titik temu: {order.meeting_point_label}</div>}
                 {order.customer_note && <div>Catatan: {order.customer_note}</div>}
                 {Number(order.total_amount || 0) > 0 && (
@@ -296,6 +319,20 @@ function OrdersPanel({ currentUser, role }) {
               </button>
             ))}
 
+            {vendorPaymentActions.map((action) => (
+              <button
+                key={action.value}
+                onClick={() => updatePaymentStatus(order.id, action.value)}
+                className={`rounded-2xl px-3 py-2 text-sm font-medium ${
+                  action.tone === 'danger'
+                    ? 'border border-red-200 bg-red-50 text-red-600'
+                    : 'bg-emerald-600 text-white'
+                }`}
+              >
+                {action.label}
+              </button>
+            ))}
+
             {!isVendor && order.status === 'pending' && (
               <button
                 onClick={() => updateStatus(order.id, 'cancelled')}
@@ -304,6 +341,16 @@ function OrdersPanel({ currentUser, role }) {
                 Batalkan
               </button>
             )}
+
+            {buyerPaymentActions.map((action) => (
+              <button
+                key={action.value}
+                onClick={() => updatePaymentStatus(order.id, action.value)}
+                className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+              >
+                {action.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>

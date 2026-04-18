@@ -72,6 +72,75 @@ export function formatFulfillmentTypeLabel(type) {
   return FULFILLMENT_TYPE_LABELS[type] || 'Titik temu'
 }
 
+export function getVendorPaymentActions(order) {
+  if (!order) return []
+
+  if (order.payment_method === 'cod') {
+    if (['arrived', 'completed'].includes(order.status) && order.payment_status !== 'paid') {
+      return [{ value: 'paid', label: 'Tandai COD Lunas', tone: 'success' }]
+    }
+
+    return []
+  }
+
+  if (order.payment_status === 'pending_confirmation') {
+    return [
+      { value: 'paid', label: 'Konfirmasi Pembayaran', tone: 'success' },
+      { value: 'failed', label: 'Tolak Konfirmasi', tone: 'danger' },
+    ]
+  }
+
+  return []
+}
+
+export function getBuyerPaymentActions(order) {
+  if (!order) return []
+  if (!['qris', 'bank_transfer'].includes(order.payment_method)) return []
+
+  if (order.payment_status === 'unpaid') {
+    return [{ value: 'pending_confirmation', label: 'Saya Sudah Bayar', tone: 'primary' }]
+  }
+
+  if (order.payment_status === 'failed') {
+    return [{ value: 'pending_confirmation', label: 'Kirim Ulang Konfirmasi', tone: 'primary' }]
+  }
+
+  return []
+}
+
+export function getPaymentGuidance(order, viewerRole = 'customer') {
+  if (!order) return ''
+
+  if (order.payment_method === 'cod') {
+    if (order.payment_status === 'paid') {
+      return 'Pembayaran COD sudah dikonfirmasi.'
+    }
+
+    return viewerRole === 'vendor'
+      ? 'Konfirmasi pembayaran COD dilakukan saat pesanan sudah tiba atau selesai.'
+      : 'Pembayaran COD dilakukan saat bertemu pedagang.'
+  }
+
+  switch (order.payment_status) {
+    case 'unpaid':
+      return viewerRole === 'vendor'
+        ? 'Menunggu pelanggan mengirim konfirmasi pembayaran.'
+        : 'Setelah transfer atau scan QRIS, kirim konfirmasi pembayaran agar pedagang bisa mengecek.'
+    case 'pending_confirmation':
+      return viewerRole === 'vendor'
+        ? 'Pelanggan sudah mengirim konfirmasi bayar. Cek dana masuk lalu tandai lunas.'
+        : 'Konfirmasi pembayaran sudah dikirim. Menunggu pedagang memeriksa.'
+    case 'failed':
+      return viewerRole === 'vendor'
+        ? 'Konfirmasi sebelumnya ditolak. Tunggu pelanggan mengirim ulang bukti atau pembayaran.'
+        : 'Konfirmasi pembayaran sebelumnya belum cocok. Silakan kirim ulang setelah memastikan pembayaran berhasil.'
+    case 'paid':
+      return 'Pembayaran sudah dikonfirmasi dan transaksi bisa dilanjutkan.'
+    default:
+      return 'Status pembayaran akan diperbarui setelah transaksi diproses.'
+  }
+}
+
 export function getOrderStatusTone(status) {
   switch (status) {
     case 'accepted':
@@ -179,10 +248,16 @@ export function buildOrderItemsText(entries) {
   return lines.join('\n')
 }
 
-export function buildOrderChatMessage({ buyerName, entries, orderId = null }) {
+export function buildOrderChatMessage({
+  buyerName,
+  entries,
+  orderId = null,
+  paymentMethod = 'cod',
+  fulfillmentType = 'meetup',
+}) {
   const summary = buildOrderItemsText(entries)
   const reference = orderId ? `Pesanan #${String(orderId).slice(0, 8)}\n` : ''
-  return `${reference}Halo, saya ${buyerName} ingin memesan:\n${summary}\n\nSilakan konfirmasi stok atau detail pengirimannya ya.`
+  return `${reference}Halo, saya ${buyerName} ingin memesan:\n${summary}\n\nMetode bayar: ${formatPaymentMethodLabel(paymentMethod)}\nSerah terima: ${formatFulfillmentTypeLabel(fulfillmentType)}\n\nSilakan konfirmasi stok, pembayaran, atau detail pengirimannya ya.`
 }
 
 export function buildOrderInsertPayload({
@@ -209,7 +284,7 @@ export function buildOrderInsertPayload({
     items: buildOrderItemsText(entries),
     status: 'pending',
     payment_method: paymentMethod,
-    payment_status: paymentMethod === 'cod' ? 'unpaid' : 'pending_confirmation',
+    payment_status: 'unpaid',
     fulfillment_type: fulfillmentType,
     meeting_point_label: String(meetingPointLabel || '').trim() || null,
     meeting_point_location: meetingPointLocation || null,

@@ -7,10 +7,13 @@ import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
 import {
   formatFulfillmentTypeLabel,
+  getBuyerPaymentActions,
+  getPaymentGuidance,
   formatOrderStatusLabel,
   formatPaymentMethodLabel,
   formatPaymentStatusLabel,
   formatPriceLabel,
+  getVendorPaymentActions,
 } from '../lib/orders'
 import { fetchDrivingRoute } from '../lib/routing'
 import { supabase } from '../lib/supabase'
@@ -162,6 +165,24 @@ export default function OrderTrackingPage() {
     } finally {
       if (background) setRefreshing(false)
       else setLoading(false)
+    }
+  }
+
+  async function updatePaymentStatus(paymentStatus) {
+    if (!order?.id) return
+
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ payment_status: paymentStatus })
+        .eq('id', order.id)
+
+      if (error) throw error
+      toast.push('Status pembayaran diperbarui', { type: 'success' })
+      void loadOrder({ background: true, silent: true })
+    } catch (error) {
+      console.error('updateTrackingPaymentStatus', error)
+      toast.push(error.message || 'Gagal memperbarui status pembayaran', { type: 'error' })
     }
   }
 
@@ -542,6 +563,9 @@ export default function OrderTrackingPage() {
   }
 
   const partnerId = order.buyer_id === user?.id ? order.vendor_id : order.buyer_id
+  const isVendorViewer = user?.id === order.vendor_id
+  const paymentGuidance = getPaymentGuidance(order, isVendorViewer ? 'vendor' : 'customer')
+  const paymentActions = isVendorViewer ? getVendorPaymentActions(order) : getBuyerPaymentActions(order)
   const routeReady = Boolean(vendorCoordinates && customerCoordinates)
 
   return (
@@ -560,6 +584,21 @@ export default function OrderTrackingPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              {paymentActions.map((action) => (
+                <button
+                  key={action.value}
+                  onClick={() => updatePaymentStatus(action.value)}
+                  className={`rounded-2xl px-4 py-3 text-sm font-medium ${
+                    action.tone === 'danger'
+                      ? 'border border-red-200 bg-red-50 text-red-600'
+                      : action.tone === 'success'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-900 text-white'
+                  }`}
+                >
+                  {action.label}
+                </button>
+              ))}
               <button
                 onClick={() => navigate(`/chat/${partnerId}?order=${order.id}`)}
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
@@ -679,6 +718,9 @@ export default function OrderTrackingPage() {
                   <div className="mt-1 font-medium text-slate-900">
                     {formatPaymentMethodLabel(order.payment_method)} • {formatPaymentStatusLabel(order.payment_status)}
                   </div>
+                  {paymentGuidance && (
+                    <div className="mt-2 text-sm leading-6 text-slate-500">{paymentGuidance}</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Serah terima</div>
