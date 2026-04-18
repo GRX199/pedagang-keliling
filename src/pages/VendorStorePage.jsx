@@ -17,7 +17,10 @@ import {
 import { supabase } from '../lib/supabase'
 import {
   createLocationPayload,
+  getVendorAvailablePaymentMethods,
   formatVendorCategoryLabel,
+  getVendorPaymentMethodDetails,
+  getVendorPaymentSetupSummary,
   formatVendorServiceMode,
   formatVendorServiceRadius,
   getOperatingHoursText,
@@ -171,6 +174,18 @@ export default function VendorStorePage() {
     () => products.filter((product) => isProductOrderable(product)).length,
     [products]
   )
+  const availablePaymentMethods = useMemo(
+    () => getVendorAvailablePaymentMethods(vendor?.payment_details),
+    [vendor?.payment_details]
+  )
+  const nonCashPaymentMethods = useMemo(
+    () => getVendorPaymentSetupSummary(vendor?.payment_details).filter((entry) => entry.ready),
+    [vendor?.payment_details]
+  )
+  const selectedPaymentDetails = useMemo(
+    () => getVendorPaymentMethodDetails(vendor?.payment_details, paymentMethod),
+    [paymentMethod, vendor?.payment_details]
+  )
   const productCards = useMemo(() => {
     if (isOwner) return products
 
@@ -185,6 +200,13 @@ export default function VendorStorePage() {
       return (left.name || '').localeCompare(right.name || '', 'id')
     })
   }, [isOwner, products])
+
+  useEffect(() => {
+    if (availablePaymentMethods.length === 0) return
+    if (!availablePaymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(availablePaymentMethods[0])
+    }
+  }, [availablePaymentMethods, paymentMethod])
 
   function updateQuantity(product, nextQuantity) {
     setCart((current) => {
@@ -253,6 +275,11 @@ export default function VendorStorePage() {
 
     if (cartEntries.some((entry) => !isProductOrderable(entry.product))) {
       toast.push('Ada produk yang sudah tidak tersedia. Periksa kembali pilihan Anda.', { type: 'error' })
+      return
+    }
+
+    if (!availablePaymentMethods.includes(paymentMethod)) {
+      toast.push('Metode pembayaran ini belum disiapkan oleh pedagang. Pilih metode lain yang tersedia.', { type: 'error' })
       return
     }
 
@@ -371,7 +398,7 @@ export default function VendorStorePage() {
         notes.push('Lokasi pelanggan belum ikut tersimpan, jadi tracking peta hanya akan memakai data yang tersedia saat ini.')
       }
       if (paymentMethod !== 'cod') {
-        notes.push('Buka chat atau detail pesanan untuk mengirim konfirmasi pembayaran setelah transfer atau scan QRIS dilakukan.')
+        notes.push('Buka chat atau detail pesanan untuk mengirim konfirmasi pembayaran setelah pembayaran non-tunai dilakukan.')
       }
       if (notes.length > 0) {
         successMessage = `${successMessage} ${notes.join(' ')}`
@@ -449,6 +476,11 @@ export default function VendorStorePage() {
                 <div>Jam operasional: {getOperatingHoursText(vendor.operating_hours)}</div>
                 <div>Lokasi: {getStoreLocationStatus(vendor.location)}</div>
                 <div>Produk siap dipesan: {availableProductsCount}</div>
+                <div>
+                  Pembayaran non-tunai: {nonCashPaymentMethods.length > 0
+                    ? nonCashPaymentMethods.map((entry) => entry.label).join(', ')
+                    : 'Belum disiapkan'}
+                </div>
               </div>
 
               <div className="mt-4 flex flex-col gap-2">
@@ -520,46 +552,77 @@ export default function VendorStorePage() {
 
                     <div className="rounded-2xl border border-slate-200 p-4">
                       <div className="text-sm font-medium text-slate-900">Metode Pembayaran</div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('cod')}
-                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
-                            paymentMethod === 'cod'
-                              ? 'bg-slate-900 text-white'
-                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          COD
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('qris')}
-                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
-                            paymentMethod === 'qris'
-                              ? 'bg-slate-900 text-white'
-                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          QRIS
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('bank_transfer')}
-                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
-                            paymentMethod === 'bank_transfer'
-                              ? 'bg-slate-900 text-white'
-                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          Transfer
-                        </button>
+                      <div className={`mt-3 grid gap-2 ${
+                        availablePaymentMethods.length >= 4
+                          ? 'sm:grid-cols-2'
+                          : availablePaymentMethods.length === 3
+                            ? 'sm:grid-cols-3'
+                            : availablePaymentMethods.length === 2
+                              ? 'sm:grid-cols-2'
+                              : 'sm:grid-cols-1'
+                      }`}>
+                        {availablePaymentMethods.map((method) => (
+                          <button
+                            key={method}
+                            type="button"
+                            onClick={() => setPaymentMethod(method)}
+                            className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
+                              paymentMethod === method
+                                ? 'bg-slate-900 text-white'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {formatPaymentMethodLabel(method)}
+                          </button>
+                        ))}
                       </div>
                       <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                         {paymentMethod === 'cod'
                           ? 'Pembayaran dilakukan saat bertemu pedagang. Cocok untuk transaksi yang ingin diselesaikan langsung di titik temu atau saat pesanan tiba.'
-                          : `${formatPaymentMethodLabel(paymentMethod)} memakai konfirmasi manual. Setelah order dibuat, kirim konfirmasi pembayaran dari chat atau halaman pesanan agar pedagang bisa memeriksa.`}
+                          : `${formatPaymentMethodLabel(paymentMethod)} akan menampilkan detail pembayaran milik pedagang di bawah. Setelah membayar, kirim konfirmasi dari chat atau halaman pesanan agar pedagang bisa memeriksa.`}
                       </div>
+
+                      {paymentMethod !== 'cod' && (
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="text-sm font-medium text-slate-900">{selectedPaymentDetails.title}</div>
+                          {selectedPaymentDetails.ready ? (
+                            <>
+                              <div className="mt-2 text-sm leading-6 text-slate-600">{selectedPaymentDetails.description}</div>
+
+                              {selectedPaymentDetails.imageUrl && (
+                                <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                                  <img
+                                    src={selectedPaymentDetails.imageUrl}
+                                    alt={selectedPaymentDetails.title}
+                                    className="h-56 w-full rounded-xl object-contain"
+                                  />
+                                </div>
+                              )}
+
+                              {selectedPaymentDetails.rows.length > 0 && (
+                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                  {selectedPaymentDetails.rows.map((row) => (
+                                    <div key={row.label} className="rounded-2xl bg-slate-50 px-4 py-3">
+                                      <div className="text-xs uppercase tracking-[0.16em] text-slate-400">{row.label}</div>
+                                      <div className="mt-1 text-sm font-medium text-slate-900">{row.value}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {selectedPaymentDetails.note && (
+                                <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                  Catatan pedagang: {selectedPaymentDetails.note}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="mt-2 text-sm text-slate-500">
+                              Pedagang belum menyiapkan detail untuk metode ini. Gunakan metode lain atau klarifikasi lewat chat.
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 p-4">

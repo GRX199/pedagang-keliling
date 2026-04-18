@@ -40,7 +40,8 @@ export const HISTORY_ORDER_STATUSES = [
 export const PAYMENT_METHOD_LABELS = {
   cod: 'COD',
   qris: 'QRIS',
-  bank_transfer: 'Transfer',
+  bank_transfer: 'Transfer Bank',
+  ewallet: 'E-Wallet',
 }
 
 export const PAYMENT_STATUS_LABELS = {
@@ -95,7 +96,7 @@ export function getVendorPaymentActions(order) {
 
 export function getBuyerPaymentActions(order) {
   if (!order) return []
-  if (!['qris', 'bank_transfer'].includes(order.payment_method)) return []
+  if (!['qris', 'bank_transfer', 'ewallet'].includes(order.payment_method)) return []
 
   if (order.payment_status === 'unpaid') {
     return [{ value: 'pending_confirmation', label: 'Saya Sudah Bayar', tone: 'primary' }]
@@ -110,6 +111,7 @@ export function getBuyerPaymentActions(order) {
 
 export function getPaymentGuidance(order, viewerRole = 'customer') {
   if (!order) return ''
+  const paymentMethodLabel = formatPaymentMethodLabel(order.payment_method)
 
   if (order.payment_method === 'cod') {
     if (order.payment_status === 'paid') {
@@ -124,16 +126,16 @@ export function getPaymentGuidance(order, viewerRole = 'customer') {
   switch (order.payment_status) {
     case 'unpaid':
       return viewerRole === 'vendor'
-        ? 'Menunggu pelanggan mengirim konfirmasi pembayaran.'
-        : 'Setelah transfer atau scan QRIS, kirim konfirmasi pembayaran agar pedagang bisa mengecek.'
+        ? `Menunggu pelanggan menyelesaikan pembayaran ${paymentMethodLabel} dan mengirim konfirmasi.`
+        : `Gunakan detail ${paymentMethodLabel} dari pedagang, lalu kirim konfirmasi pembayaran agar bisa dicek.`
     case 'pending_confirmation':
       return viewerRole === 'vendor'
-        ? 'Pelanggan sudah mengirim konfirmasi bayar. Cek dana masuk lalu tandai lunas.'
-        : 'Konfirmasi pembayaran sudah dikirim. Menunggu pedagang memeriksa.'
+        ? `Pelanggan sudah mengirim konfirmasi pembayaran ${paymentMethodLabel}. Cek dana masuk lalu tandai lunas.`
+        : `Konfirmasi pembayaran ${paymentMethodLabel} sudah dikirim. Menunggu pedagang memeriksa.`
     case 'failed':
       return viewerRole === 'vendor'
-        ? 'Konfirmasi sebelumnya ditolak. Tunggu pelanggan mengirim ulang bukti atau pembayaran.'
-        : 'Konfirmasi pembayaran sebelumnya belum cocok. Silakan kirim ulang setelah memastikan pembayaran berhasil.'
+        ? `Konfirmasi ${paymentMethodLabel} sebelumnya ditolak. Tunggu pelanggan mengirim ulang bukti atau pembayaran.`
+        : `Konfirmasi pembayaran ${paymentMethodLabel} sebelumnya belum cocok. Silakan kirim ulang setelah memastikan pembayaran berhasil.`
     case 'paid':
       return 'Pembayaran sudah dikonfirmasi dan transaksi bisa dilanjutkan.'
     default:

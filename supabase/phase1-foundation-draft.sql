@@ -15,6 +15,7 @@ alter table public.vendors
   add column if not exists category_primary text,
   add column if not exists service_radius_km numeric(6,2),
   add column if not exists operating_hours jsonb,
+  add column if not exists payment_details jsonb not null default '{}'::jsonb,
   add column if not exists service_mode text not null default 'meetup',
   add column if not exists is_verified boolean not null default false,
   add column if not exists last_seen_at timestamptz;
@@ -81,7 +82,7 @@ alter table public.orders
 
 alter table public.orders
   add constraint orders_payment_method_check
-  check (payment_method in ('cod', 'qris', 'bank_transfer'));
+  check (payment_method in ('cod', 'qris', 'bank_transfer', 'ewallet'));
 
 alter table public.orders
   drop constraint if exists orders_payment_status_check;

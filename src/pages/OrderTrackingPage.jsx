@@ -17,7 +17,7 @@ import {
 } from '../lib/orders'
 import { fetchDrivingRoute } from '../lib/routing'
 import { supabase } from '../lib/supabase'
-import { getVendorCoordinates } from '../lib/vendor'
+import { getVendorCoordinates, getVendorPaymentMethodDetails } from '../lib/vendor'
 
 const DEFAULT_CENTER = [-2.5489, 118.0149]
 const MAP_TILE_SOURCES = [
@@ -566,6 +566,7 @@ export default function OrderTrackingPage() {
   const isVendorViewer = user?.id === order.vendor_id
   const paymentGuidance = getPaymentGuidance(order, isVendorViewer ? 'vendor' : 'customer')
   const paymentActions = isVendorViewer ? getVendorPaymentActions(order) : getBuyerPaymentActions(order)
+  const paymentReferenceDetails = getVendorPaymentMethodDetails(vendor?.payment_details, order.payment_method)
   const routeReady = Boolean(vendorCoordinates && customerCoordinates)
 
   return (
@@ -720,6 +721,40 @@ export default function OrderTrackingPage() {
                   </div>
                   {paymentGuidance && (
                     <div className="mt-2 text-sm leading-6 text-slate-500">{paymentGuidance}</div>
+                  )}
+                  {order.payment_method !== 'cod' && (
+                    <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                      <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Detail bayar</div>
+                      {paymentReferenceDetails.ready ? (
+                        <div className="mt-2 space-y-3">
+                          <div className="text-sm text-slate-600">{paymentReferenceDetails.description}</div>
+                          {paymentReferenceDetails.imageUrl && (
+                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-2">
+                              <img
+                                src={paymentReferenceDetails.imageUrl}
+                                alt={paymentReferenceDetails.title}
+                                className="h-56 w-full rounded-xl object-contain"
+                              />
+                            </div>
+                          )}
+                          {paymentReferenceDetails.rows.map((row) => (
+                            <div key={row.label}>
+                              <div className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</div>
+                              <div className="mt-1 font-medium text-slate-900">{row.value}</div>
+                            </div>
+                          ))}
+                          {paymentReferenceDetails.note && (
+                            <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                              Catatan pedagang: {paymentReferenceDetails.note}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-500">
+                          Pedagang belum menyiapkan detail pembayaran untuk metode ini. Lanjutkan koordinasi lewat chat.
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div>

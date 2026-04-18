@@ -53,6 +53,123 @@ export function createVendorLocationPayload({ lat, lng, accuracy = null }) {
   return createLocationPayload({ lat, lng, accuracy })
 }
 
+function cleanText(value) {
+  return String(value || '').trim()
+}
+
+export function normalizeVendorPaymentDetails(paymentDetails) {
+  const source = paymentDetails && typeof paymentDetails === 'object' ? paymentDetails : {}
+
+  return {
+    qris_image_url: cleanText(source.qris_image_url),
+    bank_name: cleanText(source.bank_name),
+    bank_account_name: cleanText(source.bank_account_name),
+    bank_account_number: cleanText(source.bank_account_number),
+    ewallet_name: cleanText(source.ewallet_name),
+    ewallet_number: cleanText(source.ewallet_number),
+    payment_notes: cleanText(source.payment_notes),
+  }
+}
+
+export function buildVendorPaymentDetailsPayload(paymentDetails) {
+  const normalized = normalizeVendorPaymentDetails(paymentDetails)
+  const payload = {}
+
+  Object.entries(normalized).forEach(([key, value]) => {
+    if (value) payload[key] = value
+  })
+
+  return payload
+}
+
+export function getVendorPaymentSetupSummary(paymentDetails) {
+  const normalized = normalizeVendorPaymentDetails(paymentDetails)
+
+  return [
+    {
+      method: 'qris',
+      label: 'QRIS',
+      ready: Boolean(normalized.qris_image_url),
+    },
+    {
+      method: 'bank_transfer',
+      label: 'Transfer Bank',
+      ready: Boolean(normalized.bank_account_number),
+    },
+    {
+      method: 'ewallet',
+      label: 'E-Wallet',
+      ready: Boolean(normalized.ewallet_number),
+    },
+  ]
+}
+
+export function getVendorAvailablePaymentMethods(paymentDetails, { includeCod = true } = {}) {
+  const summary = getVendorPaymentSetupSummary(paymentDetails)
+  const methods = includeCod ? ['cod'] : []
+
+  summary.forEach((entry) => {
+    if (entry.ready) {
+      methods.push(entry.method)
+    }
+  })
+
+  return methods
+}
+
+export function getVendorPaymentMethodDetails(paymentDetails, method) {
+  const normalized = normalizeVendorPaymentDetails(paymentDetails)
+
+  if (method === 'qris') {
+    return {
+      ready: Boolean(normalized.qris_image_url),
+      title: 'QRIS Pedagang',
+      description: 'Scan kode QR ini dari aplikasi bank atau e-wallet Anda.',
+      imageUrl: normalized.qris_image_url,
+      rows: [],
+      note: normalized.payment_notes,
+    }
+  }
+
+  if (method === 'bank_transfer') {
+    return {
+      ready: Boolean(normalized.bank_account_number),
+      title: 'Transfer Bank',
+      description: 'Gunakan rekening berikut untuk transfer manual.',
+      imageUrl: '',
+      rows: [
+        { label: 'Bank', value: normalized.bank_name },
+        { label: 'Atas nama', value: normalized.bank_account_name },
+        { label: 'Nomor rekening', value: normalized.bank_account_number },
+      ].filter((row) => row.value),
+      note: normalized.payment_notes,
+    }
+  }
+
+  if (method === 'ewallet') {
+    return {
+      ready: Boolean(normalized.ewallet_number),
+      title: 'E-Wallet',
+      description: 'Gunakan nomor e-wallet berikut untuk pembayaran non-tunai.',
+      imageUrl: '',
+      rows: [
+        { label: 'Aplikasi', value: normalized.ewallet_name },
+        { label: 'Nomor', value: normalized.ewallet_number },
+      ].filter((row) => row.value),
+      note: normalized.payment_notes,
+    }
+  }
+
+  return {
+    ready: true,
+    title: 'COD',
+    description: 'Pembayaran dilakukan saat bertemu pedagang.',
+    imageUrl: '',
+    rows: [],
+    note: '',
+  }
+}
+
 export function getVendorLocationUpdatedAtLabel(location) {
   const updatedAt = location?.updated_at
   if (!updatedAt) return 'Belum pernah disinkronkan'

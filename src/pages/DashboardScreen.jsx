@@ -26,8 +26,11 @@ import {
 import { syncCurrentProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import {
+  buildVendorPaymentDetailsPayload,
   buildOperatingHoursPayload,
   formatVendorCategoryLabel,
+  getVendorPaymentMethodDetails,
+  getVendorPaymentSetupSummary,
   formatVendorServiceMode,
   formatVendorServiceRadius,
   createVendorLocationPayload,
@@ -35,6 +38,7 @@ import {
   getOperatingHoursText,
   getVendorLocationLabel,
   getVendorLocationUpdatedAtLabel,
+  normalizeVendorPaymentDetails,
 } from '../lib/vendor'
 
 function TabButton({ id, active, onClick, children }) {
@@ -592,6 +596,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
   const [saving, setSaving] = useState(false)
   const [savingLocation, setSavingLocation] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
+  const [paymentQrFile, setPaymentQrFile] = useState(null)
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -600,7 +605,37 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
     service_radius_km: '',
     operating_hours_text: '',
     service_mode: 'meetup',
+    payment_qris_image_url: '',
+    payment_bank_name: '',
+    payment_bank_account_name: '',
+    payment_bank_account_number: '',
+    payment_ewallet_name: '',
+    payment_ewallet_number: '',
+    payment_notes: '',
   })
+
+  function buildVendorFormState(nextProfile) {
+    const paymentDetails = normalizeVendorPaymentDetails(nextProfile?.payment_details)
+
+    return {
+      name: nextProfile?.name || '',
+      description: nextProfile?.description || '',
+      photo_url: nextProfile?.photo_url || '',
+      category_primary: nextProfile?.category_primary || '',
+      service_radius_km: nextProfile?.service_radius_km ?? '',
+      operating_hours_text: getOperatingHoursText(nextProfile?.operating_hours) === 'Belum diatur'
+        ? ''
+        : getOperatingHoursText(nextProfile?.operating_hours),
+      service_mode: nextProfile?.service_mode || 'meetup',
+      payment_qris_image_url: paymentDetails.qris_image_url,
+      payment_bank_name: paymentDetails.bank_name,
+      payment_bank_account_name: paymentDetails.bank_account_name,
+      payment_bank_account_number: paymentDetails.bank_account_number,
+      payment_ewallet_name: paymentDetails.ewallet_name,
+      payment_ewallet_number: paymentDetails.ewallet_number,
+      payment_notes: paymentDetails.payment_notes,
+    }
+  }
 
   useEffect(() => {
     if (!currentUser) return undefined
@@ -616,17 +651,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
 
           const nextProfile = data || null
           setProfile(nextProfile)
-          setForm({
-            name: nextProfile?.name || '',
-            description: nextProfile?.description || '',
-            photo_url: nextProfile?.photo_url || '',
-            category_primary: nextProfile?.category_primary || '',
-            service_radius_km: nextProfile?.service_radius_km ?? '',
-            operating_hours_text: getOperatingHoursText(nextProfile?.operating_hours) === 'Belum diatur'
-              ? ''
-              : getOperatingHoursText(nextProfile?.operating_hours),
-            service_mode: nextProfile?.service_mode || 'meetup',
-          })
+          setForm(buildVendorFormState(nextProfile))
           onVendorProfileSaved?.(nextProfile)
           return
         }
@@ -650,6 +675,13 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
           service_radius_km: '',
           operating_hours_text: '',
           service_mode: 'meetup',
+          payment_qris_image_url: '',
+          payment_bank_name: '',
+          payment_bank_account_name: '',
+          payment_bank_account_number: '',
+          payment_ewallet_name: '',
+          payment_ewallet_number: '',
+          payment_notes: '',
         })
       } catch (error) {
         console.error('loadProfile', error)
@@ -670,11 +702,20 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
     setSaving(true)
     try {
       let photoUrl = form.photo_url
+      let paymentQrImageUrl = form.payment_qris_image_url
       if (photoFile) {
         photoUrl = await uploadImageFile({
           file: photoFile,
           vendorId: currentUser.id,
           folder: 'profiles',
+        })
+      }
+
+      if (paymentQrFile) {
+        paymentQrImageUrl = await uploadImageFile({
+          file: paymentQrFile,
+          vendorId: currentUser.id,
+          folder: 'payments',
         })
       }
 
@@ -687,6 +728,15 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
           service_radius_km: form.service_radius_km === '' ? null : Number(form.service_radius_km),
           operating_hours: buildOperatingHoursPayload(form.operating_hours_text),
           service_mode: form.service_mode || 'meetup',
+          payment_details: buildVendorPaymentDetailsPayload({
+            qris_image_url: paymentQrImageUrl,
+            bank_name: form.payment_bank_name,
+            bank_account_name: form.payment_bank_account_name,
+            bank_account_number: form.payment_bank_account_number,
+            ewallet_name: form.payment_ewallet_name,
+            ewallet_number: form.payment_ewallet_number,
+            payment_notes: form.payment_notes,
+          }),
         }
 
         const { data, error } = await supabase
@@ -723,11 +773,16 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
       toast.push('Profil berhasil diperbarui', { type: 'success' })
       setEditing(false)
       setPhotoFile(null)
-      setForm((current) => ({ ...current, photo_url: photoUrl }))
+      setPaymentQrFile(null)
+      setForm((current) => ({
+        ...current,
+        photo_url: photoUrl,
+        payment_qris_image_url: paymentQrImageUrl,
+      }))
     } catch (error) {
       console.error('saveProfile', error)
       if (role === 'vendor' && isSchemaCompatibilityError(error)) {
-        toast.push('Database belum memuat field operasional toko terbaru. Jalankan phase1-foundation.sql lalu coba lagi.', { type: 'error' })
+        toast.push('Database belum memuat field pembayaran toko terbaru. Jalankan vendor-payment-methods.sql lalu coba lagi.', { type: 'error' })
         return
       }
       toast.push(error.message || 'Gagal menyimpan profil', { type: 'error' })
@@ -787,6 +842,12 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
   if (!profile) {
     return <div className="rounded-2xl bg-white p-4 text-sm text-gray-500 shadow-sm ring-1 ring-gray-100">Memuat profil...</div>
   }
+
+  const vendorPaymentDetails = normalizeVendorPaymentDetails(profile.payment_details)
+  const vendorPaymentSummary = getVendorPaymentSetupSummary(profile.payment_details)
+  const qrisPaymentDetails = getVendorPaymentMethodDetails(profile.payment_details, 'qris')
+  const bankPaymentDetails = getVendorPaymentMethodDetails(profile.payment_details, 'bank_transfer')
+  const ewalletPaymentDetails = getVendorPaymentMethodDetails(profile.payment_details, 'ewallet')
 
   return (
     <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
@@ -868,6 +929,84 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                     <div className="mt-1 text-sm leading-6 text-slate-700">{getOperatingHoursText(profile.operating_hours)}</div>
                   </div>
                 </div>
+
+                <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
+                  <div className="text-sm font-semibold text-slate-900">Pembayaran Non-Tunai</div>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    Informasi ini akan ditampilkan ke pelanggan saat mereka memilih metode pembayaran.
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {vendorPaymentSummary.map((entry) => (
+                      <span
+                        key={entry.method}
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                          entry.ready
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {entry.label} {entry.ready ? 'siap' : 'belum diatur'}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200/70">
+                      <div className="text-xs uppercase tracking-[0.16em] text-slate-400">QRIS</div>
+                      {qrisPaymentDetails.ready ? (
+                        <div className="mt-3 space-y-3">
+                          <img
+                            src={qrisPaymentDetails.imageUrl}
+                            alt="QRIS toko"
+                            className="h-40 w-full rounded-2xl border border-slate-200 bg-white object-contain p-2"
+                          />
+                          <div className="text-sm text-slate-600">Pelanggan bisa scan langsung dari halaman checkout.</div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-500">Belum ada foto QRIS.</div>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200/70">
+                      <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Transfer Bank</div>
+                      {bankPaymentDetails.ready ? (
+                        <div className="mt-3 space-y-2 text-sm text-slate-600">
+                          {bankPaymentDetails.rows.map((row) => (
+                            <div key={row.label}>
+                              <div className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</div>
+                              <div className="mt-1 font-medium text-slate-900">{row.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-500">Belum ada rekening bank yang ditampilkan.</div>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200/70">
+                      <div className="text-xs uppercase tracking-[0.16em] text-slate-400">E-Wallet</div>
+                      {ewalletPaymentDetails.ready ? (
+                        <div className="mt-3 space-y-2 text-sm text-slate-600">
+                          {ewalletPaymentDetails.rows.map((row) => (
+                            <div key={row.label}>
+                              <div className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</div>
+                              <div className="mt-1 font-medium text-slate-900">{row.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-500">Belum ada nomor e-wallet yang ditampilkan.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {vendorPaymentDetails.payment_notes && (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      Catatan pembayaran: {vendorPaymentDetails.payment_notes}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -932,6 +1071,94 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                   onChange={(event) => setForm((current) => ({ ...current, operating_hours_text: event.target.value }))}
                   placeholder="Contoh: Senin-Sabtu 07.00-12.00, Minggu libur"
                 />
+
+                <div className="rounded-[24px] border border-slate-200 p-4">
+                  <div className="text-sm font-semibold text-slate-900">Pembayaran Non-Tunai</div>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    Isi QRIS, rekening bank, atau e-wallet yang ingin langsung terlihat oleh pelanggan saat checkout.
+                  </p>
+
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">Foto QRIS</label>
+                      {form.payment_qris_image_url && (
+                        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                          <img
+                            src={form.payment_qris_image_url}
+                            alt="QRIS toko"
+                            className="h-52 w-full rounded-xl object-contain"
+                          />
+                        </div>
+                      )}
+                      {paymentQrFile && (
+                        <div className="mt-2 text-xs text-slate-500">File dipilih: {paymentQrFile.name}</div>
+                      )}
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => setPaymentQrFile(event.target.files?.[0] || null)}
+                        />
+                        {form.payment_qris_image_url && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPaymentQrFile(null)
+                              setForm((current) => ({ ...current, payment_qris_image_url: '' }))
+                            }}
+                            className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Hapus QRIS
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                        value={form.payment_bank_name}
+                        onChange={(event) => setForm((current) => ({ ...current, payment_bank_name: event.target.value }))}
+                        placeholder="Nama bank, misalnya BCA atau BRI"
+                      />
+                      <input
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                        value={form.payment_bank_account_name}
+                        onChange={(event) => setForm((current) => ({ ...current, payment_bank_account_name: event.target.value }))}
+                        placeholder="Nama pemilik rekening"
+                      />
+                    </div>
+
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                      value={form.payment_bank_account_number}
+                      onChange={(event) => setForm((current) => ({ ...current, payment_bank_account_number: event.target.value }))}
+                      placeholder="Nomor rekening transfer"
+                    />
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                        value={form.payment_ewallet_name}
+                        onChange={(event) => setForm((current) => ({ ...current, payment_ewallet_name: event.target.value }))}
+                        placeholder="Nama e-wallet, misalnya DANA, OVO, GoPay"
+                      />
+                      <input
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                        value={form.payment_ewallet_number}
+                        onChange={(event) => setForm((current) => ({ ...current, payment_ewallet_number: event.target.value }))}
+                        placeholder="Nomor e-wallet"
+                      />
+                    </div>
+
+                    <textarea
+                      className="min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3"
+                      value={form.payment_notes}
+                      onChange={(event) => setForm((current) => ({ ...current, payment_notes: event.target.value }))}
+                      placeholder="Catatan opsional, misalnya: kirim bukti bayar lewat chat setelah transfer"
+                    />
+                  </div>
+                </div>
               </>
             )}
 
@@ -957,17 +1184,25 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                 onClick={() => {
                   setEditing(false)
                   setPhotoFile(null)
-                  setForm({
-                    name: profile.name || '',
-                    description: profile.description || '',
-                    photo_url: profile.photo_url || '',
-                    category_primary: profile.category_primary || '',
-                    service_radius_km: profile.service_radius_km ?? '',
-                    operating_hours_text: getOperatingHoursText(profile.operating_hours) === 'Belum diatur'
-                      ? ''
-                      : getOperatingHoursText(profile.operating_hours),
-                    service_mode: profile.service_mode || 'meetup',
-                  })
+                  setPaymentQrFile(null)
+                  setForm(role === 'vendor'
+                    ? buildVendorFormState(profile)
+                    : {
+                      name: profile.name || '',
+                      description: profile.description || '',
+                      photo_url: profile.photo_url || '',
+                      category_primary: '',
+                      service_radius_km: '',
+                      operating_hours_text: '',
+                      service_mode: 'meetup',
+                      payment_qris_image_url: '',
+                      payment_bank_name: '',
+                      payment_bank_account_name: '',
+                      payment_bank_account_number: '',
+                      payment_ewallet_name: '',
+                      payment_ewallet_number: '',
+                      payment_notes: '',
+                    })
                 }}
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
               >
