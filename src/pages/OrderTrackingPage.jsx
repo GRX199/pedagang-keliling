@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import OrderReviewComposer from '../components/OrderReviewComposer'
 import OrderStatusTimeline from '../components/OrderStatusTimeline'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
@@ -10,11 +11,13 @@ import {
   getBuyerPaymentActions,
   getPaymentGuidance,
   formatOrderStatusLabel,
+  isSchemaCompatibilityError,
   formatPaymentMethodLabel,
   formatPaymentStatusLabel,
   formatPriceLabel,
   getVendorPaymentActions,
 } from '../lib/orders'
+import { canBuyerReviewOrder } from '../lib/reviews'
 import { fetchDrivingRoute } from '../lib/routing'
 import { supabase } from '../lib/supabase'
 import { getVendorCoordinates, getVendorPaymentMethodDetails } from '../lib/vendor'
@@ -112,6 +115,7 @@ export default function OrderTrackingPage() {
   const [order, setOrder] = useState(null)
   const [vendor, setVendor] = useState(null)
   const [orderItems, setOrderItems] = useState([])
+  const [review, setReview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
@@ -144,19 +148,24 @@ export default function OrderTrackingPage() {
       if (error) throw error
       if (!orderRow) throw new Error('Pesanan tidak ditemukan')
 
-      const [{ data: vendorRow, error: vendorError }, { data: orderItemRows, error: orderItemsError }] = await Promise.all([
+      const [{ data: vendorRow, error: vendorError }, { data: orderItemRows, error: orderItemsError }, { data: reviewRow, error: reviewError }] = await Promise.all([
         supabase.from('vendors').select('*').eq('id', orderRow.vendor_id).maybeSingle(),
         supabase.from('order_items').select('*').eq('order_id', id).order('created_at', { ascending: true }),
+        supabase.from('reviews').select('*').eq('order_id', id).maybeSingle(),
       ])
 
       if (vendorError) throw vendorError
       if (orderItemsError && !String(orderItemsError.message || '').toLowerCase().includes('does not exist')) {
         throw orderItemsError
       }
+      if (reviewError && !isSchemaCompatibilityError(reviewError)) {
+        throw reviewError
+      }
 
       setOrder(orderRow)
       setVendor(vendorRow || null)
       setOrderItems(orderItemRows || [])
+      setReview(reviewRow || null)
     } catch (error) {
       console.error('loadOrderTracking', error)
       if (!silent) {
@@ -567,6 +576,7 @@ export default function OrderTrackingPage() {
   const paymentGuidance = getPaymentGuidance(order, isVendorViewer ? 'vendor' : 'customer')
   const paymentActions = isVendorViewer ? getVendorPaymentActions(order) : getBuyerPaymentActions(order)
   const paymentReferenceDetails = getVendorPaymentMethodDetails(vendor?.payment_details, order.payment_method)
+  const canShowReviewComposer = canBuyerReviewOrder(order, user?.id)
   const routeReady = Boolean(vendorCoordinates && customerCoordinates)
 
   return (
@@ -700,6 +710,19 @@ export default function OrderTrackingPage() {
                 )}
               </div>
             </div>
+
+            {(canShowReviewComposer || review) && (
+              <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+                <OrderReviewComposer
+                  order={order}
+                  existingReview={review}
+                  viewerId={user?.id}
+                  buyerName={user?.user_metadata?.full_name || user?.email || 'Pelanggan'}
+                  compact
+                  onSaved={setReview}
+                />
+              </div>
+            )}
           </div>
 
           <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">

@@ -186,6 +186,19 @@ create table if not exists public.notifications (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.reviews (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null unique references public.orders(id) on delete cascade,
+  vendor_id uuid not null references public.vendors(id) on delete cascade,
+  buyer_id uuid not null references auth.users(id) on delete cascade,
+  buyer_name text,
+  rating integer not null,
+  comment text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint reviews_rating_range check (rating between 1 and 5)
+);
+
 alter table public.notifications
   drop constraint if exists notifications_type_check;
 
@@ -222,6 +235,12 @@ create index if not exists order_items_order_id_idx
 
 create index if not exists notifications_user_read_created_idx
   on public.notifications (user_id, is_read, created_at desc);
+
+create index if not exists reviews_vendor_created_idx
+  on public.reviews (vendor_id, created_at desc);
+
+create index if not exists reviews_buyer_created_idx
+  on public.reviews (buyer_id, created_at desc);
 
 create or replace function public.resolve_actor_name(actor_user_id uuid)
 returns text
@@ -443,6 +462,7 @@ alter table public.categories enable row level security;
 alter table public.vendor_categories enable row level security;
 alter table public.order_items enable row level security;
 alter table public.notifications enable row level security;
+alter table public.reviews enable row level security;
 
 drop policy if exists "categories_public_read" on public.categories;
 create policy "categories_public_read"
@@ -522,6 +542,53 @@ to authenticated
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
+drop policy if exists "reviews_public_read" on public.reviews;
+create policy "reviews_public_read"
+on public.reviews
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "reviews_buyer_insert" on public.reviews;
+create policy "reviews_buyer_insert"
+on public.reviews
+for insert
+to authenticated
+with check (
+  auth.uid() = buyer_id
+  and exists (
+    select 1
+    from public.orders
+    where orders.id = reviews.order_id
+      and orders.buyer_id = auth.uid()
+      and orders.vendor_id = reviews.vendor_id
+      and orders.status = 'completed'
+  )
+);
+
+drop policy if exists "reviews_buyer_update" on public.reviews;
+create policy "reviews_buyer_update"
+on public.reviews
+for update
+to authenticated
+using (auth.uid() = buyer_id)
+with check (
+  auth.uid() = buyer_id
+  and exists (
+    select 1
+    from public.orders
+    where orders.id = reviews.order_id
+      and orders.buyer_id = auth.uid()
+      and orders.vendor_id = reviews.vendor_id
+      and orders.status = 'completed'
+  )
+);
+
+drop trigger if exists reviews_set_updated_at on public.reviews;
+create trigger reviews_set_updated_at
+before update on public.reviews
+for each row execute function public.set_updated_at();
+
 do $$
 begin
   begin
@@ -534,4 +601,5 @@ $$;
 
 comment on table public.order_items is 'Structured order items for map-first commerce transactions.';
 comment on table public.notifications is 'User-facing notification inbox and badge source.';
+comment on table public.reviews is 'Customer ratings and written reviews tied to completed orders.';
 comment on column public.vendors.payment_details is 'Vendor payment instructions such as QRIS image, bank account, and e-wallet number.';

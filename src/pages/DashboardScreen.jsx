@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import AdminPanel from '../components/AdminPanel'
 import ChatWorkspace from '../components/ChatWorkspace'
+import OrderReviewComposer from '../components/OrderReviewComposer'
 import OrderStatusTimeline from '../components/OrderStatusTimeline'
 import VendorProductsManager from '../components/VendorProductsManager'
 import { useToast } from '../components/ToastProvider'
@@ -23,6 +24,7 @@ import {
   isHistoryOrderStatus,
   isSchemaCompatibilityError,
 } from '../lib/orders'
+import { getReviewSummary } from '../lib/reviews'
 import { syncCurrentProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import {
@@ -100,8 +102,9 @@ function OrdersPanel({ currentUser, role }) {
       if (error) throw error
 
       let nextOrders = data || []
+      const orderIds = nextOrders.map((order) => order.id).filter(Boolean)
+
       try {
-        const orderIds = nextOrders.map((order) => order.id).filter(Boolean)
         if (orderIds.length > 0) {
           const { data: orderItems, error: orderItemsError } = await supabase
             .from('order_items')
@@ -125,6 +128,31 @@ function OrdersPanel({ currentUser, role }) {
       } catch (orderItemsError) {
         if (!isSchemaCompatibilityError(orderItemsError)) {
           console.error('fetchOrders.orderItems', orderItemsError)
+        }
+      }
+
+      try {
+        if (orderIds.length > 0) {
+          const { data: reviews, error: reviewsError } = await supabase
+            .from('reviews')
+            .select('*')
+            .in('order_id', orderIds)
+
+          if (reviewsError) throw reviewsError
+
+          const reviewsMap = (reviews || []).reduce((accumulator, review) => {
+            accumulator[review.order_id] = review
+            return accumulator
+          }, {})
+
+          nextOrders = nextOrders.map((order) => ({
+            ...order,
+            review: reviewsMap[order.id] || null,
+          }))
+        }
+      } catch (reviewsError) {
+        if (!isSchemaCompatibilityError(reviewsError)) {
+          console.error('fetchOrders.reviews', reviewsError)
         }
       }
 
@@ -284,6 +312,22 @@ function OrdersPanel({ currentUser, role }) {
               </div>
             )}
 
+            {!isVendor && order.status === 'completed' && (
+              <OrderReviewComposer
+                order={order}
+                existingReview={order.review}
+                viewerId={currentUser?.id}
+                buyerName={customerName}
+                onSaved={(review) => {
+                  setOrders((current) => current.map((item) => (
+                    item.id === order.id
+                      ? { ...item, review }
+                      : item
+                  )))
+                }}
+              />
+            )}
+
             <div className="mt-2 text-xs text-slate-400">
               {order.created_at ? new Date(order.created_at).toLocaleString('id-ID') : '-'}
             </div>
@@ -369,6 +413,7 @@ function OrdersPanel({ currentUser, role }) {
   const historyOrders = orders.filter((order) => isHistoryOrderStatus(order.status))
   const pendingOrders = orders.filter((order) => order.status === 'pending')
   const completedOrders = orders.filter((order) => order.status === 'completed')
+  const completedReviewSummary = getReviewSummary(completedOrders.map((order) => order.review).filter(Boolean))
   const spotlightOrder = activeOrders[0] || orders[0] || null
 
   return (
@@ -509,9 +554,13 @@ function OrdersPanel({ currentUser, role }) {
           tone="default"
         />
         <OrdersSummaryCard
-          label="Riwayat Selesai"
-          value={completedOrders.length}
-          hint={isVendor ? 'Order yang sudah selesai ditutup.' : 'Pesanan yang berhasil diselesaikan.'}
+          label={isVendor ? 'Riwayat Selesai' : 'Ulasan Dikirim'}
+          value={isVendor ? completedOrders.length : completedReviewSummary.count}
+          hint={isVendor
+            ? 'Order yang sudah selesai ditutup.'
+            : completedReviewSummary.count > 0
+              ? `Rata-rata ulasan Anda ${completedReviewSummary.averageLabel}.`
+              : 'Beri ulasan setelah pesanan selesai.'}
           tone="success"
         />
       </div>

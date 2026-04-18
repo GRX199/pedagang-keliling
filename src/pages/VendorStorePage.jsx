@@ -25,6 +25,7 @@ import {
   formatVendorServiceRadius,
   getOperatingHoursText,
 } from '../lib/vendor'
+import { formatReviewScore, getReviewSummary } from '../lib/reviews'
 
 function getProductStockLabel(product) {
   const stock = Number(product?.stock)
@@ -77,6 +78,7 @@ export default function VendorStorePage() {
 
   const [vendor, setVendor] = useState(null)
   const [products, setProducts] = useState([])
+  const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState({})
   const [submittingOrder, setSubmittingOrder] = useState(false)
@@ -104,8 +106,26 @@ export default function VendorStorePage() {
         if (productsResult.error) throw productsResult.error
         if (!active) return
 
+        let nextReviews = []
+        try {
+          const { data: reviewsData, error: reviewsError } = await supabase
+            .from('reviews')
+            .select('id, order_id, rating, comment, buyer_name, created_at')
+            .eq('vendor_id', id)
+            .order('created_at', { ascending: false })
+            .limit(6)
+
+          if (reviewsError) throw reviewsError
+          nextReviews = reviewsData || []
+        } catch (reviewsError) {
+          if (!isSchemaCompatibilityError(reviewsError)) {
+            throw reviewsError
+          }
+        }
+
         setVendor(vendorResult.data || null)
         setProducts(productsResult.data || [])
+        setReviews(nextReviews)
       } catch (error) {
         console.error('loadVendorStore', error)
         if (active) toast.push(error.message || 'Gagal memuat profil pedagang', { type: 'error' })
@@ -122,6 +142,9 @@ export default function VendorStorePage() {
         loadVendorStore()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products', filter: `vendor_id=eq.${id}` }, () => {
+        loadVendorStore()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews', filter: `vendor_id=eq.${id}` }, () => {
         loadVendorStore()
       })
       .subscribe()
@@ -174,6 +197,7 @@ export default function VendorStorePage() {
     () => products.filter((product) => isProductOrderable(product)).length,
     [products]
   )
+  const reviewSummary = useMemo(() => getReviewSummary(reviews), [reviews])
   const availablePaymentMethods = useMemo(
     () => getVendorAvailablePaymentMethods(vendor?.payment_details),
     [vendor?.payment_details]
@@ -458,6 +482,11 @@ export default function VendorStorePage() {
                   }`}>
                     {vendor.online ? 'Sedang Online' : 'Sedang Offline'}
                   </span>
+                  {reviewSummary.count > 0 && (
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                      Rating {formatReviewScore(reviewSummary.average)} • {reviewSummary.count} ulasan
+                    </span>
+                  )}
                   {vendor.is_verified && (
                     <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                       Terverifikasi
@@ -476,6 +505,7 @@ export default function VendorStorePage() {
                 <div>Jam operasional: {getOperatingHoursText(vendor.operating_hours)}</div>
                 <div>Lokasi: {getStoreLocationStatus(vendor.location)}</div>
                 <div>Produk siap dipesan: {availableProductsCount}</div>
+                <div>Rating pelanggan: {reviewSummary.count > 0 ? `${formatReviewScore(reviewSummary.average)} dari ${reviewSummary.count} ulasan` : 'Belum ada ulasan'}</div>
                 <div>
                   Pembayaran non-tunai: {nonCashPaymentMethods.length > 0
                     ? nonCashPaymentMethods.map((entry) => entry.label).join(', ')
@@ -719,6 +749,15 @@ export default function VendorStorePage() {
                 <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Jam Operasional</div>
                 <div className="mt-2 text-sm font-medium leading-6 text-slate-900">{getOperatingHoursText(vendor.operating_hours)}</div>
               </div>
+              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Rating</div>
+                <div className="mt-2 font-semibold text-slate-900">
+                  {reviewSummary.count > 0 ? formatReviewScore(reviewSummary.average) : 'Belum ada'}
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  {reviewSummary.count > 0 ? `${reviewSummary.count} ulasan pelanggan` : 'Akan muncul setelah pesanan selesai dan dinilai.'}
+                </div>
+              </div>
             </section>
 
             <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
@@ -836,6 +875,54 @@ export default function VendorStorePage() {
                   })
                 )}
               </div>
+            </section>
+
+            <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">Ulasan Pelanggan</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Bagian ini membantu pelanggan baru melihat pengalaman transaksi yang sudah selesai.
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  {reviewSummary.count > 0
+                    ? `${formatReviewScore(reviewSummary.average)} dari ${reviewSummary.count} ulasan`
+                    : 'Belum ada ulasan'}
+                </div>
+              </div>
+
+              {reviews.length === 0 ? (
+                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                  Ulasan akan muncul setelah pelanggan menyelesaikan pesanan dan memberi penilaian.
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {reviews.map((review) => (
+                    <article key={review.id} className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-medium text-slate-900">{review.buyer_name || 'Pelanggan'}</div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            Rating {formatReviewScore(review.rating)} • {new Date(review.created_at).toLocaleDateString('id-ID', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                            })}
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                          {review.rating}/5
+                        </span>
+                      </div>
+
+                      <div className="mt-3 text-sm leading-6 text-slate-600">
+                        {review.comment || 'Pelanggan tidak menambahkan komentar tertulis.'}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
           </main>
         </div>
