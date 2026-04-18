@@ -11,6 +11,7 @@ import {
   getGeolocationErrorMessage,
   getServerOrigin,
 } from '../lib/network'
+import { formatReviewScore, getReviewSummary } from '../lib/reviews'
 import { supabase } from '../lib/supabase'
 import {
   createVendorLocationPayload,
@@ -21,6 +22,11 @@ import {
 
 const DEFAULT_CENTER = [-2.5489, 118.0149]
 const LOCATION_SYNC_DISTANCE_METERS = 20
+const RATING_FILTER_OPTIONS = [
+  { value: 'all', label: 'Semua rating' },
+  { value: '4', label: '4.0+' },
+  { value: '4.5', label: '4.5+' },
+]
 
 const DefaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -89,6 +95,47 @@ function getVendorCategory(vendor) {
   return String(vendor?.category_primary || vendor?.map_category || '').trim()
 }
 
+function getVendorSearchText(vendor) {
+  return String(vendor?.map_search_text || '').trim().toLowerCase()
+}
+
+function getVendorAverageRating(vendor) {
+  const rating = Number(vendor?.review_average)
+  return Number.isFinite(rating) ? rating : 0
+}
+
+function getVendorReviewCount(vendor) {
+  const count = Number(vendor?.review_count)
+  return Number.isFinite(count) ? count : 0
+}
+
+function formatVendorRatingMeta(vendor) {
+  const reviewCount = getVendorReviewCount(vendor)
+  if (reviewCount <= 0) return 'Belum ada ulasan'
+  return `${formatReviewScore(getVendorAverageRating(vendor))} • ${reviewCount} ulasan`
+}
+
+function matchesRatingFilter(vendor, selectedRatingFilter) {
+  if (selectedRatingFilter === 'all') return true
+
+  const minimumRating = Number(selectedRatingFilter)
+  if (!Number.isFinite(minimumRating)) return true
+  if (getVendorReviewCount(vendor) <= 0) return false
+
+  return getVendorAverageRating(vendor) >= minimumRating
+}
+
+function isOptionalDataError(error) {
+  const message = String(error?.message || '').toLowerCase()
+  const details = String(error?.details || '').toLowerCase()
+  return (
+    message.includes('does not exist') ||
+    message.includes('could not find') ||
+    message.includes('schema cache') ||
+    details.includes('does not exist')
+  )
+}
+
 function isVendorModeratedOut(vendor) {
   return vendor?.account_status === 'suspended' || vendor?.account_status === 'blocked'
 }
@@ -144,6 +191,16 @@ function buildPopupContent(vendor, actions = []) {
     category.style.color = '#475569'
     category.textContent = `Kategori: ${formatVendorCategoryLabel(vendorCategory)}`
     wrapper.appendChild(category)
+  }
+
+  const reviewCount = getVendorReviewCount(vendor)
+  if (reviewCount > 0) {
+    const rating = document.createElement('div')
+    rating.style.fontSize = '12px'
+    rating.style.marginTop = '6px'
+    rating.style.color = '#92400e'
+    rating.textContent = `Rating: ${formatVendorRatingMeta(vendor)}`
+    wrapper.appendChild(rating)
   }
 
   if (vendor.photo_url) {
@@ -204,6 +261,7 @@ export default function MapViewPage() {
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [selectedRatingFilter, setSelectedRatingFilter] = useState('all')
   const [selectedVendor, setSelectedVendor] = useState(null)
   const [userLocation, setUserLocation] = useState(null)
   const [radiusKm, setRadiusKm] = useState(2.5)
@@ -349,29 +407,37 @@ export default function MapViewPage() {
       if (error) throw error
 
       const vendorRows = data || []
-      const missingCategoryVendorIds = vendorRows
-        .filter((vendor) => !getVendorCategory(vendor))
-        .map((vendor) => vendor.id)
       const vendorIds = vendorRows.map((vendor) => vendor.id).filter(Boolean)
 
       const productCategoryMap = {}
-      if (missingCategoryVendorIds.length > 0) {
-        const { data: productRows, error: productError } = await supabase
-          .from('products')
-          .select('vendor_id, category_name, is_available, created_at')
-          .in('vendor_id', missingCategoryVendorIds)
-          .order('created_at', { ascending: false })
+      const productSearchMap = {}
+      if (vendorIds.length > 0) {
+        try {
+          const { data: productRows, error: productError } = await supabase
+            .from('products')
+            .select('vendor_id, name, category_name, created_at')
+            .in('vendor_id', vendorIds)
+            .order('created_at', { ascending: false })
 
-        if (!productError) {
+          if (productError) throw productError
+
           for (const product of productRows || []) {
             const categoryName = String(product?.category_name || '').trim()
-            if (!categoryName) continue
-            if (!productCategoryMap[product.vendor_id]) {
+            if (categoryName && !productCategoryMap[product.vendor_id]) {
               productCategoryMap[product.vendor_id] = categoryName
             }
+
+            const productName = String(product?.name || '').trim()
+            if (!productName) continue
+            if (!productSearchMap[product.vendor_id]) {
+              productSearchMap[product.vendor_id] = []
+            }
+            if (!productSearchMap[product.vendor_id].includes(productName)) {
+              productSearchMap[product.vendor_id].push(productName)
+            }
           }
-        } else {
-          console.warn('loadVendorProductCategories', productError)
+        } catch (productError) {
+          console.warn('loadVendorProductsMeta', productError)
         }
       }
 
@@ -396,10 +462,41 @@ export default function MapViewPage() {
         }
       }
 
+      const reviewSummaryMap = {}
+      if (vendorIds.length > 0) {
+        try {
+          const { data: reviewRows, error: reviewError } = await supabase
+            .from('reviews')
+            .select('vendor_id, rating')
+            .in('vendor_id', vendorIds)
+
+          if (reviewError) throw reviewError
+
+          const groupedReviews = {}
+          for (const review of reviewRows || []) {
+            if (!groupedReviews[review.vendor_id]) {
+              groupedReviews[review.vendor_id] = []
+            }
+            groupedReviews[review.vendor_id].push(review)
+          }
+
+          Object.entries(groupedReviews).forEach(([vendorId, grouped]) => {
+            reviewSummaryMap[vendorId] = getReviewSummary(grouped)
+          })
+        } catch (reviewError) {
+          if (!isOptionalDataError(reviewError)) {
+            console.warn('loadVendorReviews', reviewError)
+          }
+        }
+      }
+
       setVendors(vendorRows.map((vendor) => ({
         ...vendor,
         map_category: productCategoryMap[vendor.id] || null,
+        map_search_text: (productSearchMap[vendor.id] || []).join(' '),
         account_status: profileStatusMap[vendor.id] || 'active',
+        review_average: reviewSummaryMap[vendor.id]?.average || 0,
+        review_count: reviewSummaryMap[vendor.id]?.count || 0,
       })))
     } catch (error) {
       console.error('loadVendors', error)
@@ -470,6 +567,9 @@ export default function MapViewPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors' }, () => {
         loadVendors()
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, () => {
+        loadVendors()
+      })
       .subscribe()
 
     return () => {
@@ -494,6 +594,12 @@ export default function MapViewPage() {
       setSelectedVendor(nextVendor)
     }
   }, [selectedVendor, vendors])
+
+  useEffect(() => {
+    if (!selectedVendor) return
+    if (filteredVendors.some((vendor) => vendor.id === selectedVendor.id)) return
+    setSelectedVendor(null)
+  }, [filteredVendors, selectedVendor])
 
   useEffect(() => {
     const existingLocation = getVendorCoordinates(vendors.find((vendor) => vendor.id === myVendorId)?.location)
@@ -525,8 +631,10 @@ export default function MapViewPage() {
         if (normalizeCategoryValue(vendorCategory) !== selectedCategory) return false
       }
 
+      if (!matchesRatingFilter(vendor, selectedRatingFilter)) return false
+
       if (debouncedQuery) {
-        const haystack = `${vendor.name || ''} ${vendor.description || ''} ${vendorCategory}`.toLowerCase()
+        const haystack = `${vendor.name || ''} ${vendor.description || ''} ${vendorCategory} ${getVendorSearchText(vendor)}`.toLowerCase()
         if (!haystack.includes(debouncedQuery)) return false
       }
 
@@ -543,7 +651,7 @@ export default function MapViewPage() {
 
       return true
     })
-  }, [debouncedQuery, onlyWithinRadius, radiusKm, selectedCategory, userLocation, vendors])
+  }, [debouncedQuery, onlyWithinRadius, radiusKm, selectedCategory, selectedRatingFilter, userLocation, vendors])
 
   const onlineVendors = useMemo(
     () => vendors.filter((vendor) => vendor.online && !isVendorModeratedOut(vendor) && getVendorCoordinates(vendor.location)),
@@ -766,6 +874,7 @@ export default function MapViewPage() {
   const selectedVendorDistance = getVendorDistance(selectedVendor, userLocation)
   const selectedVendorIsMine = isVendor && selectedVendor?.id === myVendorId
   const selectedCategoryLabel = categoryOptions.find((option) => option.value === selectedCategory)?.label || 'Semua kategori'
+  const selectedRatingFilterLabel = RATING_FILTER_OPTIONS.find((option) => option.value === selectedRatingFilter)?.label || 'Semua rating'
   const heroBadge = isVendor ? 'Mode Pedagang' : 'Mode Pelanggan'
   const heroTitle = isVendor
     ? 'Pantau toko Anda dan tetap siap menerima pesanan dari peta.'
@@ -821,11 +930,11 @@ export default function MapViewPage() {
           <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-slate-700">Cari pedagang aktif</label>
+                  <label className="text-sm font-medium text-slate-700">Cari pedagang atau produk</label>
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Contoh: bakso, sayur, nasi kuning..."
+                  placeholder="Contoh: bakso, cilok, kopi, sayur..."
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
                 />
               </div>
@@ -841,10 +950,11 @@ export default function MapViewPage() {
                 >
                   {onlyWithinRadius ? 'Radius Aktif' : 'Filter Radius'}
                 </button>
-                  <button
-                    onClick={() => {
+                <button
+                  onClick={() => {
                       setQuery('')
                       setSelectedCategory('all')
+                      setSelectedRatingFilter('all')
                       setOnlyWithinRadius(false)
                     }}
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -884,6 +994,28 @@ export default function MapViewPage() {
                   {categoryOptions.length > 0
                     ? 'Kategori dibaca dari profil toko atau kategori produk yang tersedia.'
                     : 'Kategori belum muncul karena data kategori toko atau kategori produk belum diisi.'}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <div className="font-medium text-slate-800">Filter rating</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {RATING_FILTER_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setSelectedRatingFilter(option.value)}
+                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                        selectedRatingFilter === option.value
+                          ? 'bg-amber-500 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 text-xs text-slate-500">
+                  Rating dipakai untuk memprioritaskan toko yang sudah punya ulasan transaksi selesai.
                 </div>
               </div>
 
@@ -929,9 +1061,11 @@ export default function MapViewPage() {
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Hasil Ditampilkan</div>
                 <div className="mt-2 text-3xl font-semibold text-slate-900">{filteredVendorCount}</div>
                 <div className="mt-1 text-sm text-slate-500">
-                  {selectedCategory === 'all'
-                    ? 'Sesuai pencarian, status toko, dan filter radius yang aktif.'
-                    : `Difokuskan ke kategori ${formatVendorCategoryLabel(selectedCategoryLabel)}.`}
+                  {selectedCategory !== 'all'
+                    ? `Difokuskan ke kategori ${formatVendorCategoryLabel(selectedCategoryLabel)}.`
+                    : selectedRatingFilter !== 'all'
+                      ? `Menampilkan toko dengan rating ${selectedRatingFilterLabel}.`
+                      : 'Sesuai pencarian, status toko, dan filter radius yang aktif.'}
                 </div>
               </div>
             </div>
@@ -994,11 +1128,19 @@ export default function MapViewPage() {
                                 {formatVendorCategoryLabel(getVendorCategory(vendor))}
                               </span>
                             ) : null}
+                            {getVendorReviewCount(vendor) > 0 ? (
+                              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                                {formatVendorRatingMeta(vendor)}
+                              </span>
+                            ) : null}
                           </div>
                           <div className="mt-1 text-sm text-slate-500">{formatDistanceLabel(vendorDistance)}</div>
                           <div className="mt-2 text-sm leading-6 text-slate-600">
                             {vendor.description ? String(vendor.description).slice(0, 120) : 'Belum ada deskripsi toko.'}
                           </div>
+                          {getVendorReviewCount(vendor) === 0 ? (
+                            <div className="mt-2 text-xs text-slate-400">Belum ada ulasan transaksi selesai.</div>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1128,6 +1270,9 @@ export default function MapViewPage() {
                       <div className="mt-1 text-xs text-slate-400">
                         {formatDistanceLabel(selectedVendorDistance)}
                       </div>
+                      <div className="mt-1 text-xs text-amber-700">
+                        {formatVendorRatingMeta(selectedVendor)}
+                      </div>
                     </div>
                   </div>
 
@@ -1144,6 +1289,11 @@ export default function MapViewPage() {
                     {getVendorCategory(selectedVendor) ? (
                       <div className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
                         {formatVendorCategoryLabel(getVendorCategory(selectedVendor))}
+                      </div>
+                    ) : null}
+                    {getVendorReviewCount(selectedVendor) > 0 ? (
+                      <div className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                        {formatVendorRatingMeta(selectedVendor)}
                       </div>
                     ) : null}
                   </div>
