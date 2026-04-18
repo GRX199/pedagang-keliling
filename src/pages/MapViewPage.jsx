@@ -596,12 +596,6 @@ export default function MapViewPage() {
   }, [selectedVendor, vendors])
 
   useEffect(() => {
-    if (!selectedVendor) return
-    if (filteredVendors.some((vendor) => vendor.id === selectedVendor.id)) return
-    setSelectedVendor(null)
-  }, [filteredVendors, selectedVendor])
-
-  useEffect(() => {
     const existingLocation = getVendorCoordinates(vendors.find((vendor) => vendor.id === myVendorId)?.location)
     if (existingLocation) {
       lastSyncedLocationRef.current = existingLocation
@@ -705,6 +699,12 @@ export default function MapViewPage() {
       return (left.name || '').localeCompare(right.name || '', 'id')
     })
   }, [filteredVendors, userLocation])
+
+  useEffect(() => {
+    if (!selectedVendor) return
+    if (filteredVendors.some((vendor) => vendor.id === selectedVendor.id)) return
+    setSelectedVendor(null)
+  }, [filteredVendors, selectedVendor])
 
   useEffect(() => {
     const map = mapRef.current

@@ -74,14 +74,61 @@ function OrdersSummaryCard({ label, value, hint, tone = 'default' }) {
   )
 }
 
+function HistoryFilterButton({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+        active
+          ? 'bg-slate-900 text-white'
+          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
 function OrdersPanel({ currentUser, role }) {
   const toast = useToast()
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [historyFilter, setHistoryFilter] = useState('all')
+  const [historyQuery, setHistoryQuery] = useState('')
   const isVendor = role === 'vendor'
   const customerName = currentUser?.user_metadata?.full_name || currentUser?.email || 'Pelanggan'
+
+  function getOrderHistoryTimestamp(order) {
+    return order?.completed_at || order?.cancelled_at || order?.rejected_at || order?.updated_at || order?.created_at || null
+  }
+
+  function formatOrderHistoryLabel(order) {
+    const timestamp = getOrderHistoryTimestamp(order)
+    if (!timestamp) return 'Riwayat tersimpan'
+
+    const formattedDate = new Date(timestamp).toLocaleString('id-ID')
+    if (order.status === 'completed') return `Selesai pada ${formattedDate}`
+    if (order.status === 'cancelled') return `Dibatalkan pada ${formattedDate}`
+    if (order.status === 'rejected') return `Ditolak pada ${formattedDate}`
+    return `Diperbarui pada ${formattedDate}`
+  }
+
+  function getOrderSearchText(order) {
+    const itemText = Array.isArray(order.order_items) && order.order_items.length > 0
+      ? order.order_items.map((item) => `${item.product_name_snapshot || ''} ${item.item_note || ''}`).join(' ')
+      : String(order.items || '')
+
+    return [
+      order.vendor_name,
+      order.buyer_name,
+      order.meeting_point_label,
+      order.customer_note,
+      itemText,
+    ].join(' ').toLowerCase()
+  }
 
   async function fetchOrders({ background = false, silent = false } = {}) {
     if (!currentUser || !role) return
@@ -255,9 +302,12 @@ function OrdersPanel({ currentUser, role }) {
   function renderOrderCard(order, variant = 'active') {
     const title = isVendor ? (order.buyer_name || 'Pelanggan') : (order.vendor_name || 'Pedagang')
     const isHighlighted = variant === 'active'
+    const isHistoryCard = variant === 'history'
     const vendorPaymentActions = isVendor ? getVendorPaymentActions(order) : []
     const buyerPaymentActions = !isVendor ? getBuyerPaymentActions(order) : []
     const paymentGuidance = getPaymentGuidance(order, isVendor ? 'vendor' : 'customer')
+    const historyLabel = isHistoryCard ? formatOrderHistoryLabel(order) : ''
+    const primaryActionLabel = isHistoryCard ? 'Lihat Detail' : 'Lacak'
 
     return (
       <div
@@ -291,6 +341,11 @@ function OrdersPanel({ currentUser, role }) {
                   {formatFulfillmentTypeLabel(order.fulfillment_type)}
                 </span>
               )}
+              {!isVendor && order.review && (
+                <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                  Ulasan sudah dikirim
+                </span>
+              )}
             </div>
 
             {isHighlighted && (
@@ -299,8 +354,9 @@ function OrdersPanel({ currentUser, role }) {
               </div>
             )}
 
-            {(paymentGuidance || order.meeting_point_label || order.customer_note || Number(order.total_amount || 0) > 0) && (
+            {(paymentGuidance || order.meeting_point_label || order.customer_note || Number(order.total_amount || 0) > 0 || historyLabel) && (
               <div className="mt-3 space-y-1 text-sm text-slate-500">
+                {historyLabel && <div>{historyLabel}</div>}
                 {paymentGuidance && <div>Pembayaran: {paymentGuidance}</div>}
                 {order.meeting_point_label && <div>Titik temu: {order.meeting_point_label}</div>}
                 {order.customer_note && <div>Catatan: {order.customer_note}</div>}
@@ -342,7 +398,7 @@ function OrdersPanel({ currentUser, role }) {
                   : 'border border-slate-200 bg-white text-slate-700'
               }`}
             >
-              Lacak
+              {primaryActionLabel}
             </button>
             <button
               onClick={() => navigate(`/chat/${isVendor ? order.buyer_id : order.vendor_id}?order=${order.id}`)}
@@ -414,6 +470,28 @@ function OrdersPanel({ currentUser, role }) {
   const pendingOrders = orders.filter((order) => order.status === 'pending')
   const completedOrders = orders.filter((order) => order.status === 'completed')
   const completedReviewSummary = getReviewSummary(completedOrders.map((order) => order.review).filter(Boolean))
+  const cancelledOrders = historyOrders.filter((order) => order.status === 'cancelled')
+  const rejectedOrders = historyOrders.filter((order) => order.status === 'rejected')
+  const completedValueTotal = completedOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0)
+  const pendingReviewCount = completedOrders.filter((order) => !order.review).length
+  const historyFilterOptions = [
+    { value: 'all', label: 'Semua' },
+    { value: 'completed', label: 'Selesai' },
+    { value: 'cancelled', label: 'Dibatalkan' },
+    { value: 'rejected', label: 'Ditolak' },
+  ]
+  const normalizedHistoryQuery = historyQuery.trim().toLowerCase()
+  const filteredHistoryOrders = historyOrders
+    .filter((order) => {
+      if (historyFilter !== 'all' && order.status !== historyFilter) return false
+      if (!normalizedHistoryQuery) return true
+      return getOrderSearchText(order).includes(normalizedHistoryQuery)
+    })
+    .sort((left, right) => {
+      const leftValue = new Date(getOrderHistoryTimestamp(left) || 0).getTime()
+      const rightValue = new Date(getOrderHistoryTimestamp(right) || 0).getTime()
+      return rightValue - leftValue
+    })
   const spotlightOrder = activeOrders[0] || orders[0] || null
 
   return (
@@ -625,8 +703,83 @@ function OrdersPanel({ currentUser, role }) {
                 Belum ada riwayat pesanan.
               </div>
             ) : (
-              <div className="space-y-3">
-                {historyOrders.map((order) => renderOrderCard(order, 'history'))}
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-[22px] bg-slate-50 p-4 ring-1 ring-slate-200">
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                      {isVendor ? 'Omzet Selesai' : 'Total Belanja'}
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-900">
+                      {formatPriceLabel(completedValueTotal)}
+                    </div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      {isVendor
+                        ? 'Akumulasi transaksi yang sudah selesai.'
+                        : 'Total transaksi selesai yang sudah Anda bayar.'}
+                    </div>
+                  </div>
+                  <div className="rounded-[22px] bg-slate-50 p-4 ring-1 ring-slate-200">
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Dibatalkan</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-900">{cancelledOrders.length}</div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      {isVendor
+                        ? 'Order yang tidak berlanjut karena dibatalkan.'
+                        : 'Pesanan yang batal sebelum selesai diproses.'}
+                    </div>
+                  </div>
+                  <div className="rounded-[22px] bg-slate-50 p-4 ring-1 ring-slate-200">
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                      {isVendor ? 'Ditolak' : 'Belum Diulas'}
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-900">
+                      {isVendor ? rejectedOrders.length : pendingReviewCount}
+                    </div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      {isVendor
+                        ? 'Order yang Anda tolak atau tidak lanjut diproses.'
+                        : 'Pesanan selesai yang masih bisa Anda beri ulasan.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Cari riwayat</label>
+                      <input
+                        value={historyQuery}
+                        onChange={(event) => setHistoryQuery(event.target.value)}
+                        placeholder={isVendor ? 'Cari nama pelanggan, produk, atau titik temu...' : 'Cari nama pedagang, produk, atau titik temu...'}
+                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="text-sm font-medium text-slate-700">Filter hasil akhir</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {historyFilterOptions.map((option) => (
+                          <HistoryFilterButton
+                            key={option.value}
+                            active={historyFilter === option.value}
+                            onClick={() => setHistoryFilter(option.value)}
+                          >
+                            {option.label}
+                          </HistoryFilterButton>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {filteredHistoryOrders.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                    Tidak ada riwayat yang cocok dengan pencarian atau filter ini.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredHistoryOrders.map((order) => renderOrderCard(order, 'history'))}
+                  </div>
+                )}
               </div>
             )}
           </section>
