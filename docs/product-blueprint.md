@@ -110,7 +110,9 @@ Fokus utamanya bukan katalog umum, tetapi transaksi berbasis lokasi pedagang yan
 
 - Ringkasan item
 - Catatan per order
+- Opsi waktu pesanan: langsung atau titip untuk nanti
 - Titik temu atau alamat
+- Waktu target jika order berupa pre-order
 - Metode pembayaran
 - Ringkasan total
 - Konfirmasi pesanan

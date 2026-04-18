@@ -51,6 +51,8 @@ alter table public.orders
   add column if not exists payment_method text not null default 'cod',
   add column if not exists payment_status text not null default 'unpaid',
   add column if not exists fulfillment_type text not null default 'meetup',
+  add column if not exists order_timing text not null default 'asap',
+  add column if not exists requested_fulfillment_at timestamptz,
   add column if not exists meeting_point_label text,
   add column if not exists meeting_point_location jsonb,
   add column if not exists customer_location jsonb,
@@ -131,6 +133,13 @@ alter table public.orders
 alter table public.orders
   add constraint orders_fulfillment_type_check
   check (fulfillment_type in ('meetup', 'delivery'));
+
+alter table public.orders
+  drop constraint if exists orders_order_timing_check;
+
+alter table public.orders
+  add constraint orders_order_timing_check
+  check (order_timing in ('asap', 'preorder'));
 
 alter table public.orders
   drop constraint if exists orders_amounts_non_negative;
@@ -239,6 +248,9 @@ create index if not exists products_vendor_available_idx
 
 create index if not exists orders_status_updated_at_idx
   on public.orders (status, updated_at desc);
+
+create index if not exists orders_timing_requested_idx
+  on public.orders (order_timing, requested_fulfillment_at desc);
 
 create index if not exists order_items_order_id_idx
   on public.order_items (order_id);
@@ -641,3 +653,5 @@ comment on table public.order_items is 'Structured order items for map-first com
 comment on table public.notifications is 'User-facing notification inbox and badge source.';
 comment on table public.reviews is 'Customer ratings and written reviews tied to completed orders.';
 comment on column public.vendors.payment_details is 'Vendor payment instructions such as QRIS image, bank account, and e-wallet number.';
+comment on column public.orders.order_timing is 'Whether the order should be processed immediately or kept as a pre-order for a later pass-by area.';
+comment on column public.orders.requested_fulfillment_at is 'Requested handoff time for pre-orders or scheduled neighborhood pass-by.';

@@ -156,6 +156,8 @@ Recommended fields:
 - `payment_method`
 - `payment_status`
 - `fulfillment_type`
+- `order_timing`
+- `requested_fulfillment_at`
 - `meeting_point_label`
 - `meeting_point_location`
 - `customer_note`
@@ -178,6 +180,12 @@ Recommended order statuses:
 - `completed`
 - `cancelled`
 - `rejected`
+
+Notes:
+
+- `order_timing` bisa memakai nilai `asap` atau `preorder`
+- `requested_fulfillment_at` dipakai untuk titip pesanan saat pedagang melewati area tertentu
+- fitur pre-order tetap memakai tabel `orders`, tidak perlu memecah ke tabel transaksi terpisah
 
 ### order_items
 

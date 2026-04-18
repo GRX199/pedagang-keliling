@@ -57,6 +57,11 @@ export const FULFILLMENT_TYPE_LABELS = {
   delivery: 'Antar',
 }
 
+export const ORDER_TIMING_LABELS = {
+  asap: 'Pesan sekarang',
+  preorder: 'Titip untuk nanti',
+}
+
 export function formatOrderStatusLabel(status) {
   return ORDER_STATUS_LABELS[status] || String(status || 'pending')
 }
@@ -71,6 +76,28 @@ export function formatPaymentStatusLabel(status) {
 
 export function formatFulfillmentTypeLabel(type) {
   return FULFILLMENT_TYPE_LABELS[type] || 'Titik temu'
+}
+
+export function formatOrderTimingLabel(value) {
+  return ORDER_TIMING_LABELS[value] || ORDER_TIMING_LABELS.asap
+}
+
+export function formatRequestedFulfillmentLabel(value) {
+  if (!value) return 'Waktu belum ditentukan'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Waktu belum ditentukan'
+
+  return date.toLocaleString('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
+export function getOrderTimingHint(orderTiming = 'asap') {
+  return orderTiming === 'preorder'
+    ? 'Gunakan mode ini jika Anda ingin pedagang menyiapkan pesanan untuk area Anda pada waktu tertentu, bukan langsung sekarang.'
+    : 'Gunakan mode ini jika Anda ingin pedagang memproses pesanan dan menindaklanjuti chat secepatnya.'
 }
 
 export function getVendorPaymentActions(order) {
@@ -256,18 +283,24 @@ export function buildOrderChatMessage({
   orderId = null,
   paymentMethod = 'cod',
   fulfillmentType = 'meetup',
+  orderTiming = 'asap',
+  requestedFulfillmentAt = null,
   meetingPointLabel = '',
   customerNote = '',
 }) {
   const summary = buildOrderItemsText(entries)
   const reference = orderId ? `Pesanan #${String(orderId).slice(0, 8)}\n` : ''
+  const timingLine = `\nWaktu pesanan: ${formatOrderTimingLabel(orderTiming)}`
+  const requestedTimeLine = requestedFulfillmentAt
+    ? `\nDiminta sekitar: ${formatRequestedFulfillmentLabel(requestedFulfillmentAt)}`
+    : ''
   const meetingPointLine = String(meetingPointLabel || '').trim()
-    ? `\nTitik temu: ${String(meetingPointLabel).trim()}`
+    ? `\n${orderTiming === 'preorder' ? 'Area titip' : 'Titik temu'}: ${String(meetingPointLabel).trim()}`
     : ''
   const noteLine = String(customerNote || '').trim()
     ? `\nCatatan: ${String(customerNote).trim()}`
     : ''
-  return `${reference}Halo, saya ${buyerName} ingin memesan:\n${summary}\n\nMetode bayar: ${formatPaymentMethodLabel(paymentMethod)}\nSerah terima: ${formatFulfillmentTypeLabel(fulfillmentType)}${meetingPointLine}${noteLine}\n\nSilakan konfirmasi stok, pembayaran, atau detail pengirimannya ya.`
+  return `${reference}Halo, saya ${buyerName} ingin memesan:\n${summary}\n\nMetode bayar: ${formatPaymentMethodLabel(paymentMethod)}\nSerah terima: ${formatFulfillmentTypeLabel(fulfillmentType)}${timingLine}${requestedTimeLine}${meetingPointLine}${noteLine}\n\nSilakan konfirmasi stok, pembayaran, atau detail pengirimannya ya.`
 }
 
 export function buildOrderInsertPayload({
@@ -278,6 +311,8 @@ export function buildOrderInsertPayload({
   entries,
   paymentMethod = 'cod',
   fulfillmentType = 'meetup',
+  orderTiming = 'asap',
+  requestedFulfillmentAt = null,
   meetingPointLabel = '',
   meetingPointLocation = null,
   customerNote = '',
@@ -296,6 +331,8 @@ export function buildOrderInsertPayload({
     payment_method: paymentMethod,
     payment_status: 'unpaid',
     fulfillment_type: fulfillmentType,
+    order_timing: orderTiming,
+    requested_fulfillment_at: requestedFulfillmentAt || null,
     meeting_point_label: String(meetingPointLabel || '').trim() || null,
     meeting_point_location: meetingPointLocation || null,
     customer_note: String(customerNote || '').trim() || null,

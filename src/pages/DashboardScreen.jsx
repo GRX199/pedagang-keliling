@@ -13,12 +13,14 @@ import { getGeolocationErrorMessage } from '../lib/network'
 import {
   formatOrderStatusLabel,
   formatFulfillmentTypeLabel,
+  formatOrderTimingLabel,
   getBuyerPaymentActions,
   getPaymentGuidance,
   getVendorPaymentActions,
   formatPaymentMethodLabel,
   formatPaymentStatusLabel,
   formatPriceLabel,
+  formatRequestedFulfillmentLabel,
   getNextVendorStatusActions,
   getOrderStatusTone,
   isActiveOrderStatus,
@@ -130,6 +132,8 @@ function OrdersPanel({ currentUser, role }) {
     return [
       order.vendor_name,
       order.buyer_name,
+      order.order_timing,
+      order.requested_fulfillment_at,
       order.meeting_point_label,
       order.customer_note,
       itemText,
@@ -384,6 +388,7 @@ function OrdersPanel({ currentUser, role }) {
     const paymentGuidance = getPaymentGuidance(order, isVendor ? 'vendor' : 'customer')
     const historyLabel = isHistoryCard ? formatOrderHistoryLabel(order) : ''
     const primaryActionLabel = isHistoryCard ? 'Lihat Detail' : 'Lacak'
+    const isPreorder = order.order_timing === 'preorder'
 
     return (
       <div
@@ -417,6 +422,15 @@ function OrdersPanel({ currentUser, role }) {
                   {formatFulfillmentTypeLabel(order.fulfillment_type)}
                 </span>
               )}
+              {order.order_timing && (
+                <span className={`rounded-full px-3 py-1 ${
+                  isPreorder
+                    ? 'bg-sky-50 text-sky-700'
+                    : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {formatOrderTimingLabel(order.order_timing)}
+                </span>
+              )}
               {!isVendor && order.review && (
                 <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
                   Ulasan sudah dikirim
@@ -430,11 +444,16 @@ function OrdersPanel({ currentUser, role }) {
               </div>
             )}
 
-            {(paymentGuidance || order.meeting_point_label || order.customer_note || Number(order.total_amount || 0) > 0 || historyLabel) && (
+            {(paymentGuidance || order.meeting_point_label || order.customer_note || order.requested_fulfillment_at || Number(order.total_amount || 0) > 0 || historyLabel) && (
               <div className="mt-3 space-y-1 text-sm text-slate-500">
                 {historyLabel && <div>{historyLabel}</div>}
                 {paymentGuidance && <div>Pembayaran: {paymentGuidance}</div>}
-                {order.meeting_point_label && <div>Titik temu: {order.meeting_point_label}</div>}
+                {order.requested_fulfillment_at && (
+                  <div>Jadwal: sekitar {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}</div>
+                )}
+                {order.meeting_point_label && (
+                  <div>{isPreorder ? 'Area titip: ' : 'Titik temu: '}{order.meeting_point_label}</div>
+                )}
                 {order.customer_note && <div>Catatan: {order.customer_note}</div>}
                 {Number(order.total_amount || 0) > 0 && (
                   <div className="font-medium text-slate-700">
@@ -639,7 +658,13 @@ function OrdersPanel({ currentUser, role }) {
                     {spotlightOrder.created_at ? ` • ${new Date(spotlightOrder.created_at).toLocaleString('id-ID')}` : ''}
                   </div>
                   <div className="mt-1 text-sm text-slate-300">
-                    {spotlightOrder.meeting_point_label || 'Siap dibuka untuk tracking atau komunikasi lanjutan.'}
+                    {spotlightOrder.order_timing === 'preorder'
+                      ? `${formatOrderTimingLabel(spotlightOrder.order_timing)}${
+                        spotlightOrder.requested_fulfillment_at
+                          ? ` • ${formatRequestedFulfillmentLabel(spotlightOrder.requested_fulfillment_at)}`
+                          : ''
+                      }${spotlightOrder.meeting_point_label ? ` • ${spotlightOrder.meeting_point_label}` : ''}`
+                      : spotlightOrder.meeting_point_label || 'Siap dibuka untuk tracking atau komunikasi lanjutan.'}
                   </div>
                 </div>
 

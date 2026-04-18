@@ -13,6 +13,7 @@ import {
   buildOrderInsertPayload,
   buildOrderItemRows,
   buildOrderItemsText,
+  formatOrderTimingLabel,
   formatPriceLabel,
   formatPaymentMethodLabel,
   getFulfillmentTypeHint,
@@ -20,6 +21,7 @@ import {
   getCartTotals,
   getMeetingPointPlaceholder,
   getMeetingPointPresetOptions,
+  getOrderTimingHint,
   isSchemaCompatibilityError,
 } from '../lib/orders'
 import { supabase } from '../lib/supabase'
@@ -95,6 +97,8 @@ export default function VendorStorePage() {
   const [submittingOrder, setSubmittingOrder] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('cod')
   const [fulfillmentType, setFulfillmentType] = useState('meetup')
+  const [orderTiming, setOrderTiming] = useState('asap')
+  const [requestedFulfillmentAt, setRequestedFulfillmentAt] = useState('')
   const [meetingPointLabel, setMeetingPointLabel] = useState('')
   const [meetingPointLocation, setMeetingPointLocation] = useState(null)
   const [capturingMeetingPoint, setCapturingMeetingPoint] = useState(false)
@@ -334,6 +338,8 @@ export default function VendorStorePage() {
 
   function clearCart() {
     setCart({})
+    setOrderTiming('asap')
+    setRequestedFulfillmentAt('')
     setMeetingPointLabel('')
     setMeetingPointLocation(null)
     setCustomerNote('')
@@ -447,16 +453,36 @@ export default function VendorStorePage() {
       return
     }
 
+    if (orderTiming === 'preorder' && !requestedFulfillmentAt) {
+      toast.push('Isi waktu titip pesanan agar pedagang tahu kapan harus menyiapkan pesanan ini.', { type: 'error' })
+      return
+    }
+
     setSubmittingOrder(true)
     try {
       const buyerName = user.user_metadata?.full_name || user.email || 'Pelanggan'
       const customerLocation = await getCurrentLocationSnapshot()
+      const scheduleTimestamp = requestedFulfillmentAt
+        ? new Date(requestedFulfillmentAt).toISOString()
+        : null
       const resolvedMeetingPointLocation = meetingPointLocation || customerLocation
       const resolvedMeetingPointLabel = meetingPointLabel.trim() || (
         fulfillmentType === 'delivery'
           ? 'Lokasi pelanggan'
           : 'Titik temu akan dikonfirmasi'
       )
+
+      if (
+        orderTiming === 'preorder' &&
+        !meetingPointLabel.trim() &&
+        !meetingPointLocation &&
+        !customerLocation
+      ) {
+        toast.push('Untuk titip pesanan, isi area atau titik temu agar pedagang tahu rute tujuan Anda.', { type: 'error' })
+        setSubmittingOrder(false)
+        return
+      }
+
       const directChat = await findOrCreateDirectChat(user.id, id)
       const orderPayload = buildOrderInsertPayload({
         vendorId: id,
@@ -466,6 +492,8 @@ export default function VendorStorePage() {
         entries: cartEntries,
         paymentMethod,
         fulfillmentType,
+        orderTiming,
+        requestedFulfillmentAt: scheduleTimestamp,
         meetingPointLabel: resolvedMeetingPointLabel,
         customerNote,
         meetingPointLocation: resolvedMeetingPointLocation,
@@ -488,10 +516,15 @@ export default function VendorStorePage() {
         createdOrder = data
       } catch (error) {
         if (!isSchemaCompatibilityError(error)) throw error
+        if (orderTiming === 'preorder') {
+          throw new Error('Database belum memuat field pre-order. Jalankan migration pre-order terlebih dahulu agar titip pesanan bisa dipakai.')
+        }
         try {
           const compatibilityPayload = { ...orderPayload }
           delete compatibilityPayload.customer_location
           delete compatibilityPayload.vendor_location_snapshot
+          delete compatibilityPayload.order_timing
+          delete compatibilityPayload.requested_fulfillment_at
 
           const { data, error: compatibilityError } = await supabase
             .from('orders')
@@ -553,6 +586,8 @@ export default function VendorStorePage() {
           orderId: createdOrder?.id,
           paymentMethod,
           fulfillmentType,
+          orderTiming,
+          requestedFulfillmentAt: scheduleTimestamp,
           meetingPointLabel: resolvedMeetingPointLabel,
           customerNote,
         }))
@@ -568,6 +603,9 @@ export default function VendorStorePage() {
       }
       if (!customerLocation) {
         notes.push('Lokasi pelanggan belum ikut tersimpan, jadi tracking peta hanya akan memakai data yang tersedia saat ini.')
+      }
+      if (orderTiming === 'preorder') {
+        notes.push('Pesanan ini dicatat sebagai titip untuk nanti, jadi pedagang bisa menyesuaikan area dan waktu yang Anda minta lewat chat.')
       }
       if (paymentMethod !== 'cod') {
         notes.push('Buka chat atau detail pesanan untuk mengirim konfirmasi pembayaran setelah pembayaran non-tunai dilakukan.')
@@ -753,6 +791,54 @@ export default function VendorStorePage() {
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 p-4">
+                      <div className="text-sm font-medium text-slate-900">Waktu Pesanan</div>
+                      <div className="mt-2 text-sm text-slate-500">
+                        {getOrderTimingHint(orderTiming)}
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => setOrderTiming('asap')}
+                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
+                            orderTiming === 'asap'
+                              ? 'bg-slate-900 text-white'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          Pesan Sekarang
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOrderTiming('preorder')}
+                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
+                            orderTiming === 'preorder'
+                              ? 'bg-slate-900 text-white'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          Titip untuk Nanti
+                        </button>
+                      </div>
+                      {orderTiming === 'preorder' && (
+                        <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                          Gunakan mode ini jika Anda ingin pedagang menyiapkan pesanan untuk area Anda saat melewati rute tersebut.
+                        </div>
+                      )}
+                      <input
+                        type="datetime-local"
+                        value={requestedFulfillmentAt}
+                        onChange={(event) => setRequestedFulfillmentAt(event.target.value)}
+                        className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+                        disabled={orderTiming !== 'preorder'}
+                      />
+                      <div className="mt-2 text-xs text-slate-500">
+                        {orderTiming === 'preorder'
+                          ? 'Waktu ini membantu pedagang memprioritaskan titip pesanan sesuai area dan rute Anda.'
+                          : 'Isi waktu hanya jika Anda memilih titip untuk nanti.'}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
                       <div className="text-sm font-medium text-slate-900">Metode Pembayaran</div>
                       <div className={`mt-3 grid gap-2 ${
                         availablePaymentMethods.length >= 4
@@ -832,6 +918,11 @@ export default function VendorStorePage() {
                       <div className="mt-2 text-sm text-slate-500">
                         {getFulfillmentTypeHint(fulfillmentType)}
                       </div>
+                      {orderTiming === 'preorder' && (
+                        <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                          Untuk titip pesanan, isi area tujuan atau titik temu utama agar pedagang tahu ke mana pesanan ini perlu diarahkan.
+                        </div>
+                      )}
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         <button
                           type="button"
@@ -875,7 +966,11 @@ export default function VendorStorePage() {
                         value={meetingPointLabel}
                         onChange={(event) => setMeetingPointLabel(event.target.value)}
                         className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
-                        placeholder={getMeetingPointPlaceholder(fulfillmentType)}
+                        placeholder={
+                          orderTiming === 'preorder'
+                            ? 'Contoh: area kampus, perumahan bukit hijau, depan minimarket utama'
+                            : getMeetingPointPlaceholder(fulfillmentType)
+                        }
                       />
                       {meetingPointLocation && (
                         <div className="mt-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -903,12 +998,25 @@ export default function VendorStorePage() {
                       </button>
                     ) : (
                       <form onSubmit={submitOrder} className="space-y-2">
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                          {formatOrderTimingLabel(orderTiming)}
+                          {orderTiming === 'preorder' && requestedFulfillmentAt
+                            ? ` • sekitar ${new Date(requestedFulfillmentAt).toLocaleString('id-ID', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}`
+                            : ''}
+                        </div>
                         <button
                           type="submit"
                           disabled={submittingOrder}
                           className="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white disabled:bg-emerald-300"
                         >
-                          {submittingOrder ? 'Mengirim Pesanan...' : 'Kirim Pesanan & Buka Chat'}
+                          {submittingOrder
+                            ? 'Mengirim Pesanan...'
+                            : orderTiming === 'preorder'
+                              ? 'Titip Pesanan & Buka Chat'
+                              : 'Kirim Pesanan & Buka Chat'}
                         </button>
                         <button
                           type="button"

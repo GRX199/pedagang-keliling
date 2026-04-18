@@ -8,6 +8,7 @@ import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
 import {
   formatFulfillmentTypeLabel,
+  formatOrderTimingLabel,
   getBuyerPaymentActions,
   getPaymentGuidance,
   formatOrderStatusLabel,
@@ -15,6 +16,7 @@ import {
   formatPaymentMethodLabel,
   formatPaymentStatusLabel,
   formatPriceLabel,
+  formatRequestedFulfillmentLabel,
   getVendorPaymentActions,
 } from '../lib/orders'
 import { canBuyerReviewOrder } from '../lib/reviews'
@@ -578,6 +580,7 @@ export default function OrderTrackingPage() {
   const paymentReferenceDetails = getVendorPaymentMethodDetails(vendor?.payment_details, order.payment_method)
   const canShowReviewComposer = canBuyerReviewOrder(order, user?.id)
   const routeReady = Boolean(vendorCoordinates && customerCoordinates)
+  const isPreorder = order.order_timing === 'preorder'
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -785,7 +788,21 @@ export default function OrderTrackingPage() {
                   <div className="mt-1 font-medium text-slate-900">{formatFulfillmentTypeLabel(order.fulfillment_type)}</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Titik temu</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Mode pesanan</div>
+                  <div className="mt-1 font-medium text-slate-900">{formatOrderTimingLabel(order.order_timing)}</div>
+                </div>
+                {order.requested_fulfillment_at && (
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Jadwal</div>
+                    <div className="mt-1 font-medium text-slate-900">
+                      {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-slate-400">
+                    {isPreorder ? 'Area titip' : 'Titik temu'}
+                  </div>
                   <div className="mt-1 font-medium text-slate-900">{order.meeting_point_label || 'Belum diisi'}</div>
                 </div>
                 {order.customer_note && (
@@ -809,12 +826,17 @@ export default function OrderTrackingPage() {
                 <div>Jarak rute: {formatDistance(routeDistance)}</div>
                 <div>ETA: {routeEtaLabel}</div>
                 <div>Status online pedagang: {vendor?.online ? 'Online' : 'Offline'}</div>
+                {order.requested_fulfillment_at && (
+                  <div>Target pre-order: {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}</div>
+                )}
                 <div>
                   {routeReady
                     ? (routeData?.mode === 'road'
                       ? 'Rute mengikuti jalan yang tersedia dari layanan routing.'
                       : 'Rute jalan belum tersedia, jadi sementara memakai garis lurus.')
-                    : 'Tracking akan lebih akurat setelah data lokasi lengkap.'}
+                    : isPreorder
+                      ? 'Tracking akan lebih bermakna saat pedagang mulai menuju area titip Anda.'
+                      : 'Tracking akan lebih akurat setelah data lokasi lengkap.'}
                 </div>
               </div>
             </div>
