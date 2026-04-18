@@ -16,6 +16,8 @@ alter table public.vendors
   add column if not exists operating_hours jsonb,
   add column if not exists payment_details jsonb not null default '{}'::jsonb,
   add column if not exists service_mode text not null default 'meetup',
+  add column if not exists promo_text text,
+  add column if not exists promo_expires_at timestamptz,
   add column if not exists is_verified boolean not null default false,
   add column if not exists last_seen_at timestamptz;
 

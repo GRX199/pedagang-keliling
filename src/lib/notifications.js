@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { isFavoritesSchemaCompatibilityError, normalizeFavoriteVendorIds } from './favorites'
 import { loadIdentityMap } from './profiles'
 import { supabase } from './supabase'
 import { getVendorCoordinates } from './vendor'
@@ -7,6 +8,7 @@ const PROXIMITY_ALERT_THRESHOLDS = [
   { distanceMeters: 500, label: 'sudah dalam radius 500 meter dari titik temu Anda.' },
   { distanceMeters: 150, label: 'sudah sangat dekat dengan titik temu Anda.' },
 ]
+const FAVORITE_VENDOR_ALERT_DISTANCE_METERS = 500
 
 function statusLabel(status) {
   switch (status) {
@@ -84,6 +86,36 @@ function getNotificationBucket(type) {
   return type === 'message_received' ? 'messages' : 'orders'
 }
 
+function getGeolocationPermissionState() {
+  if (!navigator?.geolocation) return Promise.resolve('unavailable')
+  if (!navigator.permissions?.query) return Promise.resolve('unknown')
+
+  return navigator.permissions.query({ name: 'geolocation' })
+    .then((permissionStatus) => permissionStatus.state || 'unknown')
+    .catch(() => 'unknown')
+}
+
+function getCurrentViewerLocation() {
+  if (!navigator?.geolocation) return Promise.resolve(null)
+
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        })
+      },
+      () => resolve(null),
+      {
+        enableHighAccuracy: false,
+        timeout: 10000,
+        maximumAge: 120000,
+      }
+    )
+  })
+}
+
 export function useRealtimeNotifications({ user, role, pathname, search, toast }) {
   const [counts, setCounts] = useState({ messages: 0, orders: 0 })
   const routeRef = useRef({ pathname, search })
@@ -91,8 +123,12 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
   const knownMessageIdsRef = useRef(new Set())
   const knownOrderEventKeysRef = useRef(new Set())
   const knownProximityKeysRef = useRef(new Set())
+  const knownFavoriteVendorKeysRef = useRef(new Set())
   const knownNotificationIdsRef = useRef(new Set())
   const latestNotificationAtRef = useRef(null)
+  const favoriteSchemaEnabledRef = useRef(true)
+  const favoriteLocationPromptedRef = useRef(false)
+  const favoriteLocationAllowedRef = useRef(false)
 
   useEffect(() => {
     routeRef.current = { pathname, search }
@@ -110,8 +146,12 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
       knownMessageIdsRef.current = new Set()
       knownOrderEventKeysRef.current = new Set()
       knownProximityKeysRef.current = new Set()
+      knownFavoriteVendorKeysRef.current = new Set()
       knownNotificationIdsRef.current = new Set()
       latestNotificationAtRef.current = null
+      favoriteSchemaEnabledRef.current = true
+      favoriteLocationPromptedRef.current = false
+      favoriteLocationAllowedRef.current = false
       setCounts({ messages: 0, orders: 0 })
       return undefined
     }
@@ -296,6 +336,81 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
         }
       } catch (error) {
         console.warn('monitorCustomerOrderProximity', error)
+      }
+    }
+
+    async function monitorFavoriteVendorNearby() {
+      if (!active || role !== 'customer') return
+      if (document.visibilityState === 'hidden') return
+      if (!favoriteSchemaEnabledRef.current) return
+
+      try {
+        const { data: favoriteRows, error: favoriteError } = await supabase
+          .from('favorites')
+          .select('vendor_id')
+          .eq('buyer_id', user.id)
+          .limit(24)
+
+        if (favoriteError) throw favoriteError
+
+        const favoriteVendorIds = normalizeFavoriteVendorIds(favoriteRows)
+        if (favoriteVendorIds.length === 0) return
+
+        const permissionState = await getGeolocationPermissionState()
+        const onMapScreen = routeRef.current.pathname === '/map'
+        const requiresPrompt = permissionState === 'prompt' || permissionState === 'unknown'
+
+        if (permissionState === 'denied' || permissionState === 'unavailable') return
+        if (requiresPrompt && !favoriteLocationAllowedRef.current && !onMapScreen) return
+        if (requiresPrompt && !favoriteLocationAllowedRef.current && favoriteLocationPromptedRef.current) return
+        if (requiresPrompt && !favoriteLocationAllowedRef.current) {
+          favoriteLocationPromptedRef.current = true
+        }
+
+        const viewerLocation = await getCurrentViewerLocation()
+        if (!viewerLocation) return
+        favoriteLocationAllowedRef.current = true
+
+        const { data: vendorRows, error: vendorError } = await supabase
+          .from('vendors')
+          .select('id, name, location, online')
+          .in('id', favoriteVendorIds)
+
+        if (vendorError) throw vendorError
+
+        for (const vendor of vendorRows || []) {
+          if (!vendor?.online) continue
+          const coordinates = getVendorCoordinates(vendor.location)
+          if (!coordinates) continue
+
+          const distance = haversineDistance(
+            viewerLocation.lat,
+            viewerLocation.lng,
+            coordinates.lat,
+            coordinates.lng
+          )
+
+          if (distance > FAVORITE_VENDOR_ALERT_DISTANCE_METERS) continue
+
+          const alertKey = `favorite:${vendor.id}`
+          const isNewAlert = rememberValue(knownFavoriteVendorKeysRef, alertKey, 120)
+          if (!isNewAlert) continue
+
+          const distanceLabel = distance < 1000
+            ? `${Math.round(distance)} m`
+            : `${(distance / 1000).toFixed(1)} km`
+
+          toast.push(`Pedagang favorit ${vendor.name || 'Anda'} sudah dekat, sekitar ${distanceLabel} dari lokasi Anda.`, {
+            type: 'info',
+          })
+        }
+      } catch (error) {
+        if (isFavoritesSchemaCompatibilityError(error)) {
+          favoriteSchemaEnabledRef.current = false
+          return
+        }
+
+        console.warn('monitorFavoriteVendorNearby', error)
       }
     }
 
@@ -501,12 +616,18 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
       void monitorCustomerOrderProximity()
     }, 15000)
 
+    const favoriteVendorPollId = window.setInterval(() => {
+      void monitorFavoriteVendorNearby()
+    }, 30000)
+
     void monitorCustomerOrderProximity()
+    void monitorFavoriteVendorNearby()
 
     return () => {
       active = false
       if (pollId) window.clearInterval(pollId)
       window.clearInterval(proximityPollId)
+      window.clearInterval(favoriteVendorPollId)
       cleanupChannels()
     }
   }, [role, toast, user])

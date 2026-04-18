@@ -256,10 +256,18 @@ export function buildOrderChatMessage({
   orderId = null,
   paymentMethod = 'cod',
   fulfillmentType = 'meetup',
+  meetingPointLabel = '',
+  customerNote = '',
 }) {
   const summary = buildOrderItemsText(entries)
   const reference = orderId ? `Pesanan #${String(orderId).slice(0, 8)}\n` : ''
-  return `${reference}Halo, saya ${buyerName} ingin memesan:\n${summary}\n\nMetode bayar: ${formatPaymentMethodLabel(paymentMethod)}\nSerah terima: ${formatFulfillmentTypeLabel(fulfillmentType)}\n\nSilakan konfirmasi stok, pembayaran, atau detail pengirimannya ya.`
+  const meetingPointLine = String(meetingPointLabel || '').trim()
+    ? `\nTitik temu: ${String(meetingPointLabel).trim()}`
+    : ''
+  const noteLine = String(customerNote || '').trim()
+    ? `\nCatatan: ${String(customerNote).trim()}`
+    : ''
+  return `${reference}Halo, saya ${buyerName} ingin memesan:\n${summary}\n\nMetode bayar: ${formatPaymentMethodLabel(paymentMethod)}\nSerah terima: ${formatFulfillmentTypeLabel(fulfillmentType)}${meetingPointLine}${noteLine}\n\nSilakan konfirmasi stok, pembayaran, atau detail pengirimannya ya.`
 }
 
 export function buildOrderInsertPayload({
@@ -330,4 +338,34 @@ export function getCartTotals(entries) {
     types: 0,
     estimatedTotal: 0,
   })
+}
+
+export function getMeetingPointPresetOptions(fulfillmentType = 'meetup') {
+  if (fulfillmentType === 'delivery') {
+    return [
+      { label: 'Gunakan lokasi saya saat ini', usesCurrentLocation: true },
+      { label: 'Rumah / alamat utama' },
+      { label: 'Kantor / tempat usaha' },
+      { label: 'Gerbang komplek / lobby' },
+    ]
+  }
+
+  return [
+    { label: 'Gunakan lokasi saya saat ini', usesCurrentLocation: true },
+    { label: 'Depan rumah' },
+    { label: 'Gerbang gang' },
+    { label: 'Minimarket terdekat' },
+  ]
+}
+
+export function getMeetingPointPlaceholder(fulfillmentType = 'meetup') {
+  return fulfillmentType === 'delivery'
+    ? 'Alamat singkat atau patokan antar'
+    : 'Contoh: depan gang, minimarket dekat rumah'
+}
+
+export function getFulfillmentTypeHint(fulfillmentType = 'meetup') {
+  return fulfillmentType === 'delivery'
+    ? 'Gunakan alamat atau patokan yang paling mudah dikenali pedagang. Lokasi saat ini bisa dipakai untuk memperjelas titik antar.'
+    : 'Pilih titik temu yang mudah ditemukan. Anda bisa pakai lokasi saat ini agar tracking lebih akurat.'
 }

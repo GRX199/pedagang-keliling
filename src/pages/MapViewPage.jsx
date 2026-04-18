@@ -22,8 +22,11 @@ import { supabase } from '../lib/supabase'
 import {
   createVendorLocationPayload,
   formatVendorCategoryLabel,
+  formatVendorPromoExpiry,
   getVendorCoordinates,
   getVendorLocationUpdatedAtLabel,
+  getVendorPromoText,
+  isVendorPromoActive,
 } from '../lib/vendor'
 
 const DEFAULT_CENTER = [-2.5489, 118.0149]
@@ -131,6 +134,13 @@ function matchesRatingFilter(vendor, selectedRatingFilter) {
   return getVendorAverageRating(vendor) >= minimumRating
 }
 
+function formatVendorPromoTeaser(vendor) {
+  const promoText = getVendorPromoText(vendor)
+  if (!promoText) return ''
+  if (promoText.length <= 96) return promoText
+  return `${promoText.slice(0, 93)}...`
+}
+
 function isOptionalDataError(error) {
   const message = String(error?.message || '').toLowerCase()
   const details = String(error?.details || '').toLowerCase()
@@ -209,6 +219,22 @@ function buildPopupContent(vendor, actions = []) {
     wrapper.appendChild(rating)
   }
 
+  if (isVendorPromoActive(vendor)) {
+    const promo = document.createElement('div')
+    promo.style.fontSize = '12px'
+    promo.style.marginTop = '6px'
+    promo.style.color = '#b45309'
+    promo.textContent = `Promo: ${formatVendorPromoTeaser(vendor)}`
+    wrapper.appendChild(promo)
+
+    const promoExpiry = document.createElement('div')
+    promoExpiry.style.fontSize = '11px'
+    promoExpiry.style.marginTop = '2px'
+    promoExpiry.style.color = '#a16207'
+    promoExpiry.textContent = `Berlaku sampai ${formatVendorPromoExpiry(vendor)}`
+    wrapper.appendChild(promoExpiry)
+  }
+
   if (vendor.photo_url) {
     const imageWrap = document.createElement('div')
     imageWrap.style.marginTop = '8px'
@@ -278,6 +304,7 @@ export default function MapViewPage() {
   const [favoriteVendorIds, setFavoriteVendorIds] = useState([])
   const [favoriteFeatureEnabled, setFavoriteFeatureEnabled] = useState(true)
   const [onlyFavoriteVendors, setOnlyFavoriteVendors] = useState(false)
+  const [onlyPromoVendors, setOnlyPromoVendors] = useState(false)
   const [favoriteBusyVendorId, setFavoriteBusyVendorId] = useState(null)
 
   const serverOrigin = getServerOrigin()
@@ -539,7 +566,7 @@ export default function MapViewPage() {
     try {
       const { data, error } = await supabase
         .from('vendors')
-        .select('id, name, description, photo_url, location, online, category_primary')
+        .select('*')
 
       if (error) throw error
 
@@ -764,9 +791,10 @@ export default function MapViewPage() {
 
       if (!matchesRatingFilter(vendor, selectedRatingFilter)) return false
       if (onlyFavoriteVendors && !favoriteVendorIdSet.has(vendor.id)) return false
+      if (onlyPromoVendors && !isVendorPromoActive(vendor)) return false
 
       if (debouncedQuery) {
-        const haystack = `${vendor.name || ''} ${vendor.description || ''} ${vendorCategory} ${getVendorSearchText(vendor)}`.toLowerCase()
+        const haystack = `${vendor.name || ''} ${vendor.description || ''} ${vendorCategory} ${getVendorSearchText(vendor)} ${getVendorPromoText(vendor)}`.toLowerCase()
         if (!haystack.includes(debouncedQuery)) return false
       }
 
@@ -787,6 +815,7 @@ export default function MapViewPage() {
     debouncedQuery,
     favoriteVendorIdSet,
     onlyFavoriteVendors,
+    onlyPromoVendors,
     onlyWithinRadius,
     radiusKm,
     selectedCategory,
@@ -838,6 +867,10 @@ export default function MapViewPage() {
       const leftFavorite = favoriteVendorIdSet.has(left.id)
       const rightFavorite = favoriteVendorIdSet.has(right.id)
       if (leftFavorite !== rightFavorite) return leftFavorite ? -1 : 1
+
+      const leftPromo = isVendorPromoActive(left)
+      const rightPromo = isVendorPromoActive(right)
+      if (leftPromo !== rightPromo) return leftPromo ? -1 : 1
 
       const leftDistance = getVendorDistance(left, userLocation)
       const rightDistance = getVendorDistance(right, userLocation)
@@ -1052,16 +1085,39 @@ export default function MapViewPage() {
   const filteredVendorCount = filteredVendors.length
   const onlineVendorCount = onlineVendors.length
   const favoriteVendorCount = favoriteVendorIds.length
+  const promoVendorCount = onlineVendors.filter((vendor) => isVendorPromoActive(vendor)).length
   const selectedVendorDistance = getVendorDistance(selectedVendor, userLocation)
   const selectedVendorIsMine = isVendor && selectedVendor?.id === myVendorId
   const selectedVendorIsFavorite = selectedVendor ? favoriteVendorIdSet.has(selectedVendor.id) : false
+  const selectedVendorHasPromo = selectedVendor ? isVendorPromoActive(selectedVendor) : false
   const selectedCategoryLabel = categoryOptions.find((option) => option.value === selectedCategory)?.label || 'Semua kategori'
   const selectedRatingFilterLabel = RATING_FILTER_OPTIONS.find((option) => option.value === selectedRatingFilter)?.label || 'Semua rating'
-  const emptyVendorStateMessage = onlyFavoriteVendors
+  const emptyVendorStateMessage = onlyFavoriteVendors && onlyPromoVendors
     ? favoriteVendorCount > 0
-      ? 'Belum ada pedagang favorit Anda yang online dan cocok dengan filter ini.'
+      ? promoVendorCount > 0
+        ? 'Belum ada pedagang favorit dengan promo aktif yang cocok dengan filter ini.'
+        : 'Belum ada promo aktif yang sedang berjalan pada pedagang favorit Anda.'
       : 'Anda belum punya pedagang favorit. Simpan toko dari detail peta atau profil toko terlebih dahulu.'
-    : 'Belum ada pedagang online yang cocok dengan pencarian Anda.'
+    : onlyFavoriteVendors
+      ? favoriteVendorCount > 0
+        ? 'Belum ada pedagang favorit Anda yang online dan cocok dengan filter ini.'
+        : 'Anda belum punya pedagang favorit. Simpan toko dari detail peta atau profil toko terlebih dahulu.'
+      : onlyPromoVendors
+        ? promoVendorCount > 0
+          ? 'Belum ada pedagang dengan promo aktif yang cocok dengan filter ini.'
+          : 'Belum ada pedagang yang sedang menjalankan promo aktif saat ini.'
+        : 'Belum ada pedagang online yang cocok dengan pencarian Anda.'
+  const activeFilterSummary = onlyFavoriteVendors && onlyPromoVendors
+    ? 'Difokuskan ke pedagang favorit dengan promo aktif.'
+    : onlyFavoriteVendors
+      ? `Difokuskan ke ${formatFavoriteCountLabel(favoriteVendorCount)} yang Anda simpan.`
+      : onlyPromoVendors
+        ? `Menampilkan ${promoVendorCount} toko dengan promo aktif.`
+        : selectedCategory !== 'all'
+          ? `Difokuskan ke kategori ${formatVendorCategoryLabel(selectedCategoryLabel)}.`
+          : selectedRatingFilter !== 'all'
+            ? `Menampilkan toko dengan rating ${selectedRatingFilterLabel}.`
+            : 'Sesuai pencarian, status toko, dan filter radius yang aktif.'
   const heroBadge = isVendor ? 'Mode Pedagang' : 'Mode Pelanggan'
   const heroTitle = isVendor
     ? 'Pantau toko Anda dan tetap siap menerima pesanan dari peta.'
@@ -1137,12 +1193,25 @@ export default function MapViewPage() {
                 >
                   {onlyWithinRadius ? 'Radius Aktif' : 'Filter Radius'}
                 </button>
+                {isCustomerViewer && (
+                  <button
+                    onClick={() => setOnlyPromoVendors((current) => !current)}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                      onlyPromoVendors
+                        ? 'bg-amber-500 text-white'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {onlyPromoVendors ? 'Promo Aktif' : 'Filter Promo'}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                       setQuery('')
                       setSelectedCategory('all')
                       setSelectedRatingFilter('all')
                       setOnlyFavoriteVendors(false)
+                      setOnlyPromoVendors(false)
                       setOnlyWithinRadius(false)
                     }}
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -1206,6 +1275,40 @@ export default function MapViewPage() {
                   Rating dipakai untuk memprioritaskan toko yang sudah punya ulasan transaksi selesai.
                 </div>
               </div>
+
+              {isCustomerViewer && (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <div className="font-medium text-slate-800">Promo pedagang</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setOnlyPromoVendors(false)}
+                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                        !onlyPromoVendors
+                          ? 'bg-amber-500 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Semua toko
+                    </button>
+                    <button
+                      onClick={() => setOnlyPromoVendors(true)}
+                      disabled={promoVendorCount === 0}
+                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                        onlyPromoVendors
+                          ? 'bg-amber-500 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300'
+                      }`}
+                    >
+                      Promo Aktif
+                    </button>
+                  </div>
+                  <div className="mt-3 text-xs text-slate-500">
+                    {promoVendorCount > 0
+                      ? `${promoVendorCount} toko sedang menjalankan promo ringan yang bisa langsung dilihat dari peta.`
+                      : 'Belum ada promo aktif saat ini. Pedagang bisa mengisi promo dari halaman profil toko.'}
+                  </div>
+                </div>
+              )}
 
               {isCustomerViewer && favoriteFeatureEnabled && (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
@@ -1283,13 +1386,7 @@ export default function MapViewPage() {
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Hasil Ditampilkan</div>
                 <div className="mt-2 text-3xl font-semibold text-slate-900">{filteredVendorCount}</div>
                 <div className="mt-1 text-sm text-slate-500">
-                  {onlyFavoriteVendors
-                    ? `Difokuskan ke ${formatFavoriteCountLabel(favoriteVendorCount)} yang Anda simpan.`
-                    : selectedCategory !== 'all'
-                    ? `Difokuskan ke kategori ${formatVendorCategoryLabel(selectedCategoryLabel)}.`
-                    : selectedRatingFilter !== 'all'
-                      ? `Menampilkan toko dengan rating ${selectedRatingFilterLabel}.`
-                      : 'Sesuai pencarian, status toko, dan filter radius yang aktif.'}
+                  {activeFilterSummary}
                 </div>
               </div>
             </div>
@@ -1321,6 +1418,7 @@ export default function MapViewPage() {
                   const active = selectedVendor?.id === vendor.id
                   const isOwnVendor = isVendor && vendor.id === myVendorId
                   const isFavorite = favoriteVendorIdSet.has(vendor.id)
+                  const hasPromo = isVendorPromoActive(vendor)
 
                   return (
                     <div
@@ -1358,6 +1456,11 @@ export default function MapViewPage() {
                                 {formatVendorRatingMeta(vendor)}
                               </span>
                             ) : null}
+                            {hasPromo ? (
+                              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                                Promo Aktif
+                              </span>
+                            ) : null}
                             {isCustomerViewer && isFavorite ? (
                               <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
                                 Favorit
@@ -1368,6 +1471,11 @@ export default function MapViewPage() {
                           <div className="mt-2 text-sm leading-6 text-slate-600">
                             {vendor.description ? String(vendor.description).slice(0, 120) : 'Belum ada deskripsi toko.'}
                           </div>
+                          {hasPromo ? (
+                            <div className="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-xs font-medium leading-5 text-amber-800">
+                              {formatVendorPromoTeaser(vendor)}
+                            </div>
+                          ) : null}
                           {getVendorReviewCount(vendor) === 0 ? (
                             <div className="mt-2 text-xs text-slate-400">Belum ada ulasan transaksi selesai.</div>
                           ) : null}
@@ -1503,11 +1611,24 @@ export default function MapViewPage() {
                       <div className="mt-1 text-xs text-amber-700">
                         {formatVendorRatingMeta(selectedVendor)}
                       </div>
+                      {selectedVendorHasPromo ? (
+                        <div className="mt-1 text-xs font-medium text-amber-700">Promo aktif tersedia di toko ini</div>
+                      ) : null}
                       {isCustomerViewer && selectedVendorIsFavorite ? (
                         <div className="mt-1 text-xs font-medium text-rose-700">Sudah tersimpan di favorit Anda</div>
                       ) : null}
                     </div>
                   </div>
+
+                  {selectedVendorHasPromo ? (
+                    <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Promo Aktif</div>
+                      <div className="mt-2 font-medium">{getVendorPromoText(selectedVendor)}</div>
+                      <div className="mt-1 text-xs text-amber-700">
+                        Berlaku sampai {formatVendorPromoExpiry(selectedVendor)}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
                     {selectedVendor.description || 'Belum ada deskripsi toko.'}
@@ -1527,6 +1648,11 @@ export default function MapViewPage() {
                     {getVendorReviewCount(selectedVendor) > 0 ? (
                       <div className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
                         {formatVendorRatingMeta(selectedVendor)}
+                      </div>
+                    ) : null}
+                    {selectedVendorHasPromo ? (
+                      <div className="mt-2 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                        Promo Aktif
                       </div>
                     ) : null}
                   </div>
@@ -1627,7 +1753,9 @@ export default function MapViewPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200/70">
-            <div>Peta fokus ke pedagang online yang cocok dengan pencarian dan filter radius Anda.</div>
+            <div>
+              Peta fokus ke pedagang online yang cocok dengan pencarian, filter radius, dan promo yang sedang aktif.
+            </div>
             {userLocation ? (
               <div>{onlineVendorsWithinRadius.length} pedagang online dalam radius {radiusKm} km</div>
             ) : (

@@ -15,13 +15,17 @@ import {
   buildOrderItemsText,
   formatPriceLabel,
   formatPaymentMethodLabel,
+  getFulfillmentTypeHint,
   getCartEntries,
   getCartTotals,
+  getMeetingPointPlaceholder,
+  getMeetingPointPresetOptions,
   isSchemaCompatibilityError,
 } from '../lib/orders'
 import { supabase } from '../lib/supabase'
 import {
   createLocationPayload,
+  formatVendorPromoExpiry,
   getVendorAvailablePaymentMethods,
   formatVendorCategoryLabel,
   getVendorPaymentMethodDetails,
@@ -29,6 +33,8 @@ import {
   formatVendorServiceMode,
   formatVendorServiceRadius,
   getOperatingHoursText,
+  getVendorPromoText,
+  isVendorPromoActive,
 } from '../lib/vendor'
 import { formatReviewScore, getReviewSummary } from '../lib/reviews'
 
@@ -90,6 +96,8 @@ export default function VendorStorePage() {
   const [paymentMethod, setPaymentMethod] = useState('cod')
   const [fulfillmentType, setFulfillmentType] = useState('meetup')
   const [meetingPointLabel, setMeetingPointLabel] = useState('')
+  const [meetingPointLocation, setMeetingPointLocation] = useState(null)
+  const [capturingMeetingPoint, setCapturingMeetingPoint] = useState(false)
   const [customerNote, setCustomerNote] = useState('')
   const [favoriteVendorIds, setFavoriteVendorIds] = useState([])
   const [favoriteFeatureEnabled, setFavoriteFeatureEnabled] = useState(true)
@@ -97,6 +105,7 @@ export default function VendorStorePage() {
 
   const isOwner = user?.id === id
   const isFavorite = isVendorFavorited(favoriteVendorIds, id)
+  const hasActivePromo = isVendorPromoActive(vendor)
 
   useEffect(() => {
     if (!id) return undefined
@@ -326,7 +335,30 @@ export default function VendorStorePage() {
   function clearCart() {
     setCart({})
     setMeetingPointLabel('')
+    setMeetingPointLocation(null)
     setCustomerNote('')
+  }
+
+  async function applyMeetingPointPreset(preset) {
+    if (!preset) return
+
+    if (preset.usesCurrentLocation) {
+      setCapturingMeetingPoint(true)
+      const currentLocation = await getCurrentLocationSnapshot()
+      setCapturingMeetingPoint(false)
+
+      if (!currentLocation) {
+        toast.push('Lokasi saat ini belum bisa dibaca. Anda tetap bisa menulis titik temu secara manual.', { type: 'info' })
+        return
+      }
+
+      setMeetingPointLocation(currentLocation)
+      setMeetingPointLabel(fulfillmentType === 'delivery' ? 'Antar ke lokasi saya saat ini' : 'Lokasi saya saat ini')
+      toast.push('Lokasi saat ini dipakai sebagai titik temu pintar', { type: 'success' })
+      return
+    }
+
+    setMeetingPointLabel(preset.label)
   }
 
   async function toggleFavoriteVendor() {
@@ -419,6 +451,12 @@ export default function VendorStorePage() {
     try {
       const buyerName = user.user_metadata?.full_name || user.email || 'Pelanggan'
       const customerLocation = await getCurrentLocationSnapshot()
+      const resolvedMeetingPointLocation = meetingPointLocation || customerLocation
+      const resolvedMeetingPointLabel = meetingPointLabel.trim() || (
+        fulfillmentType === 'delivery'
+          ? 'Lokasi pelanggan'
+          : 'Titik temu akan dikonfirmasi'
+      )
       const directChat = await findOrCreateDirectChat(user.id, id)
       const orderPayload = buildOrderInsertPayload({
         vendorId: id,
@@ -428,9 +466,9 @@ export default function VendorStorePage() {
         entries: cartEntries,
         paymentMethod,
         fulfillmentType,
-        meetingPointLabel,
+        meetingPointLabel: resolvedMeetingPointLabel,
         customerNote,
-        meetingPointLocation: customerLocation,
+        meetingPointLocation: resolvedMeetingPointLocation,
         customerLocation,
         vendorLocationSnapshot: vendor?.location || null,
       })
@@ -515,6 +553,8 @@ export default function VendorStorePage() {
           orderId: createdOrder?.id,
           paymentMethod,
           fulfillmentType,
+          meetingPointLabel: resolvedMeetingPointLabel,
+          customerNote,
         }))
       } catch (messageError) {
         console.error('submitOrder.sendChatMessage', messageError)
@@ -605,6 +645,11 @@ export default function VendorStorePage() {
                       Favorit Anda
                     </span>
                   )}
+                  {hasActivePromo && (
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                      Promo Aktif
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -619,6 +664,7 @@ export default function VendorStorePage() {
                 <div>Lokasi: {getStoreLocationStatus(vendor.location)}</div>
                 <div>Produk siap dipesan: {availableProductsCount}</div>
                 <div>Rating pelanggan: {reviewSummary.count > 0 ? `${formatReviewScore(reviewSummary.average)} dari ${reviewSummary.count} ulasan` : 'Belum ada ulasan'}</div>
+                <div>Promo: {hasActivePromo ? 'Sedang aktif' : 'Tidak ada promo aktif'}</div>
                 <div>
                   Pembayaran non-tunai: {nonCashPaymentMethods.length > 0
                     ? nonCashPaymentMethods.map((entry) => entry.label).join(', ')
@@ -783,6 +829,9 @@ export default function VendorStorePage() {
 
                     <div className="rounded-2xl border border-slate-200 p-4">
                       <div className="text-sm font-medium text-slate-900">Metode Serah Terima</div>
+                      <div className="mt-2 text-sm text-slate-500">
+                        {getFulfillmentTypeHint(fulfillmentType)}
+                      </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         <button
                           type="button"
@@ -808,12 +857,31 @@ export default function VendorStorePage() {
                         </button>
                       </div>
 
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {getMeetingPointPresetOptions(fulfillmentType).map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            disabled={capturingMeetingPoint && preset.usesCurrentLocation}
+                            onClick={() => void applyMeetingPointPreset(preset)}
+                            className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            {capturingMeetingPoint && preset.usesCurrentLocation ? 'Membaca lokasi...' : preset.label}
+                          </button>
+                        ))}
+                      </div>
+
                       <input
                         value={meetingPointLabel}
                         onChange={(event) => setMeetingPointLabel(event.target.value)}
                         className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
-                        placeholder={fulfillmentType === 'delivery' ? 'Alamat singkat atau patokan antar' : 'Contoh: depan gang, minimarket dekat rumah'}
+                        placeholder={getMeetingPointPlaceholder(fulfillmentType)}
                       />
+                      {meetingPointLocation && (
+                        <div className="mt-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                          Lokasi saat ini sudah disimpan untuk membantu pedagang menemukan titik {fulfillmentType === 'delivery' ? 'antar' : 'temu'}.
+                        </div>
+                      )}
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 p-4">
@@ -858,6 +926,16 @@ export default function VendorStorePage() {
           </aside>
 
           <main className="space-y-4">
+            {hasActivePromo && (
+              <section className="rounded-[28px] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5 shadow-sm">
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-amber-700">Promo Aktif</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">{getVendorPromoText(vendor)}</div>
+                <div className="mt-1 text-sm text-slate-600">
+                  Berlaku sampai {formatVendorPromoExpiry(vendor)}
+                </div>
+              </section>
+            )}
+
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
                 <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Kategori</div>

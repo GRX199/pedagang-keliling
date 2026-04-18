@@ -228,3 +228,35 @@ export function buildOperatingHoursPayload(value) {
 
   return { text }
 }
+
+export function getVendorPromoText(vendor) {
+  return String(vendor?.promo_text || '').trim()
+}
+
+export function getVendorPromoExpiry(vendor) {
+  const rawValue = vendor?.promo_expires_at
+  if (!rawValue) return null
+
+  const date = new Date(rawValue)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export function isVendorPromoActive(vendor) {
+  const promoText = getVendorPromoText(vendor)
+  if (!promoText) return false
+
+  const expiryDate = getVendorPromoExpiry(vendor)
+  if (!expiryDate) return true
+
+  return expiryDate.getTime() > Date.now()
+}
+
+export function formatVendorPromoExpiry(vendor) {
+  const expiryDate = getVendorPromoExpiry(vendor)
+  if (!expiryDate) return 'Selama promo masih aktif'
+
+  return expiryDate.toLocaleString('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}

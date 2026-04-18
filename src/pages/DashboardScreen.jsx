@@ -32,6 +32,7 @@ import {
   buildVendorPaymentDetailsPayload,
   buildOperatingHoursPayload,
   formatVendorCategoryLabel,
+  formatVendorPromoExpiry,
   getVendorPaymentMethodDetails,
   getVendorPaymentSetupSummary,
   formatVendorServiceMode,
@@ -41,6 +42,8 @@ import {
   getOperatingHoursText,
   getVendorLocationLabel,
   getVendorLocationUpdatedAtLabel,
+  getVendorPromoText,
+  isVendorPromoActive,
   normalizeVendorPaymentDetails,
 } from '../lib/vendor'
 
@@ -968,6 +971,8 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
     service_radius_km: '',
     operating_hours_text: '',
     service_mode: 'meetup',
+    promo_text: '',
+    promo_expires_at: '',
     payment_qris_image_url: '',
     payment_bank_name: '',
     payment_bank_account_name: '',
@@ -990,6 +995,10 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
         ? ''
         : getOperatingHoursText(nextProfile?.operating_hours),
       service_mode: nextProfile?.service_mode || 'meetup',
+      promo_text: nextProfile?.promo_text || '',
+      promo_expires_at: nextProfile?.promo_expires_at
+        ? new Date(nextProfile.promo_expires_at).toISOString().slice(0, 16)
+        : '',
       payment_qris_image_url: paymentDetails.qris_image_url,
       payment_bank_name: paymentDetails.bank_name,
       payment_bank_account_name: paymentDetails.bank_account_name,
@@ -1038,6 +1047,8 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
           service_radius_km: '',
           operating_hours_text: '',
           service_mode: 'meetup',
+          promo_text: '',
+          promo_expires_at: '',
           payment_qris_image_url: '',
           payment_bank_name: '',
           payment_bank_account_name: '',
@@ -1091,6 +1102,8 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
           service_radius_km: form.service_radius_km === '' ? null : Number(form.service_radius_km),
           operating_hours: buildOperatingHoursPayload(form.operating_hours_text),
           service_mode: form.service_mode || 'meetup',
+          promo_text: form.promo_text.trim() || null,
+          promo_expires_at: form.promo_expires_at ? new Date(form.promo_expires_at).toISOString() : null,
           payment_details: buildVendorPaymentDetailsPayload({
             qris_image_url: paymentQrImageUrl,
             bank_name: form.payment_bank_name,
@@ -1145,7 +1158,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
     } catch (error) {
       console.error('saveProfile', error)
       if (role === 'vendor' && isSchemaCompatibilityError(error)) {
-        toast.push('Database belum memuat field pembayaran toko terbaru. Jalankan vendor-payment-methods.sql lalu coba lagi.', { type: 'error' })
+        toast.push('Database belum memuat field profil toko terbaru. Jalankan migration pembayaran dan promo toko, lalu coba lagi.', { type: 'error' })
         return
       }
       toast.push(error.message || 'Gagal menyimpan profil', { type: 'error' })
@@ -1211,6 +1224,8 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
   const qrisPaymentDetails = getVendorPaymentMethodDetails(profile.payment_details, 'qris')
   const bankPaymentDetails = getVendorPaymentMethodDetails(profile.payment_details, 'bank_transfer')
   const ewalletPaymentDetails = getVendorPaymentMethodDetails(profile.payment_details, 'ewallet')
+  const hasActivePromo = isVendorPromoActive(profile)
+  const promoText = getVendorPromoText(profile)
 
   return (
     <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
@@ -1291,6 +1306,24 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                     <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Jam Operasional</div>
                     <div className="mt-1 text-sm leading-6 text-slate-700">{getOperatingHoursText(profile.operating_hours)}</div>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
+                  <div className="text-sm font-semibold text-slate-900">Promo Ringan</div>
+                  {hasActivePromo ? (
+                    <>
+                      <div className="mt-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                        {promoText}
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">
+                        Aktif sampai {formatVendorPromoExpiry(profile)}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-2 text-sm text-slate-500">
+                      Belum ada promo aktif yang tampil ke pelanggan.
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
@@ -1436,6 +1469,31 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                 />
 
                 <div className="rounded-[24px] border border-slate-200 p-4">
+                  <div className="text-sm font-semibold text-slate-900">Promo Ringan</div>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    Tampilkan penawaran singkat yang akan muncul di peta dan profil toko pelanggan.
+                  </p>
+
+                  <div className="mt-4 space-y-3">
+                    <textarea
+                      className="min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3"
+                      value={form.promo_text}
+                      onChange={(event) => setForm((current) => ({ ...current, promo_text: event.target.value }))}
+                      placeholder="Contoh: Gratis sambal dan bawang goreng untuk pembelian hari ini"
+                    />
+                    <input
+                      type="datetime-local"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                      value={form.promo_expires_at}
+                      onChange={(event) => setForm((current) => ({ ...current, promo_expires_at: event.target.value }))}
+                    />
+                    <div className="text-xs text-slate-500">
+                      Kosongkan tanggal berakhir jika promo ingin tetap aktif sampai Anda menghapus teks promosinya.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-slate-200 p-4">
                   <div className="text-sm font-semibold text-slate-900">Pembayaran Non-Tunai</div>
                   <p className="mt-1 text-sm leading-6 text-slate-500">
                     Isi QRIS, rekening bank, atau e-wallet yang ingin langsung terlihat oleh pelanggan saat checkout.
@@ -1558,6 +1616,8 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                       service_radius_km: '',
                       operating_hours_text: '',
                       service_mode: 'meetup',
+                      promo_text: '',
+                      promo_expires_at: '',
                       payment_qris_image_url: '',
                       payment_bank_name: '',
                       payment_bank_account_name: '',
