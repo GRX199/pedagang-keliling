@@ -1,11 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster'
 import VendorProductsPreview from '../components/VendorProductsPreview'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
+import {
+  formatFavoriteCountLabel,
+  isFavoritesSchemaCompatibilityError,
+  isVendorFavorited,
+  normalizeFavoriteVendorIds,
+} from '../lib/favorites'
 import {
   getFriendlyFetchErrorMessage,
   getGeolocationErrorMessage,
@@ -230,6 +236,7 @@ function buildPopupContent(vendor, actions = []) {
 
   const actionsRow = document.createElement('div')
   actionsRow.style.display = 'flex'
+  actionsRow.style.flexWrap = 'wrap'
   actionsRow.style.gap = '8px'
   actionsRow.style.justifyContent = 'flex-end'
   actionsRow.style.marginTop = '10px'
@@ -249,6 +256,7 @@ function buildPopupContent(vendor, actions = []) {
 export default function MapViewPage() {
   const { user, role } = useAuth()
   const toast = useToast()
+  const location = useLocation()
   const navigate = useNavigate()
   const mapRef = useRef(null)
   const containerRef = useRef(null)
@@ -267,11 +275,22 @@ export default function MapViewPage() {
   const [radiusKm, setRadiusKm] = useState(2.5)
   const [onlyWithinRadius, setOnlyWithinRadius] = useState(false)
   const [syncingStoreLocation, setSyncingStoreLocation] = useState(false)
+  const [favoriteVendorIds, setFavoriteVendorIds] = useState([])
+  const [favoriteFeatureEnabled, setFavoriteFeatureEnabled] = useState(true)
+  const [onlyFavoriteVendors, setOnlyFavoriteVendors] = useState(false)
+  const [favoriteBusyVendorId, setFavoriteBusyVendorId] = useState(null)
 
   const serverOrigin = getServerOrigin()
+  const isAdmin = role === 'admin'
   const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
+  const isCustomerViewer = Boolean(user?.id) && !isVendor && !isAdmin
   const myVendorId = user?.id
   const clusterEnabled = true
+  const favoriteVendorIdSet = useMemo(() => new Set(favoriteVendorIds), [favoriteVendorIds])
+  const requestFavoriteView = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return params.get('favorites') === '1'
+  }, [location.search])
 
   const applyViewerLocation = useCallback((lat, lng) => {
     const map = mapRef.current
@@ -396,6 +415,124 @@ export default function MapViewPage() {
       window.clearTimeout(timeoutId)
     }
   }, [query])
+
+  useEffect(() => {
+    if (!isCustomerViewer || !user?.id) {
+      setFavoriteVendorIds([])
+      setOnlyFavoriteVendors(false)
+      return undefined
+    }
+
+    let active = true
+
+    async function loadFavoriteVendors() {
+      try {
+        const { data, error } = await supabase
+          .from('favorites')
+          .select('vendor_id')
+          .eq('buyer_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+        if (!active) return
+
+        setFavoriteVendorIds(normalizeFavoriteVendorIds(data))
+        setFavoriteFeatureEnabled(true)
+      } catch (error) {
+        console.error('loadFavoriteVendors', error)
+        if (!active) return
+
+        if (isFavoritesSchemaCompatibilityError(error)) {
+          setFavoriteFeatureEnabled(false)
+          setFavoriteVendorIds([])
+          setOnlyFavoriteVendors(false)
+          return
+        }
+
+        toast.push(error.message || 'Gagal memuat pedagang favorit', { type: 'error' })
+      }
+    }
+
+    void loadFavoriteVendors()
+
+    const channel = supabase
+      .channel(`favorites-map-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'favorites', filter: `buyer_id=eq.${user.id}` }, () => {
+        void loadFavoriteVendors()
+      })
+      .subscribe()
+
+    return () => {
+      active = false
+      try {
+        supabase.removeChannel(channel)
+      } catch (error) {
+        console.error('removeFavoritesMapChannel', error)
+      }
+    }
+  }, [isCustomerViewer, toast, user?.id])
+
+  useEffect(() => {
+    if (!isCustomerViewer || !favoriteFeatureEnabled) {
+      setOnlyFavoriteVendors(false)
+      return
+    }
+
+    setOnlyFavoriteVendors(requestFavoriteView)
+  }, [favoriteFeatureEnabled, isCustomerViewer, requestFavoriteView])
+
+  const toggleVendorFavorite = useCallback(async (vendor) => {
+    const vendorId = vendor?.id
+    if (!vendorId || !isCustomerViewer || !user?.id) return
+
+    if (!favoriteFeatureEnabled) {
+      toast.push('Fitur favorit belum aktif di database. Jalankan migration favorit terlebih dahulu.', { type: 'info' })
+      return
+    }
+
+    const nextFavoriteState = !favoriteVendorIdSet.has(vendorId)
+    setFavoriteBusyVendorId(vendorId)
+    setFavoriteVendorIds((current) => (
+      nextFavoriteState
+        ? normalizeFavoriteVendorIds([...current.map((currentVendorId) => ({ vendor_id: currentVendorId })), { vendor_id: vendorId }])
+        : current.filter((currentVendorId) => currentVendorId !== vendorId)
+    ))
+
+    try {
+      if (nextFavoriteState) {
+        const { error } = await supabase.from('favorites').insert([{ buyer_id: user.id, vendor_id: vendorId }])
+        if (error) throw error
+        toast.push(`${vendor.name || 'Pedagang'} disimpan ke favorit Anda`, { type: 'success' })
+      } else {
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('buyer_id', user.id)
+          .eq('vendor_id', vendorId)
+
+        if (error) throw error
+        toast.push(`${vendor.name || 'Pedagang'} dihapus dari favorit Anda`, { type: 'success' })
+      }
+    } catch (error) {
+      console.error('toggleVendorFavorite', error)
+      setFavoriteVendorIds((current) => (
+        nextFavoriteState
+          ? current.filter((currentVendorId) => currentVendorId !== vendorId)
+          : normalizeFavoriteVendorIds([...current.map((currentVendorId) => ({ vendor_id: currentVendorId })), { vendor_id: vendorId }])
+      ))
+
+      if (isFavoritesSchemaCompatibilityError(error)) {
+        setFavoriteFeatureEnabled(false)
+        setOnlyFavoriteVendors(false)
+        toast.push('Fitur favorit belum aktif di database. Jalankan migration favorit terlebih dahulu.', { type: 'info' })
+        return
+      }
+
+      toast.push(error.message || 'Gagal memperbarui pedagang favorit', { type: 'error' })
+    } finally {
+      setFavoriteBusyVendorId(null)
+    }
+  }, [favoriteFeatureEnabled, favoriteVendorIdSet, isCustomerViewer, toast, user?.id])
 
   async function loadVendors() {
     setLoading(true)
@@ -626,6 +763,7 @@ export default function MapViewPage() {
       }
 
       if (!matchesRatingFilter(vendor, selectedRatingFilter)) return false
+      if (onlyFavoriteVendors && !favoriteVendorIdSet.has(vendor.id)) return false
 
       if (debouncedQuery) {
         const haystack = `${vendor.name || ''} ${vendor.description || ''} ${vendorCategory} ${getVendorSearchText(vendor)}`.toLowerCase()
@@ -645,7 +783,17 @@ export default function MapViewPage() {
 
       return true
     })
-  }, [debouncedQuery, onlyWithinRadius, radiusKm, selectedCategory, selectedRatingFilter, userLocation, vendors])
+  }, [
+    debouncedQuery,
+    favoriteVendorIdSet,
+    onlyFavoriteVendors,
+    onlyWithinRadius,
+    radiusKm,
+    selectedCategory,
+    selectedRatingFilter,
+    userLocation,
+    vendors,
+  ])
 
   const onlineVendors = useMemo(
     () => vendors.filter((vendor) => vendor.online && !isVendorModeratedOut(vendor) && getVendorCoordinates(vendor.location)),
@@ -687,6 +835,10 @@ export default function MapViewPage() {
 
   const onlineListVendors = useMemo(() => {
     return [...filteredVendors].sort((left, right) => {
+      const leftFavorite = favoriteVendorIdSet.has(left.id)
+      const rightFavorite = favoriteVendorIdSet.has(right.id)
+      if (leftFavorite !== rightFavorite) return leftFavorite ? -1 : 1
+
       const leftDistance = getVendorDistance(left, userLocation)
       const rightDistance = getVendorDistance(right, userLocation)
 
@@ -698,7 +850,7 @@ export default function MapViewPage() {
       if (typeof rightDistance === 'number') return 1
       return (left.name || '').localeCompare(right.name || '', 'id')
     })
-  }, [filteredVendors, userLocation])
+  }, [favoriteVendorIdSet, filteredVendors, userLocation])
 
   useEffect(() => {
     if (!selectedVendor) return
@@ -727,6 +879,7 @@ export default function MapViewPage() {
 
       const marker = L.marker([coordinates.lat, coordinates.lng])
       const isOwnVendor = isVendor && vendor.id === myVendorId
+      const isFavorite = favoriteVendorIdSet.has(vendor.id)
       const popupActions = isOwnVendor
         ? [
           {
@@ -767,6 +920,21 @@ export default function MapViewPage() {
             },
             onClick: () => navigate(`/chat/${vendor.id}`),
           },
+          ...(isCustomerViewer && favoriteFeatureEnabled ? [{
+            label: favoriteBusyVendorId === vendor.id
+              ? 'Menyimpan...'
+              : isFavorite
+                ? 'Favorit'
+                : 'Simpan',
+            colors: {
+              border: '#e11d48',
+              background: isFavorite ? '#e11d48' : '#fff1f2',
+              color: isFavorite ? '#ffffff' : '#be123c',
+            },
+            onClick: () => {
+              void toggleVendorFavorite(vendor)
+            },
+          }] : []),
           {
             label: 'Order',
             colors: {
@@ -803,7 +971,19 @@ export default function MapViewPage() {
       }
       clusterRef.current = null
     }
-  }, [clusterEnabled, filteredVendors, focusVendor, isVendor, myVendorId, navigate])
+  }, [
+    clusterEnabled,
+    favoriteBusyVendorId,
+    favoriteFeatureEnabled,
+    favoriteVendorIdSet,
+    filteredVendors,
+    focusVendor,
+    isCustomerViewer,
+    isVendor,
+    myVendorId,
+    navigate,
+    toggleVendorFavorite,
+  ])
 
   async function getAccessToken() {
     try {
@@ -871,10 +1051,17 @@ export default function MapViewPage() {
   const myVendorLocation = myVendorRow?.location
   const filteredVendorCount = filteredVendors.length
   const onlineVendorCount = onlineVendors.length
+  const favoriteVendorCount = favoriteVendorIds.length
   const selectedVendorDistance = getVendorDistance(selectedVendor, userLocation)
   const selectedVendorIsMine = isVendor && selectedVendor?.id === myVendorId
+  const selectedVendorIsFavorite = selectedVendor ? favoriteVendorIdSet.has(selectedVendor.id) : false
   const selectedCategoryLabel = categoryOptions.find((option) => option.value === selectedCategory)?.label || 'Semua kategori'
   const selectedRatingFilterLabel = RATING_FILTER_OPTIONS.find((option) => option.value === selectedRatingFilter)?.label || 'Semua rating'
+  const emptyVendorStateMessage = onlyFavoriteVendors
+    ? favoriteVendorCount > 0
+      ? 'Belum ada pedagang favorit Anda yang online dan cocok dengan filter ini.'
+      : 'Anda belum punya pedagang favorit. Simpan toko dari detail peta atau profil toko terlebih dahulu.'
+    : 'Belum ada pedagang online yang cocok dengan pencarian Anda.'
   const heroBadge = isVendor ? 'Mode Pedagang' : 'Mode Pelanggan'
   const heroTitle = isVendor
     ? 'Pantau toko Anda dan tetap siap menerima pesanan dari peta.'
@@ -955,6 +1142,7 @@ export default function MapViewPage() {
                       setQuery('')
                       setSelectedCategory('all')
                       setSelectedRatingFilter('all')
+                      setOnlyFavoriteVendors(false)
                       setOnlyWithinRadius(false)
                     }}
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -1019,6 +1207,40 @@ export default function MapViewPage() {
                 </div>
               </div>
 
+              {isCustomerViewer && favoriteFeatureEnabled && (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <div className="font-medium text-slate-800">Pedagang favorit</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setOnlyFavoriteVendors(false)}
+                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                        !onlyFavoriteVendors
+                          ? 'bg-rose-500 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Semua toko
+                    </button>
+                    <button
+                      onClick={() => setOnlyFavoriteVendors(true)}
+                      disabled={favoriteVendorCount === 0}
+                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                        onlyFavoriteVendors
+                          ? 'bg-rose-500 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300'
+                      }`}
+                    >
+                      Favorit Saya
+                    </button>
+                  </div>
+                  <div className="mt-3 text-xs text-slate-500">
+                    {favoriteVendorCount > 0
+                      ? `${formatFavoriteCountLabel(favoriteVendorCount)} diprioritaskan di daftar dan filter peta.`
+                      : 'Simpan toko dari detail peta atau profil toko untuk membangun daftar langganan Anda.'}
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                   <div className="font-medium text-slate-800">Radius pencarian</div>
@@ -1061,7 +1283,9 @@ export default function MapViewPage() {
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Hasil Ditampilkan</div>
                 <div className="mt-2 text-3xl font-semibold text-slate-900">{filteredVendorCount}</div>
                 <div className="mt-1 text-sm text-slate-500">
-                  {selectedCategory !== 'all'
+                  {onlyFavoriteVendors
+                    ? `Difokuskan ke ${formatFavoriteCountLabel(favoriteVendorCount)} yang Anda simpan.`
+                    : selectedCategory !== 'all'
                     ? `Difokuskan ke kategori ${formatVendorCategoryLabel(selectedCategoryLabel)}.`
                     : selectedRatingFilter !== 'all'
                       ? `Menampilkan toko dengan rating ${selectedRatingFilterLabel}.`
@@ -1089,13 +1313,14 @@ export default function MapViewPage() {
             <div className="mt-4 space-y-3">
               {onlineListVendors.length === 0 ? (
                 <div className="rounded-[24px] border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                  Belum ada pedagang online yang cocok dengan pencarian Anda.
+                  {emptyVendorStateMessage}
                 </div>
               ) : (
                 onlineListVendors.map((vendor) => {
                   const vendorDistance = getVendorDistance(vendor, userLocation)
                   const active = selectedVendor?.id === vendor.id
                   const isOwnVendor = isVendor && vendor.id === myVendorId
+                  const isFavorite = favoriteVendorIdSet.has(vendor.id)
 
                   return (
                     <div
@@ -1131,6 +1356,11 @@ export default function MapViewPage() {
                             {getVendorReviewCount(vendor) > 0 ? (
                               <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
                                 {formatVendorRatingMeta(vendor)}
+                              </span>
+                            ) : null}
+                            {isCustomerViewer && isFavorite ? (
+                              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                                Favorit
                               </span>
                             ) : null}
                           </div>
@@ -1273,6 +1503,9 @@ export default function MapViewPage() {
                       <div className="mt-1 text-xs text-amber-700">
                         {formatVendorRatingMeta(selectedVendor)}
                       </div>
+                      {isCustomerViewer && selectedVendorIsFavorite ? (
+                        <div className="mt-1 text-xs font-medium text-rose-700">Sudah tersimpan di favorit Anda</div>
+                      ) : null}
                     </div>
                   </div>
 
@@ -1316,6 +1549,23 @@ export default function MapViewPage() {
                       </>
                     ) : (
                       <>
+                        {isCustomerViewer && favoriteFeatureEnabled && (
+                          <button
+                            onClick={() => void toggleVendorFavorite(selectedVendor)}
+                            disabled={favoriteBusyVendorId === selectedVendor.id}
+                            className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                              selectedVendorIsFavorite
+                                ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70'
+                                : 'border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70'
+                            }`}
+                          >
+                            {favoriteBusyVendorId === selectedVendor.id
+                              ? 'Menyimpan...'
+                              : selectedVendorIsFavorite
+                                ? 'Tersimpan di Favorit'
+                                : 'Simpan Favorit'}
+                          </button>
+                        )}
                         <button
                           onClick={() => navigate(`/chat/${selectedVendor.id}`)}
                           className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"

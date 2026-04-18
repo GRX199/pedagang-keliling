@@ -4,6 +4,11 @@ import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
 import { findOrCreateDirectChat, sendChatMessage } from '../lib/conversations'
 import {
+  isFavoritesSchemaCompatibilityError,
+  isVendorFavorited,
+  normalizeFavoriteVendorIds,
+} from '../lib/favorites'
+import {
   buildOrderChatMessage,
   buildOrderInsertPayload,
   buildOrderItemRows,
@@ -86,8 +91,12 @@ export default function VendorStorePage() {
   const [fulfillmentType, setFulfillmentType] = useState('meetup')
   const [meetingPointLabel, setMeetingPointLabel] = useState('')
   const [customerNote, setCustomerNote] = useState('')
+  const [favoriteVendorIds, setFavoriteVendorIds] = useState([])
+  const [favoriteFeatureEnabled, setFavoriteFeatureEnabled] = useState(true)
+  const [favoriteBusy, setFavoriteBusy] = useState(false)
 
   const isOwner = user?.id === id
+  const isFavorite = isVendorFavorited(favoriteVendorIds, id)
 
   useEffect(() => {
     if (!id) return undefined
@@ -158,6 +167,48 @@ export default function VendorStorePage() {
       }
     }
   }, [id, toast])
+
+  useEffect(() => {
+    if (!id || !user?.id || isOwner) {
+      setFavoriteVendorIds([])
+      return undefined
+    }
+
+    let active = true
+
+    async function loadFavoriteState() {
+      try {
+        const { data, error } = await supabase
+          .from('favorites')
+          .select('vendor_id')
+          .eq('buyer_id', user.id)
+          .eq('vendor_id', id)
+
+        if (error) throw error
+        if (!active) return
+
+        setFavoriteVendorIds(normalizeFavoriteVendorIds(data))
+        setFavoriteFeatureEnabled(true)
+      } catch (error) {
+        console.error('loadFavoriteState', error)
+        if (!active) return
+
+        if (isFavoritesSchemaCompatibilityError(error)) {
+          setFavoriteFeatureEnabled(false)
+          setFavoriteVendorIds([])
+          return
+        }
+
+        toast.push(error.message || 'Gagal memuat status favorit toko', { type: 'error' })
+      }
+    }
+
+    void loadFavoriteState()
+
+    return () => {
+      active = false
+    }
+  }, [id, isOwner, toast, user?.id])
 
   useEffect(() => {
     setCart((current) => {
@@ -276,6 +327,63 @@ export default function VendorStorePage() {
     setCart({})
     setMeetingPointLabel('')
     setCustomerNote('')
+  }
+
+  async function toggleFavoriteVendor() {
+    if (isOwner) return
+
+    if (!user) {
+      toast.push('Login terlebih dahulu untuk menyimpan pedagang favorit', { type: 'info' })
+      navigate('/login')
+      return
+    }
+
+    if (!favoriteFeatureEnabled) {
+      toast.push('Fitur favorit belum aktif di database. Jalankan migration favorit terlebih dahulu.', { type: 'info' })
+      return
+    }
+
+    const nextFavoriteState = !isFavorite
+    setFavoriteBusy(true)
+    setFavoriteVendorIds((current) => (
+      nextFavoriteState
+        ? normalizeFavoriteVendorIds([...current.map((vendorId) => ({ vendor_id: vendorId })), { vendor_id: id }])
+        : current.filter((vendorId) => vendorId !== id)
+    ))
+
+    try {
+      if (nextFavoriteState) {
+        const { error } = await supabase.from('favorites').insert([{ buyer_id: user.id, vendor_id: id }])
+        if (error) throw error
+        toast.push('Pedagang disimpan ke favorit Anda', { type: 'success' })
+      } else {
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('buyer_id', user.id)
+          .eq('vendor_id', id)
+
+        if (error) throw error
+        toast.push('Pedagang dihapus dari favorit Anda', { type: 'success' })
+      }
+    } catch (error) {
+      console.error('toggleFavoriteVendor', error)
+      setFavoriteVendorIds((current) => (
+        nextFavoriteState
+          ? current.filter((vendorId) => vendorId !== id)
+          : normalizeFavoriteVendorIds([...current.map((vendorId) => ({ vendor_id: vendorId })), { vendor_id: id }])
+      ))
+
+      if (isFavoritesSchemaCompatibilityError(error)) {
+        setFavoriteFeatureEnabled(false)
+        toast.push('Fitur favorit belum aktif di database. Jalankan migration favorit terlebih dahulu.', { type: 'info' })
+        return
+      }
+
+      toast.push(error.message || 'Gagal memperbarui favorit toko', { type: 'error' })
+    } finally {
+      setFavoriteBusy(false)
+    }
   }
 
   async function submitOrder(event) {
@@ -492,6 +600,11 @@ export default function VendorStorePage() {
                       Terverifikasi
                     </span>
                   )}
+                  {!isOwner && favoriteFeatureEnabled && isFavorite && (
+                    <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700">
+                      Favorit Anda
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -531,6 +644,19 @@ export default function VendorStorePage() {
                   </>
                 ) : (
                   <>
+                    {favoriteFeatureEnabled && (
+                      <button
+                        onClick={() => void toggleFavoriteVendor()}
+                        disabled={favoriteBusy}
+                        className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                          isFavorite
+                            ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70'
+                            : 'border border-slate-200 px-4 py-3 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70'
+                        }`}
+                      >
+                        {favoriteBusy ? 'Menyimpan...' : isFavorite ? 'Tersimpan di Favorit' : 'Simpan ke Favorit'}
+                      </button>
+                    )}
                     <button
                       onClick={() => navigate(`/chat/${vendor.id}`)}
                       className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"

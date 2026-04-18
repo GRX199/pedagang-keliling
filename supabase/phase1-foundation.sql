@@ -199,6 +199,14 @@ create table if not exists public.reviews (
   constraint reviews_rating_range check (rating between 1 and 5)
 );
 
+create table if not exists public.favorites (
+  id uuid primary key default gen_random_uuid(),
+  buyer_id uuid not null references auth.users(id) on delete cascade,
+  vendor_id uuid not null references public.vendors(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint favorites_unique unique (buyer_id, vendor_id)
+);
+
 alter table public.notifications
   drop constraint if exists notifications_type_check;
 
@@ -241,6 +249,12 @@ create index if not exists reviews_vendor_created_idx
 
 create index if not exists reviews_buyer_created_idx
   on public.reviews (buyer_id, created_at desc);
+
+create index if not exists favorites_buyer_created_idx
+  on public.favorites (buyer_id, created_at desc);
+
+create index if not exists favorites_vendor_idx
+  on public.favorites (vendor_id);
 
 create or replace function public.resolve_actor_name(actor_user_id uuid)
 returns text
@@ -463,6 +477,7 @@ alter table public.vendor_categories enable row level security;
 alter table public.order_items enable row level security;
 alter table public.notifications enable row level security;
 alter table public.reviews enable row level security;
+alter table public.favorites enable row level security;
 
 drop policy if exists "categories_public_read" on public.categories;
 create policy "categories_public_read"
@@ -583,6 +598,27 @@ with check (
       and orders.status = 'completed'
   )
 );
+
+drop policy if exists "favorites_own_read" on public.favorites;
+create policy "favorites_own_read"
+on public.favorites
+for select
+to authenticated
+using (auth.uid() = buyer_id);
+
+drop policy if exists "favorites_own_insert" on public.favorites;
+create policy "favorites_own_insert"
+on public.favorites
+for insert
+to authenticated
+with check (auth.uid() = buyer_id);
+
+drop policy if exists "favorites_own_delete" on public.favorites;
+create policy "favorites_own_delete"
+on public.favorites
+for delete
+to authenticated
+using (auth.uid() = buyer_id);
 
 drop trigger if exists reviews_set_updated_at on public.reviews;
 create trigger reviews_set_updated_at
