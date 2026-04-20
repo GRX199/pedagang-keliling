@@ -160,6 +160,8 @@ Recommended fields:
 - `requested_fulfillment_at`
 - `meeting_point_label`
 - `meeting_point_location`
+- `customer_location`
+- `vendor_location_snapshot`
 - `customer_note`
 - `subtotal_amount`
 - `delivery_fee`
@@ -184,6 +186,8 @@ Recommended order statuses:
 Notes:
 
 - `order_timing` bisa memakai nilai `asap` atau `preorder`
+- `meeting_point_location` dan `customer_location` cukup untuk versi awal heatmap permintaan vendor tanpa perlu tabel analytics terpisah
+- `vendor_location_snapshot` membantu tracking order tetap konsisten walau posisi vendor terus bergerak setelah order dibuat
 - `requested_fulfillment_at` dipakai untuk titip pesanan saat pedagang melewati area tertentu
 - fitur pre-order tetap memakai tabel `orders`, tidak perlu memecah ke tabel transaksi terpisah
 

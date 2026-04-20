@@ -99,6 +99,10 @@ Scope:
 - Heatmap permintaan
 - Analytics wilayah
 
+Catatan implementasi:
+
+- Heatmap permintaan dan analytics wilayah tahap awal sebaiknya diturunkan dari data `orders` yang sudah ada, terutama `meeting_point_location` dan `customer_location`, agar tetap ringan dan tidak menambah beban schema terlalu cepat.
+
 Acceptance criteria:
 
 - Fitur baru benar-benar meningkatkan repeat order atau efisiensi pedagang.

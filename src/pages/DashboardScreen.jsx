@@ -4,6 +4,7 @@ import AdminPanel from '../components/AdminPanel'
 import ChatWorkspace from '../components/ChatWorkspace'
 import OrderReviewComposer from '../components/OrderReviewComposer'
 import OrderStatusTimeline from '../components/OrderStatusTimeline'
+import VendorDemandInsights from '../components/VendorDemandInsights'
 import VendorProductsManager from '../components/VendorProductsManager'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
@@ -831,6 +832,12 @@ function OrdersPanel({ currentUser, role }) {
           tone="success"
         />
       </div>
+
+      {isVendor && orders.length > 0 && (
+        <div className="mt-5">
+          <VendorDemandInsights orders={orders} />
+        </div>
+      )}
 
       {orders.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">

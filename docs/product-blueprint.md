@@ -166,6 +166,10 @@ Pembayaran gateway penuh bisa menyusul setelah alur transaksi inti stabil.
 - Titik temu pintar
 - Heatmap permintaan untuk pedagang
 
+Catatan implementasi:
+
+- Heatmap permintaan tahap awal sebaiknya hadir sebagai insight wilayah di dashboard pedagang, bukan halaman baru, agar tetap ringan dan langsung bisa dipakai untuk keputusan rute.
+
 ## Non-Goals For MVP
 
 - Sistem promosi kompleks
