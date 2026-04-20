@@ -634,21 +634,9 @@ export default function VendorStorePage() {
   return (
     <div className="min-h-screen bg-transparent">
       <div className="mx-auto max-w-6xl px-4 py-5 sm:py-6">
-        <section className="mb-4 overflow-hidden rounded-[28px] bg-slate-900 px-5 py-6 text-white shadow-xl shadow-slate-900/10 sm:px-6">
-          <div className="max-w-3xl">
-            <div className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-slate-200">
-              Profil Toko
-            </div>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">{vendor.name}</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-300 sm:text-base">
-              Pilih produk yang tersedia, tambahkan catatan bila perlu, lalu kirim pesanan yang otomatis masuk ke chat dan panel pesanan pedagang.
-            </p>
-          </div>
-        </section>
-
         <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+          <aside className="order-2 space-y-4 lg:order-1 lg:sticky lg:top-24 lg:self-start">
+            <div className="hidden rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80 lg:block">
               <div className="flex flex-col items-center text-center">
                 <div className="h-28 w-28 overflow-hidden rounded-full bg-slate-100">
                   {vendor.photo_url ? (
@@ -692,7 +680,7 @@ export default function VendorStorePage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+            <div className="hidden rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80 lg:block">
               <h2 className="font-semibold text-slate-900">Info Toko</h2>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
                 <div>Kategori: {formatVendorCategoryLabel(vendor.category_primary)}</div>
@@ -1033,7 +1021,93 @@ export default function VendorStorePage() {
             )}
           </aside>
 
-          <main className="space-y-4">
+          <main className="order-1 space-y-4 lg:order-2">
+            <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80 lg:hidden">
+              <div className="flex items-start gap-4">
+                <div className="h-16 w-16 overflow-hidden rounded-2xl bg-slate-100">
+                  {vendor.photo_url ? (
+                    <img src={vendor.photo_url} alt={vendor.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-xl font-semibold text-slate-500">
+                      {(vendor.name || 'P')[0]}
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-xl font-semibold text-slate-900">{vendor.name}</h1>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    {vendor.description || 'Pedagang lokal siap melayani Anda.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  vendor.online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {vendor.online ? 'Sedang Online' : 'Sedang Offline'}
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                  {formatVendorCategoryLabel(vendor.category_primary)}
+                </span>
+                {reviewSummary.count > 0 && (
+                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                    {formatReviewScore(reviewSummary.average)} • {reviewSummary.count} ulasan
+                  </span>
+                )}
+                {vendor.is_verified && (
+                  <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+                    Terverifikasi
+                  </span>
+                )}
+                {hasActivePromo && (
+                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                    Promo Aktif
+                  </span>
+                )}
+              </div>
+
+              {isOwner ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => navigate('/dashboard?tab=products')}
+                    className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                  >
+                    Kelola Produk
+                  </button>
+                  <button
+                    onClick={() => navigate('/dashboard?tab=profile')}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Edit Profil
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {favoriteFeatureEnabled && (
+                    <button
+                      onClick={() => void toggleFavoriteVendor()}
+                      disabled={favoriteBusy}
+                      className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                        isFavorite
+                          ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70'
+                      }`}
+                    >
+                      {favoriteBusy ? 'Menyimpan...' : isFavorite ? 'Tersimpan di Favorit' : 'Simpan ke Favorit'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => navigate(`/chat/${vendor.id}`)}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Chat Pedagang
+                  </button>
+                </div>
+              )}
+            </section>
+
             {hasActivePromo && (
               <section className="rounded-[28px] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5 shadow-sm">
                 <div className="text-xs font-medium uppercase tracking-[0.18em] text-amber-700">Promo Aktif</div>
@@ -1043,34 +1117,6 @@ export default function VendorStorePage() {
                 </div>
               </section>
             )}
-
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Kategori</div>
-                <div className="mt-2 font-semibold text-slate-900">{formatVendorCategoryLabel(vendor.category_primary)}</div>
-              </div>
-              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Metode Layanan</div>
-                <div className="mt-2 font-semibold text-slate-900">{formatVendorServiceMode(vendor.service_mode)}</div>
-              </div>
-              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Area Layanan</div>
-                <div className="mt-2 font-semibold text-slate-900">{formatVendorServiceRadius(vendor.service_radius_km)}</div>
-              </div>
-              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Jam Operasional</div>
-                <div className="mt-2 text-sm font-medium leading-6 text-slate-900">{getOperatingHoursText(vendor.operating_hours)}</div>
-              </div>
-              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Rating</div>
-                <div className="mt-2 font-semibold text-slate-900">
-                  {reviewSummary.count > 0 ? formatReviewScore(reviewSummary.average) : 'Belum ada'}
-                </div>
-                <div className="mt-1 text-sm text-slate-500">
-                  {reviewSummary.count > 0 ? `${reviewSummary.count} ulasan pelanggan` : 'Akan muncul setelah pesanan selesai dan dinilai.'}
-                </div>
-              </div>
-            </section>
 
             <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">

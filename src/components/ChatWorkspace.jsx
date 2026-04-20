@@ -87,7 +87,21 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOp
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 rounded-2xl bg-white/10 px-3 py-3 text-sm text-slate-200 md:hidden">
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          <span>{formatPaymentMethodLabel(order.payment_method)}</span>
+          <span>{formatPaymentStatusLabel(order.payment_status)}</span>
+          <span>{formatFulfillmentTypeLabel(order.fulfillment_type)}</span>
+        </div>
+        <div className="mt-2 text-xs text-slate-300">
+          {Number(order.total_amount || 0) > 0
+            ? `${formatPriceLabel(order.total_amount)} • `
+            : ''}
+          {order.customer_note || order.meeting_point_label || 'Gunakan chat ini untuk konfirmasi stok, waktu, atau titik temu.'}
+        </div>
+      </div>
+
+      <div className="mt-4 hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
           <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Pembayaran</div>
           <div className="mt-1 text-sm font-medium text-white">

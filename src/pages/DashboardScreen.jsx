@@ -3,12 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import AdminPanel from '../components/AdminPanel'
 import ChatWorkspace from '../components/ChatWorkspace'
 import OrderReviewComposer from '../components/OrderReviewComposer'
-import OrderStatusTimeline from '../components/OrderStatusTimeline'
 import VendorDemandInsights from '../components/VendorDemandInsights'
 import VendorProductsManager from '../components/VendorProductsManager'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
-import { formatFavoriteCountLabel, isFavoritesSchemaCompatibilityError } from '../lib/favorites'
 import { uploadImageFile } from '../lib/media'
 import { getGeolocationErrorMessage } from '../lib/network'
 import {
@@ -106,8 +104,7 @@ function OrdersPanel({ currentUser, role }) {
   const [refreshing, setRefreshing] = useState(false)
   const [historyFilter, setHistoryFilter] = useState('all')
   const [historyQuery, setHistoryQuery] = useState('')
-  const [favoriteVendors, setFavoriteVendors] = useState([])
-  const [favoriteFeatureEnabled, setFavoriteFeatureEnabled] = useState(true)
+  const [showHistory, setShowHistory] = useState(false)
   const isVendor = role === 'vendor'
   const customerName = currentUser?.user_metadata?.full_name || currentUser?.email || 'Pelanggan'
 
@@ -230,64 +227,10 @@ function OrdersPanel({ currentUser, role }) {
     }
   }
 
-  async function fetchFavoriteVendors({ silent = true } = {}) {
-    if (!currentUser || isVendor) {
-      setFavoriteVendors([])
-      return
-    }
-
-    try {
-      const { data: favoriteRows, error: favoritesError } = await supabase
-        .from('favorites')
-        .select('vendor_id, created_at')
-        .eq('buyer_id', currentUser.id)
-        .order('created_at', { ascending: false })
-
-      if (favoritesError) throw favoritesError
-
-      const vendorIds = (favoriteRows || []).map((row) => row.vendor_id).filter(Boolean)
-      if (vendorIds.length === 0) {
-        setFavoriteVendors([])
-        setFavoriteFeatureEnabled(true)
-        return
-      }
-
-      const { data: vendorsData, error: vendorsError } = await supabase
-        .from('vendors')
-        .select('id, name, photo_url, category_primary, online, is_verified')
-        .in('id', vendorIds)
-
-      if (vendorsError) throw vendorsError
-
-      const vendorMap = new Map((vendorsData || []).map((vendor) => [vendor.id, vendor]))
-      const orderedFavorites = vendorIds
-        .map((vendorId) => vendorMap.get(vendorId))
-        .filter(Boolean)
-
-      setFavoriteVendors(orderedFavorites)
-      setFavoriteFeatureEnabled(true)
-    } catch (error) {
-      console.error('fetchFavoriteVendors', error)
-
-      if (isFavoritesSchemaCompatibilityError(error)) {
-        setFavoriteFeatureEnabled(false)
-        setFavoriteVendors([])
-        return
-      }
-
-      if (!silent) {
-        toast.push(error.message || 'Gagal memuat pedagang favorit', { type: 'error' })
-      }
-    }
-  }
-
   useEffect(() => {
     if (!currentUser || !role) return undefined
 
     void fetchOrders()
-    if (!isVendor) {
-      void fetchFavoriteVendors()
-    }
 
     const filter = role === 'vendor'
       ? `vendor_id=eq.${currentUser.id}`
@@ -300,15 +243,6 @@ function OrdersPanel({ currentUser, role }) {
       })
       .subscribe()
 
-    const favoritesChannel = !isVendor
-      ? supabase
-        .channel(`favorites-${currentUser.id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'favorites', filter: `buyer_id=eq.${currentUser.id}` }, () => {
-          void fetchFavoriteVendors()
-        })
-        .subscribe()
-      : null
-
     const intervalId = window.setInterval(() => {
       void fetchOrders({ background: true, silent: true })
     }, 8000)
@@ -319,13 +253,6 @@ function OrdersPanel({ currentUser, role }) {
         supabase.removeChannel(channel)
       } catch (error) {
         console.error('removeOrdersChannel', error)
-      }
-      if (favoritesChannel) {
-        try {
-          supabase.removeChannel(favoritesChannel)
-        } catch (error) {
-          console.error('removeFavoritesChannel', error)
-        }
       }
     }
   }, [currentUser, isVendor, role])
@@ -441,12 +368,6 @@ function OrdersPanel({ currentUser, role }) {
                 </span>
               )}
             </div>
-
-            {isHighlighted && (
-              <div className="mt-3">
-                <OrderStatusTimeline status={order.status} />
-              </div>
-            )}
 
             {(paymentGuidance || operationalNotice || order.meeting_point_label || order.customer_note || order.requested_fulfillment_at || Number(order.total_amount || 0) > 0 || historyLabel) && (
               <div className="mt-3 space-y-1 text-sm text-slate-500">
@@ -605,202 +526,49 @@ function OrdersPanel({ currentUser, role }) {
   return (
     <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
       {!isVendor && (
-        <section className="mb-5 overflow-hidden rounded-[28px] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-5 text-white shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-2xl">
-              <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-300">Beranda Pelanggan</div>
-              <h3 className="mt-2 text-2xl font-semibold tracking-tight">
-                {`Halo, ${customerName.split('@')[0]}. Lanjutkan pesanan Anda tanpa kehilangan jejak.`}
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Dashboard ini sekarang difokuskan untuk membantu Anda melihat order aktif lebih cepat, buka tracking saat dibutuhkan, lalu kembali ke peta saat ingin pesan lagi.
+        <section className="mb-5 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Pesanan Anda</div>
+              <p className="mt-1 text-sm text-slate-500">
+                {spotlightOrder
+                  ? 'Order aktif dan chat terkait diprioritaskan di bawah agar lebih cepat dibuka dari HP.'
+                  : 'Mulai dari peta saat Anda ingin mencari pedagang dan membuat transaksi baru.'}
               </p>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  onClick={() => navigate('/map')}
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
-                >
-                  Buka Peta Pedagang
-                </button>
-                <button
-                  onClick={() => navigate(spotlightOrder ? `/chat/${spotlightOrder.vendor_id}?order=${spotlightOrder.id}` : '/chat')}
-                  className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
-                >
-                  {spotlightOrder ? 'Buka Chat Terakhir' : 'Buka Chat'}
-                </button>
-                <button
-                  onClick={() => navigate('/dashboard?tab=profile')}
-                  className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
-                >
-                  Profil Saya
-                </button>
-              </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:w-[360px] lg:grid-cols-1">
-              <div className="rounded-[22px] bg-white/10 p-4 ring-1 ring-white/10">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Aktif</div>
-                <div className="mt-2 text-3xl font-semibold">{activeOrders.length}</div>
-                <div className="mt-1 text-sm text-slate-300">Pesanan yang masih bisa dilacak atau dilanjutkan.</div>
-              </div>
-              <div className="rounded-[22px] bg-white/10 p-4 ring-1 ring-white/10">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Menunggu</div>
-                <div className="mt-2 text-3xl font-semibold">{pendingOrders.length}</div>
-                <div className="mt-1 text-sm text-slate-300">Order yang belum dikonfirmasi pedagang.</div>
-              </div>
-              <div className="rounded-[22px] bg-white/10 p-4 ring-1 ring-white/10">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Selesai</div>
-                <div className="mt-2 text-3xl font-semibold">{completedOrders.length}</div>
-                <div className="mt-1 text-sm text-slate-300">Riwayat pesanan yang sudah tuntas.</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-[24px] bg-white/10 p-4 ring-1 ring-white/10">
-            {spotlightOrder ? (
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-300">Pesanan Terbaru</div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {spotlightOrder.vendor_name || 'Pedagang'}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-200">
-                    {formatOrderStatusLabel(spotlightOrder.status)}
-                    {Number(spotlightOrder.total_amount || 0) > 0 ? ` • ${formatPriceLabel(spotlightOrder.total_amount)}` : ''}
-                    {spotlightOrder.created_at ? ` • ${new Date(spotlightOrder.created_at).toLocaleString('id-ID')}` : ''}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-300">
-                    {spotlightOrder.order_timing === 'preorder'
-                      ? `${formatOrderTimingLabel(spotlightOrder.order_timing)}${
-                        spotlightOrder.requested_fulfillment_at
-                          ? ` • ${formatRequestedFulfillmentLabel(spotlightOrder.requested_fulfillment_at)}`
-                          : ''
-                      }${spotlightOrder.meeting_point_label ? ` • ${spotlightOrder.meeting_point_label}` : ''}`
-                      : spotlightOrder.meeting_point_label || 'Siap dibuka untuk tracking atau komunikasi lanjutan.'}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => navigate('/map')}
+                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                Buka Peta
+              </button>
+              {spotlightOrder ? (
+                <>
                   <button
                     onClick={() => navigate(`/orders/${spotlightOrder.id}`)}
-                    className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                   >
-                    Lacak Sekarang
+                    Lacak
                   </button>
                   <button
                     onClick={() => navigate(`/chat/${spotlightOrder.vendor_id}?order=${spotlightOrder.id}`)}
-                    className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                   >
-                    Chat Pedagang
+                    Chat
                   </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="text-lg font-semibold text-white">Belum ada pesanan untuk dilanjutkan.</div>
-                  <div className="mt-1 text-sm text-slate-300">
-                    Mulai dari peta agar Anda bisa melihat pedagang yang online dan paling dekat lebih dulu.
-                  </div>
-                </div>
+                </>
+              ) : (
                 <button
-                  onClick={() => navigate('/map')}
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
-                >
-                  Cari Pedagang
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {!isVendor && favoriteFeatureEnabled && (
-        <section className="mb-5 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Pedagang Favorit</div>
-              <h4 className="mt-2 text-lg font-semibold text-slate-900">Akses cepat ke toko yang sering Anda pilih</h4>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                Bagian ini menjaga pengalaman pelanggan tetap ringkas: buka toko favorit lebih cepat, lalu lanjutkan chat atau pesan dari peta saat diperlukan.
-              </p>
-            </div>
-            <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
-              {formatFavoriteCountLabel(favoriteVendors.length)}
-            </div>
-          </div>
-
-          {favoriteVendors.length === 0 ? (
-            <div className="mt-4 rounded-[22px] border border-dashed border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
-              <div>Belum ada pedagang favorit. Simpan toko dari peta atau halaman profil toko untuk membangun daftar langganan Anda.</div>
-              <button
-                onClick={() => navigate('/map')}
-                className="mt-4 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
-              >
-                Cari dari Peta
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                {favoriteVendors.slice(0, 3).map((vendor) => (
-                  <article key={vendor.id} className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                    <div className="flex items-start gap-3">
-                      <div className="h-12 w-12 overflow-hidden rounded-2xl bg-slate-100">
-                        {vendor.photo_url ? (
-                          <img src={vendor.photo_url} alt={vendor.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">
-                            {(vendor.name || 'P')[0]}
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-semibold text-slate-900">{vendor.name || 'Pedagang'}</div>
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                            vendor.online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {vendor.online ? 'Online' : 'Offline'}
-                          </span>
-                          {vendor.category_primary ? (
-                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                              {formatVendorCategoryLabel(vendor.category_primary)}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        onClick={() => navigate(`/vendor/${vendor.id}`)}
-                        className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
-                      >
-                        Buka Toko
-                      </button>
-                      <button
-                        onClick={() => navigate(`/chat/${vendor.id}`)}
-                        className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        Chat
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-
-              <div className="mt-4">
-                <button
-                  onClick={() => navigate('/map?favorites=1')}
+                  onClick={() => navigate('/chat')}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
-                  Lihat Favorit di Peta
+                  Buka Chat
                 </button>
-              </div>
-            </>
-          )}
+              )}
+            </div>
+          </div>
         </section>
       )}
 
@@ -846,7 +614,7 @@ function OrdersPanel({ currentUser, role }) {
       </div>
 
       {isVendor && orders.length > 0 && (
-        <div className="mt-5">
+        <div className="mt-5 hidden xl:block">
           <VendorDemandInsights orders={orders} />
         </div>
       )}
@@ -901,14 +669,27 @@ function OrdersPanel({ currentUser, role }) {
                     : 'Riwayat membantu Anda melihat transaksi yang sudah selesai atau tidak lanjut.'}
                 </p>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                {historyOrders.length} riwayat
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                  {historyOrders.length} riwayat
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowHistory((current) => !current)}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  {showHistory ? 'Sembunyikan' : 'Buka'}
+                </button>
+              </div>
             </div>
 
             {historyOrders.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
                 Belum ada riwayat pesanan.
+              </div>
+            ) : !showHistory ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                Riwayat disembunyikan agar layar tetap fokus ke pesanan aktif. Buka saat Anda perlu melihat transaksi lama.
               </div>
             ) : (
               <div className="space-y-4">

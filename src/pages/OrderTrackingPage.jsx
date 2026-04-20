@@ -595,7 +595,7 @@ export default function OrderTrackingPage() {
                 Pesanan #{String(order.id).slice(0, 8)}
               </h1>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Pantau status, posisi pedagang, dan detail transaksi dari satu layar.
+                Pantau status, peta, dan transaksi dari satu layar.
               </p>
             </div>
 
@@ -631,7 +631,7 @@ export default function OrderTrackingPage() {
           </div>
 
           <div className="mt-4 text-xs text-slate-400">
-            {refreshing ? 'Menyegarkan tracking di background...' : 'Tracking aktif dan terus diperbarui di background'}
+            {refreshing ? 'Tracking diperbarui di background...' : 'Tracking aktif dan diperbarui di background'}
           </div>
         </section>
 
@@ -823,27 +823,6 @@ export default function OrderTrackingPage() {
                   <div className="mt-1 font-medium text-slate-900">
                     {Number(order.total_amount || 0) > 0 ? formatPriceLabel(order.total_amount) : 'Menyesuaikan harga produk'}
                   </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-              <h2 className="text-lg font-semibold text-slate-900">Status Rute</h2>
-              <div className="mt-4 space-y-2 text-sm text-slate-600">
-                <div>Jarak rute: {formatDistance(routeDistance)}</div>
-                <div>ETA: {routeEtaLabel}</div>
-                <div>Status online pedagang: {vendor?.online ? 'Online' : 'Offline'}</div>
-                {order.requested_fulfillment_at && (
-                  <div>Target pre-order: {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}</div>
-                )}
-                <div>
-                  {routeReady
-                    ? (routeData?.mode === 'road'
-                      ? 'Rute mengikuti jalan yang tersedia dari layanan routing.'
-                      : 'Rute jalan belum tersedia, jadi sementara memakai garis lurus.')
-                    : isPreorder
-                      ? 'Tracking akan lebih bermakna saat pedagang mulai menuju area titip Anda.'
-                      : 'Tracking akan lebih akurat setelah data lokasi lengkap.'}
                 </div>
               </div>
             </div>

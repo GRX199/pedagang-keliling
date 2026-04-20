@@ -132,7 +132,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#dbeafe_0%,#eff6ff_24%,#f8fafc_52%,#e2e8f0_100%)] px-4 py-8 sm:px-6">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_460px]">
-        <section className="overflow-hidden rounded-[34px] border border-slate-200/80 bg-slate-950 text-white shadow-2xl shadow-slate-900/15">
+        <section className="hidden overflow-hidden rounded-[34px] border border-slate-200/80 bg-slate-950 text-white shadow-2xl shadow-slate-900/15 lg:block">
           <div className="bg-[linear-gradient(135deg,#0f172a_0%,#172554_42%,#14532d_100%)] p-7 sm:p-9">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Link
@@ -180,7 +180,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="rounded-[34px] border border-slate-200/80 bg-white/92 p-6 shadow-xl shadow-slate-200/60 backdrop-blur sm:p-8">
+        <section className="mx-auto w-full max-w-xl rounded-[34px] border border-slate-200/80 bg-white/92 p-6 shadow-xl shadow-slate-200/60 backdrop-blur sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">

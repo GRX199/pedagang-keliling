@@ -76,10 +76,12 @@ export default function LandingPage() {
             </div>
 
             <div className="mt-10 flex flex-wrap gap-2">
-              {categories.map((category) => (
+              {categories.map((category, index) => (
                 <span
                   key={category}
-                  className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm"
+                  className={`rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm ${
+                    index >= 3 ? 'hidden sm:inline-flex' : ''
+                  }`}
                 >
                   {category}
                 </span>
@@ -87,7 +89,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative hidden lg:block">
             <div className="absolute -left-6 top-6 hidden h-36 w-36 rounded-full bg-emerald-200/50 blur-3xl lg:block" />
             <div className="absolute -bottom-4 right-0 hidden h-40 w-40 rounded-full bg-sky-200/50 blur-3xl lg:block" />
 
