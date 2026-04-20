@@ -1129,8 +1129,8 @@ export default function MapViewPage() {
 
   return (
     <div className="min-h-screen bg-transparent">
-      <div className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:py-6">
-        <section className="rounded-[32px] bg-white/95 p-5 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:py-6">
+        <section className="order-2 rounded-[32px] bg-white/95 p-5 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-6 xl:order-1">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
               <div className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white">
@@ -1348,7 +1348,7 @@ export default function MapViewPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_380px]">
+        <section className="order-3 grid gap-4 xl:order-2 xl:grid-cols-[minmax(0,1.35fr)_380px]">
           <div className="rounded-[30px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1688,13 +1688,13 @@ export default function MapViewPage() {
           </aside>
         </section>
 
-        <section className="space-y-3">
+        <section className="order-1 space-y-3 xl:order-3">
           <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/80">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Peta pedagang sekitar</h2>
                 <p className="text-sm leading-6 text-slate-500">
-                  Peta utama hanya menampilkan pedagang yang sedang online agar keputusan pelanggan tetap cepat dan fokus.
+                  Lihat peta lebih dulu, lalu lanjut pilih toko yang paling relevan.
                 </p>
               </div>
               <div className="text-sm text-slate-500">

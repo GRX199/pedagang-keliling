@@ -786,6 +786,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savingLocation, setSavingLocation] = useState(false)
+  const [showPaymentPreview, setShowPaymentPreview] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
   const [paymentQrFile, setPaymentQrFile] = useState(null)
   const [form, setForm] = useState({
@@ -1110,7 +1111,27 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                   </button>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="mt-4 grid gap-2 sm:hidden">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
+                      {profile.is_verified ? 'Terverifikasi' : 'Belum diverifikasi'}
+                    </span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
+                      {formatVendorCategoryLabel(profile.category_primary)}
+                    </span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
+                      {formatVendorServiceRadius(profile.service_radius_km)}
+                    </span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
+                      {formatVendorServiceMode(profile.service_mode)}
+                    </span>
+                  </div>
+                  <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 ring-1 ring-white">
+                    Jam operasional: {getOperatingHoursText(profile.operating_hours)}
+                  </div>
+                </div>
+
+                <div className="mt-4 hidden gap-3 sm:grid sm:grid-cols-2">
                   <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
                     <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Verifikasi</div>
                     <div className="mt-1 font-medium text-slate-900">{profile.is_verified ? 'Terverifikasi' : 'Belum diverifikasi'}</div>
@@ -1172,7 +1193,15 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                     ))}
                   </div>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentPreview((current) => !current)}
+                    className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
+                  >
+                    {showPaymentPreview ? 'Sembunyikan Detail Pembayaran' : 'Lihat Detail Pembayaran'}
+                  </button>
+
+                  <div className={`mt-4 ${showPaymentPreview ? 'grid' : 'hidden'} gap-3 sm:grid md:grid-cols-3`}>
                     <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200/70">
                       <div className="text-xs uppercase tracking-[0.16em] text-slate-400">QRIS</div>
                       {qrisPaymentDetails.ready ? (
@@ -1223,7 +1252,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                   </div>
 
                   {vendorPaymentDetails.payment_notes && (
-                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    <div className={`${showPaymentPreview ? 'block' : 'hidden'} mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:block`}>
                       Catatan pembayaran: {vendorPaymentDetails.payment_notes}
                     </div>
                   )}
@@ -1233,7 +1262,10 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
 
             <div className="mt-4">
               <button
-                onClick={() => setEditing(true)}
+                onClick={() => {
+                  setShowPaymentPreview(false)
+                  setEditing(true)
+                }}
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Edit Profil
@@ -1428,6 +1460,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
               </button>
               <button
                 onClick={() => {
+                  setShowPaymentPreview(false)
                   setEditing(false)
                   setPhotoFile(null)
                   setPaymentQrFile(null)
@@ -1540,7 +1573,7 @@ export default function DashboardScreen() {
     <div className="min-h-screen bg-transparent">
       <div className="mx-auto max-w-6xl px-4 py-5 sm:py-6">
         <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          <aside className="hidden space-y-4 lg:block lg:sticky lg:top-24 lg:self-start">
             <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
               <div className="flex items-center gap-3">
                 <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xl">
