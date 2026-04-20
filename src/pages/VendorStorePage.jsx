@@ -1287,7 +1287,7 @@ export default function VendorStorePage() {
       </div>
 
       {!isOwner && cartEntries.length > 0 && (
-        <div className="fixed inset-x-4 bottom-4 z-30 lg:hidden">
+        <div className="fixed inset-x-4 bottom-24 z-30 lg:hidden">
           <button
             onClick={() => document.getElementById('order-summary')?.scrollIntoView({ behavior: 'smooth' })}
             className="flex w-full items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-left text-white shadow-xl shadow-slate-900/20"
