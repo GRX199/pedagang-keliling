@@ -23,6 +23,7 @@ import {
   formatPriceLabel,
   formatRequestedFulfillmentLabel,
   getNextVendorStatusActions,
+  getOrderOperationalNotice,
   getOrderStatusTone,
   isActiveOrderStatus,
   isHistoryOrderStatus,
@@ -386,7 +387,9 @@ function OrdersPanel({ currentUser, role }) {
     const isHistoryCard = variant === 'history'
     const vendorPaymentActions = isVendor ? getVendorPaymentActions(order) : []
     const buyerPaymentActions = !isVendor ? getBuyerPaymentActions(order) : []
+    const vendorStatusActions = isVendor ? getNextVendorStatusActions(order) : []
     const paymentGuidance = getPaymentGuidance(order, isVendor ? 'vendor' : 'customer')
+    const operationalNotice = getOrderOperationalNotice(order, isVendor ? 'vendor' : 'customer')
     const historyLabel = isHistoryCard ? formatOrderHistoryLabel(order) : ''
     const primaryActionLabel = isHistoryCard ? 'Lihat Detail' : 'Lacak'
     const isPreorder = order.order_timing === 'preorder'
@@ -445,10 +448,15 @@ function OrdersPanel({ currentUser, role }) {
               </div>
             )}
 
-            {(paymentGuidance || order.meeting_point_label || order.customer_note || order.requested_fulfillment_at || Number(order.total_amount || 0) > 0 || historyLabel) && (
+            {(paymentGuidance || operationalNotice || order.meeting_point_label || order.customer_note || order.requested_fulfillment_at || Number(order.total_amount || 0) > 0 || historyLabel) && (
               <div className="mt-3 space-y-1 text-sm text-slate-500">
                 {historyLabel && <div>{historyLabel}</div>}
                 {paymentGuidance && <div>Pembayaran: {paymentGuidance}</div>}
+                {operationalNotice && (
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    {operationalNotice}
+                  </div>
+                )}
                 {order.requested_fulfillment_at && (
                   <div>Jadwal: sekitar {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}</div>
                 )}
@@ -503,16 +511,20 @@ function OrdersPanel({ currentUser, role }) {
               Buka Chat
             </button>
 
-            {isVendor && getNextVendorStatusActions(order.status).map((action) => (
+            {isVendor && vendorStatusActions.map((action) => (
               <button
                 key={action.value}
+                disabled={action.disabled}
                 onClick={() => updateStatus(order.id, action.value)}
+                title={action.disabledReason || action.label}
                 className={`rounded-2xl px-3 py-2 text-sm font-medium ${
-                  action.tone === 'danger'
-                    ? 'border border-red-200 bg-red-50 text-red-600'
-                    : action.tone === 'success'
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-900 text-white'
+                  action.disabled
+                    ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700 opacity-80'
+                    : action.tone === 'danger'
+                      ? 'border border-red-200 bg-red-50 text-red-600'
+                      : action.tone === 'success'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-900 text-white'
                 }`}
               >
                 {action.label}

@@ -121,6 +121,48 @@ export function getVendorPaymentActions(order) {
   return []
 }
 
+function requiresPrepaidConfirmation(order) {
+  return ['qris', 'bank_transfer', 'ewallet'].includes(order?.payment_method)
+}
+
+function isPaymentConfirmed(order) {
+  return order?.payment_status === 'paid'
+}
+
+export function getVendorStatusTransitionBlockReason(order, nextStatus) {
+  if (!order || !nextStatus) return ''
+
+  if (requiresPrepaidConfirmation(order) && !isPaymentConfirmed(order)) {
+    if (['on_the_way', 'arrived', 'completed'].includes(nextStatus)) {
+      return 'Konfirmasi pembayaran pelanggan terlebih dahulu sebelum pesanan dilanjutkan ke pengantaran atau diselesaikan.'
+    }
+  }
+
+  if (order.payment_method === 'cod' && nextStatus === 'completed' && !isPaymentConfirmed(order)) {
+    return 'Tandai COD lunas terlebih dahulu sebelum menyelesaikan pesanan.'
+  }
+
+  return ''
+}
+
+export function getOrderOperationalNotice(order, viewerRole = 'customer') {
+  if (!order) return ''
+
+  if (requiresPrepaidConfirmation(order) && !isPaymentConfirmed(order)) {
+    return viewerRole === 'vendor'
+      ? 'Pesanan ini belum boleh dilanjutkan ke tahap antar atau selesai sampai pembayaran pelanggan benar-benar dikonfirmasi.'
+      : 'Pesanan Anda akan dilanjutkan ke tahap antar setelah pembayaran dikonfirmasi pedagang.'
+  }
+
+  if (order.payment_method === 'cod' && order.status === 'arrived' && !isPaymentConfirmed(order)) {
+    return viewerRole === 'vendor'
+      ? 'Pertemuan sudah tiba. Tandai COD lunas setelah pembayaran diterima, lalu selesaikan pesanan.'
+      : 'Pedagang sudah tiba. Lakukan pembayaran COD saat bertemu agar pesanan bisa diselesaikan.'
+  }
+
+  return ''
+}
+
 export function getBuyerPaymentActions(order) {
   if (!order) return []
   if (!['qris', 'bank_transfer', 'ewallet'].includes(order.payment_method)) return []
@@ -187,24 +229,46 @@ export function getOrderStatusTone(status) {
   }
 }
 
-export function getNextVendorStatusActions(status) {
+export function getNextVendorStatusActions(input) {
+  const order = input && typeof input === 'object' ? input : null
+  const status = order ? order.status : input
+
+  let actions = []
+
   switch (status) {
     case 'pending':
-      return [
+      actions = [
         { value: 'accepted', label: 'Terima', tone: 'primary' },
         { value: 'rejected', label: 'Tolak', tone: 'danger' },
       ]
+      break
     case 'accepted':
-      return [{ value: 'preparing', label: 'Mulai Siapkan', tone: 'primary' }]
+      actions = [{ value: 'preparing', label: 'Mulai Siapkan', tone: 'primary' }]
+      break
     case 'preparing':
-      return [{ value: 'on_the_way', label: 'Sedang Diantar', tone: 'primary' }]
+      actions = [{ value: 'on_the_way', label: 'Sedang Diantar', tone: 'primary' }]
+      break
     case 'on_the_way':
-      return [{ value: 'arrived', label: 'Sudah Tiba', tone: 'primary' }]
+      actions = [{ value: 'arrived', label: 'Sudah Tiba', tone: 'primary' }]
+      break
     case 'arrived':
-      return [{ value: 'completed', label: 'Selesaikan', tone: 'success' }]
+      actions = [{ value: 'completed', label: 'Selesaikan', tone: 'success' }]
+      break
     default:
-      return []
+      actions = []
   }
+
+  if (!order) return actions
+
+  return actions.map((action) => {
+    const disabledReason = getVendorStatusTransitionBlockReason(order, action.value)
+
+    return {
+      ...action,
+      disabled: Boolean(disabledReason),
+      disabledReason,
+    }
+  })
 }
 
 export function isActiveOrderStatus(status) {

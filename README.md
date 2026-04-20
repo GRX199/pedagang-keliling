@@ -43,12 +43,12 @@ npm run dev
 
 Produk ini dibangun sebagai `map-first commerce`, bukan marketplace katalog biasa.
 
-Prioritas pengembangan:
+Prioritas pengembangan yang penting sekarang:
 
-1. fondasi data dan alur order
-2. tracking dan notifikasi realtime
-3. dashboard pelanggan, pedagang, dan admin
-4. fitur pembeda seperti pre-order, alert langganan, dan heatmap
+1. stabilkan flow inti `peta -> toko -> checkout -> chat -> tracking`
+2. rapikan UX mobile dan bedakan pengalaman pelanggan vs pedagang
+3. hardening keamanan, realtime, dan kesiapan production
+4. pertahankan hanya fitur pembeda yang benar-benar membantu transaksi
 
 ## Catatan
 

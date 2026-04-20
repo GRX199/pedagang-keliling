@@ -1,152 +1,142 @@
-# Kelilingku Implementation Roadmap
+# Kelilingku Essential Roadmap
 
-## Goal
+## Fokus Utama
 
-Roadmap ini memecah konsep Kelilingku menjadi fase implementasi yang realistis. Fokusnya adalah membangun fondasi produk yang stabil dulu, baru menambah diferensiasi.
+Roadmap ini sengaja dipersempit hanya ke hal yang paling penting untuk Kelilingku.
 
-## Phase 0: Product Foundation
+Prinsipnya:
+
+- utamakan alur inti `peta -> toko -> checkout -> chat -> tracking -> selesai`
+- stabilkan pengalaman mobile lebih dulu
+- jangan menambah fitur baru jika transaksi inti belum benar-benar nyaman dipakai
+
+## Posisi Produk Saat Ini
+
+Fondasi utama sudah ada:
+
+- auth pelanggan dan pedagang
+- peta utama dengan pedagang online
+- toko vendor dan katalog produk
+- checkout, chat, dan status order
+- tracking order di peta
+- payment info vendor
+- review dan rating
+- admin foundation
+- fitur pembeda awal seperti favorit, pre-order, dan insight wilayah sederhana
+
+Artinya roadmap berikutnya tidak perlu lagi terlalu lebar. Fokus kita sekarang adalah membuat yang sudah ada menjadi kuat, rapi, dan siap dipakai harian.
+
+## Prioritas 1: Core Flow Stability
 
 Tujuan:
 
-- Menyepakati arah produk dan struktur data.
-- Menghindari refactor besar berulang.
+- memastikan alur transaksi inti benar-benar stabil di dua device dan di mobile
 
-Deliverables:
+Yang termasuk penting:
 
-- Blueprint produk
-- Roadmap implementasi
-- Data model Supabase
-- README proyek
-
-Status:
-
-- Sedang dikerjakan sekarang
-
-## Phase 1: Operational MVP
-
-Tujuan:
-
-- Menjadikan Kelilingku usable end-to-end untuk pelanggan dan pedagang.
-
-Scope:
-
-- Landing page sederhana
-- Auth pelanggan dan pedagang
-- Peta utama sebagai home setelah login
-- Marker pedagang online
-- Filter dasar: kategori, radius, status
-- Detail toko
-- Katalog produk
-- Keranjang dan checkout
-- Order status dasar
-- Chat untuk klarifikasi
-- Dashboard pelanggan
-- Dashboard pedagang
-
-Order states minimum:
-
-- `pending`
-- `accepted`
-- `preparing`
-- `on_the_way`
-- `arrived`
-- `completed`
-- `cancelled`
+- live location vendor tetap konsisten saat online
+- notifikasi chat dan order tetap andal tanpa refresh kasar
+- tracking order stabil sampai status selesai
+- tampilan mobile untuk pelanggan dan pedagang benar-benar jelas per role
+- edge case order ditangani dengan baik: batal, ditolak, pembayaran belum cocok, vendor offline
 
 Acceptance criteria:
 
-- Pelanggan bisa menemukan pedagang online di peta.
-- Pelanggan bisa memesan dari katalog toko.
-- Vendor menerima order dan update status realtime.
-- Chat dan notifikasi bekerja cukup andal di dua device.
-- Marker vendor hilang saat vendor offline.
+- pelanggan bisa pesan tanpa bingung dari peta sampai tracking
+- pedagang bisa menerima, memproses, dan menyelesaikan order tanpa langkah yang mubazir
+- tidak ada refresh visual yang mengganggu di chat, pesanan, dan tracking
 
-## Phase 2: Trust And Transaction Quality
+## Prioritas 2: Production Readiness
 
 Tujuan:
 
-- Membuat produk lebih rapi, aman, dan meyakinkan untuk dipakai harian.
+- membuat aplikasi aman dan layak diuji lebih serius di lingkungan online
 
-Scope:
+Yang termasuk penting:
 
-- Rating dan ulasan
-- Jam operasional
-- Area layanan
-- Stok yang lebih jelas
-- ETA dasar
-- Payment confirmation flow untuk QRIS dan transfer
-- Riwayat transaksi yang lebih rapi
-- Admin panel ringan untuk verifikasi vendor dan moderasi
+- audit RLS Supabase per role
+- validasi dan hardening upload
+- audit CORS, env, dan secret handling
+- error state yang lebih jelas untuk jaringan lambat atau izin lokasi ditolak
+- logging operasional dasar untuk bug penting
+- staging checklist dan smoke test sebelum release
 
 Acceptance criteria:
 
-- Pelanggan punya konteks yang cukup sebelum order.
-- Pedagang lebih mudah mengelola ketersediaan dan reputasi.
-- Admin bisa menahan akun bermasalah.
+- pelanggan hanya melihat data miliknya
+- pedagang hanya bisa mengelola tokonya sendiri
+- admin punya kontrol dasar yang aman
+- aplikasi tetap usable saat koneksi tidak ideal
 
-## Phase 3: Differentiation
+## Prioritas 3: Trust And Operations
 
 Tujuan:
 
-- Menambahkan nilai pembeda yang kuat dibanding marketplace biasa.
+- memperkuat rasa percaya dan kualitas operasional, bukan sekadar menambah fitur
 
-Scope:
+Yang termasuk penting:
 
-- Alert pedagang langganan dalam radius tertentu
-- Pre-order berdasarkan area
-- Titik temu pintar
-- Promo ringan
-- Heatmap permintaan
-- Analytics wilayah
-
-Catatan implementasi:
-
-- Heatmap permintaan dan analytics wilayah tahap awal sebaiknya diturunkan dari data `orders` yang sudah ada, terutama `meeting_point_location` dan `customer_location`, agar tetap ringan dan tidak menambah beban schema terlalu cepat.
+- verifikasi pedagang yang lebih jelas
+- profil toko yang konsisten: kategori, jam operasional, area layanan, pembayaran
+- status pembayaran dan order yang mudah dipahami
+- riwayat transaksi yang rapi untuk kedua role
+- review dan rating tetap relevan dan tidak mengganggu flow
 
 Acceptance criteria:
 
-- Fitur baru benar-benar meningkatkan repeat order atau efisiensi pedagang.
-- Tidak menurunkan performa map-first experience.
+- pelanggan punya cukup konteks sebelum order
+- pedagang lebih mudah menjaga reputasi dan kesiapan toko
+- admin bisa menahan akun bermasalah tanpa merusak flow utama
 
-## Recommended Build Order
+## Prioritas 4: Differentiation, Tapi Selektif
 
-1. Rapikan struktur database dan status order.
-2. Finalkan model halaman inti.
-3. Rapikan checkout dan tracking order.
-4. Stabilkan notifikasi dan realtime.
-5. Tambahkan admin foundation.
-6. Masuk ke review, rating, dan payment confirmation.
-7. Baru tambahkan fitur pembeda.
+Tujuan:
 
-## Immediate Implementation Backlog
+- memakai fitur pembeda hanya yang benar-benar membantu repeat order atau efisiensi vendor
 
-### Backend/Data
+Yang tetap layak dipertahankan:
 
-- Tambah tabel kategori dan relasi vendor ke kategori utama.
-- Ubah model order agar lebih kaya dari sekadar teks item.
-- Tambah tabel order items.
-- Tambah tabel notifications.
-- Tambah field pembayaran dan titik temu.
-- Tambah field status operasional vendor.
+- pedagang favorit
+- alert pedagang favorit sudah dekat
+- pre-order berdasarkan area
+- insight wilayah sederhana dari order
 
-### Frontend
+Yang tidak perlu diprioritaskan dulu:
 
-- Landing page publik
-- Filter kategori pada peta
-- Vendor store yang lebih lengkap
-- Checkout terstruktur
-- Halaman tracking order
-- Dashboard pelanggan
+- promo yang terlalu kompleks
+- loyalty program
+- analytics admin yang detail
+- heatmap atau dashboard analitik yang terlalu berat
+- fitur baru yang menambah banyak layar baru
 
-### Admin
+Acceptance criteria:
 
-- Role admin di auth/profile
-- Daftar vendor untuk verifikasi
-- Tindakan approve, suspend, block
+- fitur pembeda membantu keputusan, bukan menambah kebingungan
+- tidak membuat UI makin ramai
+- tidak menurunkan performa pengalaman map-first
 
-## Delivery Rules
+## Build Order Yang Paling Penting
 
-- Setiap fase harus selesai end-to-end sebelum masuk ke fase berikutnya.
-- Jangan menambah fitur diferensiasi saat status order dan tracking belum stabil.
-- Semua penambahan schema harus kompatibel dengan RLS dan realtime.
-- Semua perubahan UI harus tetap mobile-first.
+1. stabilkan core flow pelanggan dan pedagang
+2. rapikan mobile UX per role
+3. hardening security dan production readiness
+4. rapikan trust and operations
+5. pertahankan hanya fitur pembeda yang terbukti berguna
+
+## Yang Harus Ditahan Dulu
+
+Jangan diprioritaskan sekarang:
+
+- payment gateway penuh
+- multi-vendor checkout
+- loyalty
+- sistem promo kompleks
+- analytics admin lanjutan
+- fitur baru yang belum jelas dampaknya ke transaksi inti
+
+## Aturan Kerja
+
+- setiap perubahan harus mobile-first
+- pelanggan dan pedagang harus punya tampilan dan prioritas aksi yang berbeda
+- jika sebuah fitur tidak membantu transaksi inti, pertimbangkan untuk disederhanakan atau dihapus
+- kualitas flow lebih penting daripada banyaknya fitur

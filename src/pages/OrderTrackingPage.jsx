@@ -17,6 +17,7 @@ import {
   formatPaymentStatusLabel,
   formatPriceLabel,
   formatRequestedFulfillmentLabel,
+  getOrderOperationalNotice,
   getVendorPaymentActions,
 } from '../lib/orders'
 import { canBuyerReviewOrder } from '../lib/reviews'
@@ -577,6 +578,7 @@ export default function OrderTrackingPage() {
   const isVendorViewer = user?.id === order.vendor_id
   const paymentGuidance = getPaymentGuidance(order, isVendorViewer ? 'vendor' : 'customer')
   const paymentActions = isVendorViewer ? getVendorPaymentActions(order) : getBuyerPaymentActions(order)
+  const operationalNotice = getOrderOperationalNotice(order, isVendorViewer ? 'vendor' : 'customer')
   const paymentReferenceDetails = getVendorPaymentMethodDetails(vendor?.payment_details, order.payment_method)
   const canShowReviewComposer = canBuyerReviewOrder(order, user?.id)
   const routeReady = Boolean(vendorCoordinates && customerCoordinates)
@@ -747,6 +749,11 @@ export default function OrderTrackingPage() {
                   </div>
                   {paymentGuidance && (
                     <div className="mt-2 text-sm leading-6 text-slate-500">{paymentGuidance}</div>
+                  )}
+                  {operationalNotice && (
+                    <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      {operationalNotice}
+                    </div>
                   )}
                   {order.payment_method !== 'cod' && (
                     <div className="mt-3 rounded-2xl bg-slate-50 p-3">
