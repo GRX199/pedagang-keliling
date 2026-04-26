@@ -125,6 +125,8 @@ export default function OrderTrackingPage() {
   const [mapNotice, setMapNotice] = useState('Menyiapkan peta tracking...')
   const [routeData, setRouteData] = useState(null)
   const [routeNotice, setRouteNotice] = useState('')
+  const [showOrderItems, setShowOrderItems] = useState(false)
+  const [showPaymentDetail, setShowPaymentDetail] = useState(false)
 
   const mapRef = useRef(null)
   const containerRef = useRef(null)
@@ -583,28 +585,29 @@ export default function OrderTrackingPage() {
   const canShowReviewComposer = canBuyerReviewOrder(order, user?.id)
   const routeReady = Boolean(vendorCoordinates && customerCoordinates)
   const isPreorder = order.order_timing === 'preorder'
+  const visibleOrderItems = showOrderItems ? orderItems : orderItems.slice(0, 2)
 
   return (
     <div className="min-h-screen bg-transparent">
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-5 sm:py-6">
-        <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+      <div className="mx-auto max-w-6xl space-y-4 overflow-x-hidden px-3 py-5 sm:px-4 sm:py-6">
+        <section className="min-w-0 rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">Tracking Pesanan</div>
+            <div className="min-w-0">
+              <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400 sm:tracking-[0.22em]">Tracking Pesanan</div>
               <h1 className="mt-2 text-2xl font-semibold text-slate-900">
                 Pesanan #{String(order.id).slice(0, 8)}
               </h1>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
+              <p className="mt-2 hidden text-sm leading-6 text-slate-500 sm:block">
                 Pantau status, peta, dan transaksi dari satu layar.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-wrap">
               {paymentActions.map((action) => (
                 <button
                   key={action.value}
                   onClick={() => updatePaymentStatus(action.value)}
-                  className={`rounded-2xl px-4 py-3 text-sm font-medium ${
+                  className={`min-w-0 whitespace-normal rounded-2xl px-3 py-3 text-sm font-medium leading-tight sm:px-4 ${
                     action.tone === 'danger'
                       ? 'border border-red-200 bg-red-50 text-red-600'
                       : action.tone === 'success'
@@ -617,56 +620,52 @@ export default function OrderTrackingPage() {
               ))}
               <button
                 onClick={() => navigate(`/chat/${partnerId}?order=${order.id}`)}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
+                className="min-w-0 whitespace-normal rounded-2xl border border-slate-200 px-3 py-3 text-sm font-medium leading-tight text-slate-700 sm:px-4"
               >
                 Buka Chat
               </button>
               <button
                 onClick={() => navigate('/dashboard?tab=orders')}
-                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white"
+                className="min-w-0 whitespace-normal rounded-2xl bg-slate-900 px-3 py-3 text-sm font-medium leading-tight text-white sm:px-4"
               >
-                Kembali ke Pesanan
+                Pesanan
               </button>
             </div>
           </div>
 
-          <div className="mt-4 text-xs text-slate-400">
+          <div className="mt-3 text-xs text-slate-400">
             {refreshing ? 'Tracking diperbarui di background...' : 'Tracking aktif dan diperbarui di background'}
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+        <section className="grid min-w-0 grid-cols-3 gap-2 sm:gap-4">
+          <div className="min-w-0 rounded-[18px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[24px] sm:p-4">
             <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Status Tracking</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{formatOrderStatusLabel(order.status)}</div>
-            <div className="mt-1 text-xs text-slate-500">
+            <div className="mt-2 break-words text-base font-semibold leading-tight text-slate-900 sm:text-lg">{formatOrderStatusLabel(order.status)}</div>
+            <div className="mt-1 hidden text-xs text-slate-500 sm:block">
               {routeReady
                 ? (routeData?.mode === 'road' ? 'Peta dan rute jalan aktif diperbarui di background' : 'Tracking aktif dengan fallback garis lurus')
                 : 'Tracking akan lengkap setelah kedua posisi tersedia'}
             </div>
           </div>
-          <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+          <div className="min-w-0 rounded-[18px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[24px] sm:p-4">
             <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Jarak Saat Ini</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{formatDistance(routeDistance)}</div>
-            <div className="mt-1 text-xs text-slate-500">{routeReady ? 'Dihitung dari dua titik aktif di peta' : 'Menunggu data lokasi lengkap'}</div>
+            <div className="mt-2 break-words text-base font-semibold leading-tight text-slate-900 sm:text-lg">{formatDistance(routeDistance)}</div>
+            <div className="mt-1 hidden text-xs text-slate-500 sm:block">{routeReady ? 'Dihitung dari dua titik aktif di peta' : 'Menunggu data lokasi lengkap'}</div>
           </div>
-          <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+          <div className="min-w-0 rounded-[18px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[24px] sm:p-4">
             <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Estimasi Tiba</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{routeEtaLabel}</div>
-            <div className="mt-1 text-xs text-slate-500">
+            <div className="mt-2 break-words text-base font-semibold leading-tight text-slate-900 sm:text-lg">{routeEtaLabel}</div>
+            <div className="mt-1 hidden text-xs text-slate-500 sm:block">
               {order.status === 'on_the_way' ? 'Pedagang sedang menuju titik pelanggan' : 'Akan makin akurat saat pedagang bergerak'}
             </div>
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_360px]">
-          <div className="space-y-4">
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-              <OrderStatusTimeline status={order.status} />
-            </div>
-
-            <div className="overflow-hidden rounded-[28px] bg-white p-2 shadow-sm ring-1 ring-slate-200/80">
-              <div className="flex items-center justify-between px-3 pb-2 pt-1 text-xs text-slate-500">
+        <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.15fr)_360px]">
+          <div className="min-w-0 space-y-4">
+            <div className="overflow-hidden rounded-[22px] bg-white p-2 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px]">
+              <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-1 text-xs text-slate-500">
                 <div className="flex items-center gap-4">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full bg-emerald-500" />
@@ -677,14 +676,14 @@ export default function OrderTrackingPage() {
                     Pelanggan
                   </span>
                 </div>
-                <span>
+                <span className="hidden text-right sm:inline">
                   {routeReady
                     ? (routeData?.mode === 'road' ? 'Rute mengikuti jalan yang tersedia saat ini' : 'Menampilkan garis lurus cadangan')
                     : 'Menunggu dua titik lengkap'}
                 </span>
               </div>
               <div className="relative">
-                <div ref={containerRef} className="tracking-map h-[56vh] min-h-[360px] rounded-[22px]" />
+                <div ref={containerRef} className="tracking-map h-[52vh] min-h-[320px] rounded-[18px] sm:h-[56vh] sm:min-h-[360px] sm:rounded-[22px]" />
               </div>
               {mapNotice && (
                 <div className="px-3 pb-2 pt-3 text-xs text-slate-500">{mapNotice}</div>
@@ -694,30 +693,43 @@ export default function OrderTrackingPage() {
               )}
             </div>
 
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+            <div className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
+              <OrderStatusTimeline status={order.status} />
+            </div>
+
+            <div className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
               <h2 className="text-lg font-semibold text-slate-900">Item Pesanan</h2>
               <div className="mt-4 space-y-3">
                 {orderItems.length > 0 ? (
-                  orderItems.map((item) => (
-                    <div key={item.id} className="rounded-2xl bg-slate-50 p-4">
-                      <div className="font-medium text-slate-900">{item.product_name_snapshot}</div>
+                  visibleOrderItems.map((item) => (
+                    <div key={item.id} className="min-w-0 rounded-2xl bg-slate-50 p-4">
+                      <div className="break-words font-medium text-slate-900">{item.product_name_snapshot}</div>
                       <div className="mt-1 text-sm text-slate-500">Jumlah: {item.quantity}</div>
-                      {item.item_note && <div className="mt-1 text-sm text-slate-600">Catatan: {item.item_note}</div>}
+                      {item.item_note && <div className="mt-1 break-words text-sm text-slate-600">Catatan: {item.item_note}</div>}
                       <div className="mt-2 text-sm font-medium text-slate-700">
                         {formatPriceLabel(item.line_total || item.price_snapshot)}
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 whitespace-pre-wrap">
+                  <div className="whitespace-pre-wrap break-words rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
                     {order.items || 'Belum ada detail item.'}
                   </div>
                 )}
               </div>
+              {orderItems.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => setShowOrderItems((current) => !current)}
+                  className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  {showOrderItems ? 'Tampilkan lebih sedikit' : `Lihat ${orderItems.length - 2} item lainnya`}
+                </button>
+              )}
             </div>
 
             {(canShowReviewComposer || review) && (
-              <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+              <div className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
                 <OrderReviewComposer
                   order={order}
                   existingReview={review}
@@ -730,97 +742,106 @@ export default function OrderTrackingPage() {
             )}
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+          <aside className="min-w-0 space-y-4 lg:sticky lg:top-24 lg:self-start">
+            <div className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
               <h2 className="text-lg font-semibold text-slate-900">Ringkasan</h2>
               <div className="mt-4 space-y-3 text-sm text-slate-600">
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Pedagang</div>
-                  <div className="mt-1 font-medium text-slate-900">{order.vendor_name || vendor?.name || 'Pedagang'}</div>
+                  <div className="mt-1 break-words font-medium text-slate-900">{order.vendor_name || vendor?.name || 'Pedagang'}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Status</div>
-                  <div className="mt-1 font-medium text-slate-900">{formatOrderStatusLabel(order.status)}</div>
+                  <div className="mt-1 break-words font-medium text-slate-900">{formatOrderStatusLabel(order.status)}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Pembayaran</div>
-                  <div className="mt-1 font-medium text-slate-900">
+                  <div className="mt-1 break-words font-medium text-slate-900">
                     {formatPaymentMethodLabel(order.payment_method)} • {formatPaymentStatusLabel(order.payment_status)}
                   </div>
                   {paymentGuidance && (
-                    <div className="mt-2 text-sm leading-6 text-slate-500">{paymentGuidance}</div>
+                    <div className="mt-2 break-words text-sm leading-6 text-slate-500">{paymentGuidance}</div>
                   )}
                   {operationalNotice && (
-                    <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    <div className="mt-3 break-words rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                       {operationalNotice}
                     </div>
                   )}
                   {order.payment_method !== 'cod' && (
                     <div className="mt-3 rounded-2xl bg-slate-50 p-3">
-                      <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Detail bayar</div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Detail bayar</div>
+                        <button
+                          type="button"
+                          onClick={() => setShowPaymentDetail((current) => !current)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 sm:hidden"
+                        >
+                          {showPaymentDetail ? 'Tutup' : 'Buka'}
+                        </button>
+                      </div>
                       {paymentReferenceDetails.ready ? (
-                        <div className="mt-2 space-y-3">
-                          <div className="text-sm text-slate-600">{paymentReferenceDetails.description}</div>
+                        <div className={`${showPaymentDetail ? 'mt-2 block' : 'hidden'} space-y-3 sm:mt-2 sm:block`}>
+                          <div className="break-words text-sm text-slate-600">{paymentReferenceDetails.description}</div>
                           {paymentReferenceDetails.imageUrl && (
                             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-2">
                               <img
                                 src={paymentReferenceDetails.imageUrl}
                                 alt={paymentReferenceDetails.title}
-                                className="h-56 w-full rounded-xl object-contain"
+                                className="h-44 w-full rounded-xl object-contain sm:h-56"
                               />
                             </div>
                           )}
                           {paymentReferenceDetails.rows.map((row) => (
                             <div key={row.label}>
                               <div className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</div>
-                              <div className="mt-1 font-medium text-slate-900">{row.value}</div>
+                              <div className="mt-1 break-words font-medium text-slate-900">{row.value}</div>
                             </div>
                           ))}
                           {paymentReferenceDetails.note && (
-                            <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                            <div className="break-words rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                               Catatan pedagang: {paymentReferenceDetails.note}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="mt-2 text-sm text-slate-500">
+                        <div className="mt-2 break-words text-sm text-slate-500">
                           Pedagang belum menyiapkan detail pembayaran untuk metode ini. Lanjutkan koordinasi lewat chat.
                         </div>
                       )}
                     </div>
                   )}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Serah terima</div>
-                  <div className="mt-1 font-medium text-slate-900">{formatFulfillmentTypeLabel(order.fulfillment_type)}</div>
+                  <div className="mt-1 break-words font-medium text-slate-900">{formatFulfillmentTypeLabel(order.fulfillment_type)}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Mode pesanan</div>
-                  <div className="mt-1 font-medium text-slate-900">{formatOrderTimingLabel(order.order_timing)}</div>
+                  <div className="mt-1 break-words font-medium text-slate-900">{formatOrderTimingLabel(order.order_timing)}</div>
                 </div>
                 {order.requested_fulfillment_at && (
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Jadwal</div>
-                    <div className="mt-1 font-medium text-slate-900">
+                    <div className="mt-1 break-words font-medium text-slate-900">
                       {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}
                     </div>
                   </div>
                 )}
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">
                     {isPreorder ? 'Area titip' : 'Titik temu'}
                   </div>
-                  <div className="mt-1 font-medium text-slate-900">{order.meeting_point_label || 'Belum diisi'}</div>
+                  <div className="mt-1 break-words font-medium text-slate-900">{order.meeting_point_label || 'Belum diisi'}</div>
                 </div>
                 {order.customer_note && (
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Catatan</div>
-                    <div className="mt-1 text-slate-700">{order.customer_note}</div>
+                    <div className="mt-1 break-words text-slate-700">{order.customer_note}</div>
                   </div>
                 )}
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Total</div>
-                  <div className="mt-1 font-medium text-slate-900">
+                  <div className="mt-1 break-words font-medium text-slate-900">
                     {Number(order.total_amount || 0) > 0 ? formatPriceLabel(order.total_amount) : 'Menyesuaikan harga produk'}
                   </div>
                 </div>

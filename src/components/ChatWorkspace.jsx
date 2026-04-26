@@ -48,52 +48,52 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOp
   const isActive = isActiveOrderStatus(order.status)
 
   return (
-    <div className="rounded-[24px] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-4 text-white shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-2xl">
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-300">Order Terkait</div>
+    <div className="min-w-0 max-w-full overflow-hidden rounded-[20px] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-3 text-white shadow-sm sm:rounded-[24px] sm:p-4">
+      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 max-w-2xl">
+          <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-300">Order Terkait</div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <div className="text-lg font-semibold tracking-tight">
+            <div className="break-words text-base font-semibold tracking-tight sm:text-lg">
               Pesanan #{String(order.id).slice(0, 8)}
             </div>
-            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-slate-100 ring-1 ring-white/10">
+            <span className="max-w-full rounded-full bg-white/10 px-3 py-1 text-xs font-medium leading-tight text-slate-100 ring-1 ring-white/10">
               {formatOrderStatusLabel(order.status)}
             </span>
           </div>
-          <div className="mt-2 text-sm text-slate-200">
+          <div className="mt-2 break-words text-sm text-slate-200">
             {counterpartName}
             {relatedCount > 1 ? ` • ${relatedCount} transaksi terkait` : ''}
           </div>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
+          <p className="mt-2 hidden text-sm leading-6 text-slate-300 sm:block">
             {isActive
               ? 'Order aktif ini diprioritaskan supaya percakapan tetap fokus ke transaksi yang sedang berjalan.'
               : 'Order terbaru yang terkait dengan percakapan ini tetap bisa dibuka lagi untuk klarifikasi atau tindak lanjut.'}
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <button
             onClick={onTrackOrder}
-            className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
+            className="min-w-0 rounded-2xl bg-white px-4 py-3 text-sm font-medium leading-tight text-slate-900 transition hover:bg-slate-100"
           >
             Lacak
           </button>
           <button
             onClick={onOpenOrders}
-            className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+            className="min-w-0 whitespace-normal rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium leading-tight text-white transition hover:bg-white/15"
           >
-            Buka Pesanan
+            Pesanan
           </button>
         </div>
       </div>
 
       <div className="mt-4 rounded-2xl bg-white/10 px-3 py-3 text-sm text-slate-200 md:hidden">
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
+        <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1">
           <span>{formatPaymentMethodLabel(order.payment_method)}</span>
           <span>{formatPaymentStatusLabel(order.payment_status)}</span>
           <span>{formatFulfillmentTypeLabel(order.fulfillment_type)}</span>
         </div>
-        <div className="mt-2 text-xs text-slate-300">
+        <div className="mt-2 line-clamp-2 break-words text-xs leading-5 text-slate-300">
           {Number(order.total_amount || 0) > 0
             ? `${formatPriceLabel(order.total_amount)} • `
             : ''}
@@ -277,8 +277,8 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-3 overflow-auto rounded-2xl border border-slate-100 bg-slate-50 p-3">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="min-h-0 flex-1 space-y-3 overflow-auto rounded-2xl border border-slate-100 bg-slate-50 p-3">
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-slate-500">
             Belum ada pesan. Mulai percakapan dari sini.
@@ -289,14 +289,14 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
             return (
               <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                  className={`max-w-[88%] overflow-hidden rounded-2xl px-3 py-2 text-sm sm:max-w-[85%] ${
                     mine
                       ? 'bg-slate-900 text-white'
                       : 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
                   }`}
                 >
-                  <div>{message.text}</div>
-                  <div className={`mt-1 text-right text-xs ${mine ? 'text-slate-300' : 'text-slate-400'}`}>
+                  <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                  <div className={`mt-1 break-words text-right text-xs ${mine ? 'text-slate-300' : 'text-slate-400'}`}>
                     {message.created_at ? new Date(message.created_at).toLocaleString('id-ID') : '-'}
                   </div>
                 </div>
@@ -307,8 +307,8 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
         <div ref={endRef} />
       </div>
 
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <input
+      <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row">
+        <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
@@ -317,13 +317,14 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
               sendMessage()
             }
           }}
-          className="flex-1 rounded-2xl border border-slate-200 px-4 py-3"
+          rows={1}
+          className="min-h-[48px] min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3"
           placeholder="Ketik pesan..."
         />
         <button
           onClick={sendMessage}
           disabled={sending || !text.trim()}
-          className="rounded-2xl bg-slate-900 px-4 py-3 text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+          className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400 sm:min-w-24"
         >
           {sending ? 'Mengirim...' : 'Kirim'}
         </button>
@@ -627,12 +628,12 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
   }, [selectedPartnerId, toast, user?.id])
 
   return (
-    <div className={`grid gap-4 ${embedded ? 'grid-cols-1 xl:grid-cols-[320px_1fr]' : 'grid-cols-1 lg:grid-cols-[320px_1fr]'}`}>
-      <div className={`rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 ${selectedChat && !showInboxMobile ? 'hidden lg:block' : ''}`}>
+    <div className={`grid min-w-0 max-w-full gap-4 ${embedded ? 'grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)]' : 'grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]'}`}>
+      <div className={`min-w-0 overflow-hidden rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] ${selectedChat && !showInboxMobile ? 'hidden lg:block' : ''}`}>
         <div className="mb-3 flex items-center justify-between">
-          <div>
+          <div className="min-w-0">
             <div className="font-semibold text-slate-900">Daftar Chat</div>
-            <div className="text-sm text-slate-500">Pilih percakapan untuk mulai ngobrol.</div>
+            <div className="text-sm text-slate-500">Pilih percakapan.</div>
           </div>
         </div>
 
@@ -655,7 +656,7 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
                 <button
                   key={chat.id}
                   onClick={() => selectChat(chat.id)}
-                  className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
+                  className={`flex min-w-0 w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
                     active
                       ? 'border-slate-900 bg-slate-50'
                       : 'border-slate-200 bg-white hover:border-slate-300'
@@ -686,14 +687,14 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
         </div>
       </div>
 
-      <div className={`rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 ${selectedChat && !showInboxMobile ? 'block' : 'hidden lg:block'}`}>
+      <div className={`min-w-0 max-w-full overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-4 ${selectedChat && !showInboxMobile ? 'block' : 'hidden lg:block'}`}>
         {selectedChat ? (
           <>
             <div className="mb-3 border-b border-slate-100 pb-3">
               <div className="flex items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm text-slate-500">Sedang chat dengan</div>
-                  <div className="font-semibold text-slate-900">
+                  <div className="truncate font-semibold text-slate-900">
                     {selectedPartnerLabel}
                   </div>
                 </div>
@@ -706,7 +707,7 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
                 </button>
               </div>
             </div>
-            <div className="space-y-3">
+            <div className="min-w-0 space-y-3">
               {loadingRelatedOrders ? (
                 <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
                   Menautkan pesanan terkait ke percakapan ini...
@@ -724,8 +725,8 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
 
               <div
                 className={embedded
-                  ? (featuredOrder ? 'h-[52vh] sm:h-[50vh]' : 'h-[62vh] sm:h-[60vh]')
-                  : (featuredOrder ? 'h-[62vh] sm:h-[58vh]' : 'h-[72vh] sm:h-[70vh]')}
+                  ? (featuredOrder ? 'h-[50vh] min-h-[360px] sm:h-[50vh]' : 'h-[62vh] min-h-[420px] sm:h-[60vh]')
+                  : (featuredOrder ? 'h-[58vh] min-h-[390px] sm:h-[58vh]' : 'h-[70vh] min-h-[460px] sm:h-[70vh]')}
               >
               <ChatThread
                 chatId={selectedChat.id}
