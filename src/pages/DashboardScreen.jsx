@@ -787,6 +787,8 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
   const [saving, setSaving] = useState(false)
   const [savingLocation, setSavingLocation] = useState(false)
   const [showPaymentPreview, setShowPaymentPreview] = useState(false)
+  const [showVendorPromoEditor, setShowVendorPromoEditor] = useState(false)
+  const [showVendorPaymentEditor, setShowVendorPaymentEditor] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
   const [paymentQrFile, setPaymentQrFile] = useState(null)
   const [form, setForm] = useState({
@@ -974,6 +976,8 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
 
       toast.push('Profil berhasil diperbarui', { type: 'success' })
       setEditing(false)
+      setShowVendorPromoEditor(false)
+      setShowVendorPaymentEditor(false)
       setPhotoFile(null)
       setPaymentQrFile(null)
       setForm((current) => ({
@@ -1264,6 +1268,8 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
               <button
                 onClick={() => {
                   setShowPaymentPreview(false)
+                  setShowVendorPromoEditor(false)
+                  setShowVendorPaymentEditor(false)
                   setEditing(true)
                 }}
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -1326,12 +1332,29 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                 />
 
                 <div className="rounded-[24px] border border-slate-200 p-4">
-                  <div className="text-sm font-semibold text-slate-900">Promo Ringan</div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Tampilkan penawaran singkat yang akan muncul di peta dan profil toko pelanggan.
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">Promo Ringan</div>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        Tampilkan penawaran singkat yang akan muncul di peta dan profil toko pelanggan.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowVendorPromoEditor((current) => !current)}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
+                    >
+                      {showVendorPromoEditor ? 'Tutup' : 'Buka'}
+                    </button>
+                  </div>
 
-                  <div className="mt-4 space-y-3">
+                  {!showVendorPromoEditor && (
+                    <div className="mt-3 text-sm text-slate-500 sm:hidden">
+                      Buka bagian ini saat Anda ingin menambah atau mengubah promo toko.
+                    </div>
+                  )}
+
+                  <div className={`${showVendorPromoEditor ? 'mt-4 block' : 'hidden'} space-y-3 sm:mt-4 sm:block`}>
                     <textarea
                       className="min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3"
                       value={form.promo_text}
@@ -1351,12 +1374,29 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                 </div>
 
                 <div className="rounded-[24px] border border-slate-200 p-4">
-                  <div className="text-sm font-semibold text-slate-900">Pembayaran Non-Tunai</div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Isi QRIS, rekening bank, atau e-wallet yang ingin langsung terlihat oleh pelanggan saat checkout.
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">Pembayaran Non-Tunai</div>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        Isi QRIS, rekening bank, atau e-wallet yang ingin langsung terlihat oleh pelanggan saat checkout.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowVendorPaymentEditor((current) => !current)}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
+                    >
+                      {showVendorPaymentEditor ? 'Tutup' : 'Buka'}
+                    </button>
+                  </div>
 
-                  <div className="mt-4 space-y-4">
+                  {!showVendorPaymentEditor && (
+                    <div className="mt-3 text-sm text-slate-500 sm:hidden">
+                      Buka bagian ini saat Anda ingin memperbarui QRIS, rekening, atau e-wallet.
+                    </div>
+                  )}
+
+                  <div className={`${showVendorPaymentEditor ? 'mt-4 block' : 'hidden'} space-y-4 sm:mt-4 sm:block`}>
                     <div>
                       <label className="block text-sm font-medium text-slate-700">Foto QRIS</label>
                       {form.payment_qris_image_url && (
@@ -1461,6 +1501,8 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
               <button
                 onClick={() => {
                   setShowPaymentPreview(false)
+                  setShowVendorPromoEditor(false)
+                  setShowVendorPaymentEditor(false)
                   setEditing(false)
                   setPhotoFile(null)
                   setPaymentQrFile(null)

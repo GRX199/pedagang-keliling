@@ -1322,13 +1322,13 @@ export default function MapViewPage() {
               )}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-              <div className="rounded-[20px] bg-slate-900 p-4 text-white">
+            <div className="flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 xl:grid-cols-1">
+              <div className="min-w-[220px] rounded-[20px] bg-slate-900 p-4 text-white sm:min-w-0">
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Pedagang Online</div>
                 <div className="mt-2 text-2xl font-semibold">{onlineVendorCount}</div>
                 <div className="mt-1 text-sm text-slate-300">Siap diajak chat atau dipesan.</div>
               </div>
-              <div className="rounded-[20px] bg-emerald-50 p-4 ring-1 ring-emerald-100">
+              <div className="min-w-[220px] rounded-[20px] bg-emerald-50 p-4 ring-1 ring-emerald-100 sm:min-w-0">
                 <div className="text-xs uppercase tracking-[0.2em] text-emerald-700">Online Dalam Radius</div>
                 <div className="mt-2 text-2xl font-semibold text-slate-900">
                   {userLocation ? onlineVendorsWithinRadius.length : '-'}
@@ -1337,7 +1337,7 @@ export default function MapViewPage() {
                   {userLocation ? `Dalam radius ${radiusKm} km dari posisi Anda.` : 'Aktifkan lokasi untuk menghitung radius.'}
                 </div>
               </div>
-              <div className="rounded-[20px] bg-slate-50 p-4 ring-1 ring-slate-200">
+              <div className="min-w-[220px] rounded-[20px] bg-slate-50 p-4 ring-1 ring-slate-200 sm:min-w-0">
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Hasil Ditampilkan</div>
                 <div className="mt-2 text-2xl font-semibold text-slate-900">{filteredVendorCount}</div>
                 <div className="mt-1 text-sm text-slate-500">
@@ -1378,7 +1378,16 @@ export default function MapViewPage() {
                   return (
                     <div
                       key={vendor.id}
-                      className={`rounded-[24px] border p-4 transition ${
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => focusVendor(vendor)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          focusVendor(vendor)
+                        }
+                      }}
+                      className={`cursor-pointer rounded-[24px] border p-4 transition ${
                         active
                           ? 'border-slate-900 bg-slate-50 shadow-sm'
                           : 'border-slate-200 bg-white hover:border-slate-300'
@@ -1424,7 +1433,7 @@ export default function MapViewPage() {
                           </div>
                           <div className="mt-1 text-sm text-slate-500">{formatDistanceLabel(vendorDistance)}</div>
                           <div className="mt-2 text-sm leading-6 text-slate-600">
-                            {vendor.description ? String(vendor.description).slice(0, 120) : 'Belum ada deskripsi toko.'}
+                            {vendor.description ? String(vendor.description).slice(0, 96) : 'Belum ada deskripsi toko.'}
                           </div>
                           {hasPromo ? (
                             <div className="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-xs font-medium leading-5 text-amber-800">
@@ -1442,7 +1451,7 @@ export default function MapViewPage() {
                           <>
                             <button
                               onClick={() => focusVendor(vendor)}
-                              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                              className="hidden rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
                             >
                               Pantau Toko
                             </button>
@@ -1457,7 +1466,7 @@ export default function MapViewPage() {
                           <>
                             <button
                               onClick={() => focusVendor(vendor)}
-                              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                              className="hidden rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
                             >
                               Pilih Toko
                             </button>
@@ -1534,7 +1543,7 @@ export default function MapViewPage() {
               </div>
             )}
 
-            <div className="rounded-[30px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+            <div className="hidden rounded-[30px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80 xl:block">
               {!selectedVendor ? (
                 <>
                   <h2 className="text-lg font-semibold text-slate-900">Detail toko</h2>
@@ -1706,6 +1715,143 @@ export default function MapViewPage() {
           <div className="overflow-hidden rounded-[30px] bg-white p-2 shadow-lg shadow-slate-200/50 ring-1 ring-slate-200/70">
             <div ref={containerRef} className="h-[52vh] rounded-[24px] sm:h-[60vh] lg:h-[68vh]" />
           </div>
+
+          {selectedVendor ? (
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 xl:hidden">
+              <div className="flex items-start gap-3">
+                <div className="h-14 w-14 overflow-hidden rounded-2xl bg-slate-100">
+                  {selectedVendor.photo_url ? (
+                    <img src={selectedVendor.photo_url} alt={selectedVendor.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-lg font-semibold text-slate-500">
+                      {(selectedVendor.name || 'P')[0]}
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-base font-semibold text-slate-900">{selectedVendor.name}</div>
+                      <div className="mt-1 text-sm text-slate-500">{formatDistanceLabel(selectedVendorDistance)}</div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedVendor(null)}
+                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-50"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      selectedVendor.online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {selectedVendor.online ? 'Online' : 'Offline'}
+                    </span>
+                    {getVendorCategory(selectedVendor) ? (
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                        {formatVendorCategoryLabel(getVendorCategory(selectedVendor))}
+                      </span>
+                    ) : null}
+                    {getVendorReviewCount(selectedVendor) > 0 ? (
+                      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                        {formatVendorRatingMeta(selectedVendor)}
+                      </span>
+                    ) : null}
+                    {selectedVendorHasPromo ? (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                        Promo Aktif
+                      </span>
+                    ) : null}
+                    {isCustomerViewer && selectedVendorIsFavorite ? (
+                      <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                        Favorit
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 text-sm leading-6 text-slate-600">
+                {selectedVendor.description
+                  ? String(selectedVendor.description).slice(0, 120)
+                  : 'Belum ada deskripsi toko.'}
+              </div>
+
+              {selectedVendorIsMine ? (
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <button
+                    onClick={toggleMyOnlineStatus}
+                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
+                  >
+                    {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
+                  </button>
+                  <button
+                    onClick={syncStoreLocationNow}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    {syncingStoreLocation ? 'Sinkron...' : 'Sinkron Lokasi'}
+                  </button>
+                  <button
+                    onClick={() => navigate('/dashboard?tab=products')}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Kelola Produk
+                  </button>
+                  <button
+                    onClick={() => navigate('/dashboard?tab=profile')}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Edit Profil
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => navigate(`/chat/${selectedVendor.id}`)}
+                      className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Chat
+                    </button>
+                    <button
+                      onClick={() => navigate(`/vendor/${selectedVendor.id}#order-summary`)}
+                      className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
+                    >
+                      Pesan
+                    </button>
+                  </div>
+
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <button
+                      onClick={() => navigate(`/vendor/${selectedVendor.id}`)}
+                      className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Profil Toko
+                    </button>
+                    {isCustomerViewer && favoriteFeatureEnabled ? (
+                      <button
+                        onClick={() => void toggleVendorFavorite(selectedVendor)}
+                        disabled={favoriteBusyVendorId === selectedVendor.id}
+                        className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                          selectedVendorIsFavorite
+                            ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70'
+                            : 'border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70'
+                        }`}
+                      >
+                        {favoriteBusyVendorId === selectedVendor.id
+                          ? 'Menyimpan...'
+                          : selectedVendorIsFavorite
+                            ? 'Favorit Tersimpan'
+                            : 'Simpan Favorit'}
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
         </section>
       </div>
     </div>
