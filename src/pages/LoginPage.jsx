@@ -130,7 +130,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#dbeafe_0%,#eff6ff_24%,#f8fafc_52%,#e2e8f0_100%)] px-4 py-8 sm:px-6">
+    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,#dbeafe_0%,#eff6ff_24%,#f8fafc_52%,#e2e8f0_100%)] px-3 py-5 sm:px-6 sm:py-8">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_460px]">
         <section className="hidden overflow-hidden rounded-[34px] border border-slate-200/80 bg-slate-950 text-white shadow-2xl shadow-slate-900/15 lg:block">
           <div className="bg-[linear-gradient(135deg,#0f172a_0%,#172554_42%,#14532d_100%)] p-7 sm:p-9">
@@ -180,23 +180,35 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-xl rounded-[34px] border border-slate-200/80 bg-white/92 p-6 shadow-xl shadow-slate-200/60 backdrop-blur sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+        <section className="mx-auto w-full max-w-xl rounded-[24px] border border-slate-200/80 bg-white/92 p-4 shadow-xl shadow-slate-200/60 backdrop-blur sm:rounded-[34px] sm:p-8">
+          <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
+            <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-sm font-bold text-white">
+                K
+              </span>
+              Kelilingku
+            </Link>
+            <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+              {roleSummary.label}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:tracking-[0.22em]">
                 {mode === 'login' ? 'Login' : 'Register'}
               </div>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
                 {mode === 'login' ? 'Masuk ke akun Anda' : 'Buat akun Kelilingku'}
               </h2>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
+              <p className="mt-2 hidden text-sm leading-7 text-slate-600 sm:block">
                 {mode === 'login'
                   ? 'Gunakan email dan password yang sudah terdaftar.'
                   : 'Pilih peran yang sesuai agar tampilan aplikasi langsung menyesuaikan alur Anda.'}
               </p>
             </div>
 
-            <div className="inline-flex rounded-full bg-slate-100 p-1">
+            <div className="grid grid-cols-2 rounded-full bg-slate-100 p-1 sm:inline-flex">
               <button
                 type="button"
                 onClick={() => setMode('login')}
@@ -218,7 +230,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4 sm:mt-8">
             {mode === 'register' ? (
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-slate-700">Nama lengkap</span>
@@ -267,7 +279,7 @@ export default function LoginPage() {
                         key={option.value}
                         type="button"
                         onClick={() => setRole(option.value)}
-                        className={`rounded-[24px] border p-4 text-left transition ${
+                        className={`min-w-0 rounded-2xl border p-3 text-left transition sm:rounded-[24px] sm:p-4 ${
                           active
                             ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
                             : 'border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-300 hover:bg-white'
@@ -279,7 +291,7 @@ export default function LoginPage() {
                             active ? 'border-white bg-white/20' : 'border-slate-300 bg-white'
                           }`} />
                         </div>
-                        <div className={`mt-2 text-sm leading-6 ${active ? 'text-slate-200' : 'text-slate-600'}`}>
+                        <div className={`mt-2 line-clamp-2 text-sm leading-6 sm:line-clamp-none ${active ? 'text-slate-200' : 'text-slate-600'}`}>
                           {option.description}
                         </div>
                       </button>
@@ -295,11 +307,11 @@ export default function LoginPage() {
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                   : 'border-rose-200 bg-rose-50 text-rose-700'
               }`}>
-                {inlineMsg}
+                <span className="break-words">{inlineMsg}</span>
               </div>
             ) : null}
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="grid gap-3 sm:flex sm:items-center">
               <button
                 disabled={loading}
                 className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
@@ -319,7 +331,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={handleResendVerification}
-                  className="text-sm font-medium text-slate-500 underline-offset-4 transition hover:text-slate-900 hover:underline sm:ml-auto"
+                  className="text-center text-sm font-medium text-slate-500 underline-offset-4 transition hover:text-slate-900 hover:underline sm:ml-auto"
                 >
                   Kirim ulang verifikasi
                 </button>
