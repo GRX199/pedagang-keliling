@@ -106,6 +106,8 @@ export default function VendorStorePage() {
   const [favoriteVendorIds, setFavoriteVendorIds] = useState([])
   const [favoriteFeatureEnabled, setFavoriteFeatureEnabled] = useState(true)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
+  const [showCustomerNote, setShowCustomerNote] = useState(false)
+  const [showAllReviews, setShowAllReviews] = useState(false)
 
   const isOwner = user?.id === id
   const isFavorite = isVendorFavorited(favoriteVendorIds, id)
@@ -288,6 +290,7 @@ export default function VendorStorePage() {
       return (left.name || '').localeCompare(right.name || '', 'id')
     })
   }, [isOwner, products])
+  const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 2)
 
   useEffect(() => {
     if (availablePaymentMethods.length === 0) return
@@ -343,6 +346,7 @@ export default function VendorStorePage() {
     setMeetingPointLabel('')
     setMeetingPointLocation(null)
     setCustomerNote('')
+    setShowCustomerNote(false)
   }
 
   async function applyMeetingPointPreset(preset) {
@@ -748,8 +752,19 @@ export default function VendorStorePage() {
 
             {!isOwner && (
               <section id="order-summary" className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-                <h2 className="text-lg font-semibold text-slate-900">Ringkasan Pesanan</h2>
-                <p className="mt-1 text-sm text-slate-500">Pilih produk di sebelah kanan, lalu kirim pesanan sekaligus buka chat.</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">Ringkasan Pesanan</h2>
+                    <p className="mt-1 text-sm text-slate-500 sm:leading-6">
+                      Kirim pesanan lalu lanjut koordinasi lewat chat.
+                    </p>
+                  </div>
+                  {cartEntries.length > 0 && (
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                      {cartTotals.items} item
+                    </span>
+                  )}
+                </div>
 
                 {cartEntries.length === 0 ? (
                   <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
@@ -780,7 +795,7 @@ export default function VendorStorePage() {
 
                     <div className="rounded-2xl border border-slate-200 p-4">
                       <div className="text-sm font-medium text-slate-900">Waktu Pesanan</div>
-                      <div className="mt-2 text-sm text-slate-500">
+                      <div className="mt-2 hidden text-sm text-slate-500 sm:block">
                         {getOrderTimingHint(orderTiming)}
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -808,22 +823,18 @@ export default function VendorStorePage() {
                         </button>
                       </div>
                       {orderTiming === 'preorder' && (
-                        <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                          Gunakan mode ini jika Anda ingin pedagang menyiapkan pesanan untuk area Anda saat melewati rute tersebut.
-                        </div>
+                        <>
+                          <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            Pilih waktu perkiraan agar pedagang bisa menyesuaikan rute.
+                          </div>
+                          <input
+                            type="datetime-local"
+                            value={requestedFulfillmentAt}
+                            onChange={(event) => setRequestedFulfillmentAt(event.target.value)}
+                            className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+                          />
+                        </>
                       )}
-                      <input
-                        type="datetime-local"
-                        value={requestedFulfillmentAt}
-                        onChange={(event) => setRequestedFulfillmentAt(event.target.value)}
-                        className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
-                        disabled={orderTiming !== 'preorder'}
-                      />
-                      <div className="mt-2 text-xs text-slate-500">
-                        {orderTiming === 'preorder'
-                          ? 'Waktu ini membantu pedagang memprioritaskan titip pesanan sesuai area dan rute Anda.'
-                          : 'Isi waktu hanya jika Anda memilih titip untuk nanti.'}
-                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 p-4">
@@ -852,7 +863,7 @@ export default function VendorStorePage() {
                           </button>
                         ))}
                       </div>
-                      <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      <div className="mt-3 hidden rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:block">
                         {paymentMethod === 'cod'
                           ? 'Pembayaran dilakukan saat bertemu pedagang. Cocok untuk transaksi yang ingin diselesaikan langsung di titik temu atau saat pesanan tiba.'
                           : `${formatPaymentMethodLabel(paymentMethod)} akan menampilkan detail pembayaran milik pedagang di bawah. Setelah membayar, kirim konfirmasi dari chat atau halaman pesanan agar pedagang bisa memeriksa.`}
@@ -870,7 +881,7 @@ export default function VendorStorePage() {
                                   <img
                                     src={selectedPaymentDetails.imageUrl}
                                     alt={selectedPaymentDetails.title}
-                                    className="h-56 w-full rounded-xl object-contain"
+                                    className="h-44 w-full rounded-xl object-contain sm:h-56"
                                   />
                                 </div>
                               )}
@@ -903,7 +914,7 @@ export default function VendorStorePage() {
 
                     <div className="rounded-2xl border border-slate-200 p-4">
                       <div className="text-sm font-medium text-slate-900">Metode Serah Terima</div>
-                      <div className="mt-2 text-sm text-slate-500">
+                      <div className="mt-2 hidden text-sm text-slate-500 sm:block">
                         {getFulfillmentTypeHint(fulfillmentType)}
                       </div>
                       {orderTiming === 'preorder' && (
@@ -968,13 +979,28 @@ export default function VendorStorePage() {
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 p-4">
-                      <label className="text-sm font-medium text-slate-900">Catatan Pesanan</label>
-                      <textarea
-                        value={customerNote}
-                        onChange={(event) => setCustomerNote(event.target.value)}
-                        className="mt-3 min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
-                        placeholder="Contoh: saya tunggu di depan rumah, tolong hubungi saat sudah dekat"
-                      />
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-slate-900">Catatan Pesanan</label>
+                        <button
+                          type="button"
+                          onClick={() => setShowCustomerNote((current) => !current)}
+                          className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                        >
+                          {showCustomerNote || customerNote ? 'Tutup' : 'Tambah'}
+                        </button>
+                      </div>
+                      {(showCustomerNote || customerNote) ? (
+                        <textarea
+                          value={customerNote}
+                          onChange={(event) => setCustomerNote(event.target.value)}
+                          className="mt-3 min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+                          placeholder="Contoh: tunggu di depan rumah, tidak pedas, hubungi saat dekat"
+                        />
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-500">
+                          Opsional. Tambahkan kalau ada instruksi khusus untuk pedagang.
+                        </div>
+                      )}
                     </div>
 
                     {!user ? (
@@ -1239,7 +1265,7 @@ export default function VendorStorePage() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-slate-900">Ulasan Pelanggan</h2>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 hidden text-sm text-slate-500 sm:block">
                     Bagian ini membantu pelanggan baru melihat pengalaman transaksi yang sudah selesai.
                   </p>
                 </div>
@@ -1256,7 +1282,7 @@ export default function VendorStorePage() {
                 </div>
               ) : (
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {reviews.map((review) => (
+                  {visibleReviews.map((review) => (
                     <article key={review.id} className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -1280,6 +1306,15 @@ export default function VendorStorePage() {
                     </article>
                   ))}
                 </div>
+              )}
+              {reviews.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllReviews((current) => !current)}
+                  className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  {showAllReviews ? 'Tampilkan lebih sedikit' : `Lihat ${reviews.length - 2} ulasan lainnya`}
+                </button>
               )}
             </section>
           </main>

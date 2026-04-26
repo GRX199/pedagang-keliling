@@ -72,7 +72,7 @@ function OrdersSummaryCard({ label, value, hint, tone = 'default' }) {
   const hintClass = tone === 'primary' ? 'text-slate-300' : 'text-slate-500'
 
   return (
-    <div className={`rounded-[24px] p-4 ${toneClass}`}>
+    <div className={`min-w-[210px] rounded-[24px] p-4 md:min-w-0 ${toneClass}`}>
       <div className="text-xs font-medium uppercase tracking-[0.16em] opacity-80">{label}</div>
       <div className="mt-2 text-3xl font-semibold">{value}</div>
       <div className={`mt-1 text-sm ${hintClass}`}>{hint}</div>
@@ -291,14 +291,22 @@ function OrdersPanel({ currentUser, role }) {
 
   function renderOrderItems(order) {
     if (Array.isArray(order.order_items) && order.order_items.length > 0) {
+      const visibleItems = order.order_items.slice(0, 2)
+      const hiddenItemsCount = order.order_items.length - visibleItems.length
+
       return (
         <div className="mt-2 space-y-1 text-sm text-slate-600">
-          {order.order_items.map((item) => (
+          {visibleItems.map((item) => (
             <div key={item.id}>
               {item.product_name_snapshot} x{item.quantity}
               {item.item_note ? ` • ${item.item_note}` : ''}
             </div>
           ))}
+          {hiddenItemsCount > 0 && (
+            <div className="text-xs font-medium text-slate-400">
+              +{hiddenItemsCount} item lain
+            </div>
+          )}
         </div>
       )
     }
@@ -324,7 +332,7 @@ function OrdersPanel({ currentUser, role }) {
     return (
       <div
         key={order.id}
-        className={`rounded-[24px] border p-4 transition ${
+        className={`rounded-[20px] border p-3 transition sm:rounded-[24px] sm:p-4 ${
           isHighlighted
             ? 'border-slate-900/10 bg-white shadow-sm'
             : 'border-slate-200 bg-slate-50/70'
@@ -384,7 +392,7 @@ function OrdersPanel({ currentUser, role }) {
                 {order.meeting_point_label && (
                   <div>{isPreorder ? 'Area titip: ' : 'Titik temu: '}{order.meeting_point_label}</div>
                 )}
-                {order.customer_note && <div>Catatan: {order.customer_note}</div>}
+                {order.customer_note && <div className="hidden sm:block">Catatan: {order.customer_note}</div>}
                 {Number(order.total_amount || 0) > 0 && (
                   <div className="font-medium text-slate-700">
                     Total: {formatPriceLabel(order.total_amount)}
@@ -414,10 +422,10 @@ function OrdersPanel({ currentUser, role }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:flex md:flex-wrap md:items-center">
             <button
               onClick={() => navigate(`/orders/${order.id}`)}
-              className={`rounded-2xl px-3 py-2 text-sm font-medium ${
+              className={`w-full rounded-2xl px-3 py-2 text-sm font-medium md:w-auto ${
                 isHighlighted
                   ? 'bg-slate-900 text-white'
                   : 'border border-slate-200 bg-white text-slate-700'
@@ -427,7 +435,7 @@ function OrdersPanel({ currentUser, role }) {
             </button>
             <button
               onClick={() => navigate(`/chat/${isVendor ? order.buyer_id : order.vendor_id}?order=${order.id}`)}
-              className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
+              className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 md:w-auto"
             >
               Buka Chat
             </button>
@@ -438,7 +446,7 @@ function OrdersPanel({ currentUser, role }) {
                 disabled={action.disabled}
                 onClick={() => updateStatus(order.id, action.value)}
                 title={action.disabledReason || action.label}
-                className={`rounded-2xl px-3 py-2 text-sm font-medium ${
+                className={`w-full rounded-2xl px-3 py-2 text-sm font-medium md:w-auto ${
                   action.disabled
                     ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700 opacity-80'
                     : action.tone === 'danger'
@@ -456,7 +464,7 @@ function OrdersPanel({ currentUser, role }) {
               <button
                 key={action.value}
                 onClick={() => updatePaymentStatus(order.id, action.value)}
-                className={`rounded-2xl px-3 py-2 text-sm font-medium ${
+                className={`w-full rounded-2xl px-3 py-2 text-sm font-medium md:w-auto ${
                   action.tone === 'danger'
                     ? 'border border-red-200 bg-red-50 text-red-600'
                     : 'bg-emerald-600 text-white'
@@ -469,7 +477,7 @@ function OrdersPanel({ currentUser, role }) {
             {!isVendor && order.status === 'pending' && (
               <button
                 onClick={() => updateStatus(order.id, 'cancelled')}
-                className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600"
+                className="w-full rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 md:w-auto"
               >
                 Batalkan
               </button>
@@ -479,7 +487,7 @@ function OrdersPanel({ currentUser, role }) {
               <button
                 key={action.value}
                 onClick={() => updatePaymentStatus(order.id, action.value)}
-                className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                className="w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm font-medium text-white md:w-auto"
               >
                 {action.label}
               </button>
@@ -588,7 +596,7 @@ function OrdersPanel({ currentUser, role }) {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible">
         <OrdersSummaryCard
           label={isVendor ? 'Aktif Sekarang' : 'Pesanan Aktif'}
           value={activeOrders.length}
