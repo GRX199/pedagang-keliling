@@ -72,10 +72,10 @@ function OrdersSummaryCard({ label, value, hint, tone = 'default' }) {
   const hintClass = tone === 'primary' ? 'text-slate-300' : 'text-slate-500'
 
   return (
-    <div className={`min-w-[210px] rounded-[24px] p-4 md:min-w-0 ${toneClass}`}>
-      <div className="text-xs font-medium uppercase tracking-[0.16em] opacity-80">{label}</div>
+    <div className={`min-w-0 rounded-[20px] p-3 sm:rounded-[24px] sm:p-4 ${toneClass}`}>
+      <div className="break-words text-xs font-medium uppercase tracking-[0.16em] opacity-80">{label}</div>
       <div className="mt-2 text-3xl font-semibold">{value}</div>
-      <div className={`mt-1 text-sm ${hintClass}`}>{hint}</div>
+      <div className={`mt-1 text-sm leading-5 ${hintClass}`}>{hint}</div>
     </div>
   )
 }
@@ -295,9 +295,9 @@ function OrdersPanel({ currentUser, role }) {
       const hiddenItemsCount = order.order_items.length - visibleItems.length
 
       return (
-        <div className="mt-2 space-y-1 text-sm text-slate-600">
+        <div className="mt-2 min-w-0 space-y-1 text-sm text-slate-600">
           {visibleItems.map((item) => (
-            <div key={item.id}>
+            <div key={item.id} className="break-words">
               {item.product_name_snapshot} x{item.quantity}
               {item.item_note ? ` • ${item.item_note}` : ''}
             </div>
@@ -312,7 +312,7 @@ function OrdersPanel({ currentUser, role }) {
     }
 
     return (
-      <div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{order.items || '-'}</div>
+      <div className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{order.items || '-'}</div>
     )
   }
 
@@ -332,37 +332,37 @@ function OrdersPanel({ currentUser, role }) {
     return (
       <div
         key={order.id}
-        className={`rounded-[20px] border p-3 transition sm:rounded-[24px] sm:p-4 ${
+        className={`min-w-0 max-w-full overflow-hidden rounded-[20px] border p-3 transition sm:rounded-[24px] sm:p-4 ${
           isHighlighted
             ? 'border-slate-900/10 bg-white shadow-sm'
             : 'border-slate-200 bg-slate-50/70'
         }`}
       >
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="font-medium text-slate-900">{title}</div>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide ${getOrderStatusTone(order.status)}`}>
+              <div className="min-w-0 break-words font-medium text-slate-900">{title}</div>
+              <span className={`max-w-full rounded-full px-3 py-1 text-center text-xs font-medium uppercase leading-tight tracking-wide ${getOrderStatusTone(order.status)}`}>
                 {formatOrderStatusLabel(order.status)}
               </span>
             </div>
 
             {renderOrderItems(order)}
 
-            <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-              <span className="rounded-full bg-slate-100 px-3 py-1">
+            <div className="mt-3 flex min-w-0 flex-wrap gap-2 text-xs text-slate-500">
+              <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1 leading-tight">
                 {formatPaymentMethodLabel(order.payment_method)}
               </span>
-              <span className="rounded-full bg-slate-100 px-3 py-1">
+              <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1 leading-tight">
                 {formatPaymentStatusLabel(order.payment_status)}
               </span>
               {order.fulfillment_type && (
-                <span className="rounded-full bg-slate-100 px-3 py-1">
+                <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1 leading-tight">
                   {formatFulfillmentTypeLabel(order.fulfillment_type)}
                 </span>
               )}
               {order.order_timing && (
-                <span className={`rounded-full px-3 py-1 ${
+                <span className={`max-w-full break-words rounded-full px-3 py-1 leading-tight ${
                   isPreorder
                     ? 'bg-sky-50 text-sky-700'
                     : 'bg-slate-100 text-slate-600'
@@ -371,28 +371,28 @@ function OrdersPanel({ currentUser, role }) {
                 </span>
               )}
               {!isVendor && order.review && (
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                <span className="max-w-full break-words rounded-full bg-amber-50 px-3 py-1 leading-tight text-amber-700">
                   Ulasan sudah dikirim
                 </span>
               )}
             </div>
 
             {(paymentGuidance || operationalNotice || order.meeting_point_label || order.customer_note || order.requested_fulfillment_at || Number(order.total_amount || 0) > 0 || historyLabel) && (
-              <div className="mt-3 space-y-1 text-sm text-slate-500">
-                {historyLabel && <div>{historyLabel}</div>}
-                {paymentGuidance && <div>Pembayaran: {paymentGuidance}</div>}
+              <div className="mt-3 min-w-0 space-y-1 text-sm text-slate-500">
+                {historyLabel && <div className="break-words">{historyLabel}</div>}
+                {paymentGuidance && <div className="break-words">Pembayaran: {paymentGuidance}</div>}
                 {operationalNotice && (
-                  <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  <div className="break-words rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                     {operationalNotice}
                   </div>
                 )}
                 {order.requested_fulfillment_at && (
-                  <div>Jadwal: sekitar {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}</div>
+                  <div className="break-words">Jadwal: sekitar {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}</div>
                 )}
                 {order.meeting_point_label && (
-                  <div>{isPreorder ? 'Area titip: ' : 'Titik temu: '}{order.meeting_point_label}</div>
+                  <div className="break-words">{isPreorder ? 'Area titip: ' : 'Titik temu: '}{order.meeting_point_label}</div>
                 )}
-                {order.customer_note && <div className="hidden sm:block">Catatan: {order.customer_note}</div>}
+                {order.customer_note && <div className="hidden break-words sm:block">Catatan: {order.customer_note}</div>}
                 {Number(order.total_amount || 0) > 0 && (
                   <div className="font-medium text-slate-700">
                     Total: {formatPriceLabel(order.total_amount)}
@@ -422,10 +422,10 @@ function OrdersPanel({ currentUser, role }) {
             </div>
           </div>
 
-          <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:flex md:flex-wrap md:items-center">
+          <div className="grid min-w-0 w-full grid-cols-2 gap-2 md:w-auto md:flex md:flex-wrap md:items-center">
             <button
               onClick={() => navigate(`/orders/${order.id}`)}
-              className={`w-full rounded-2xl px-3 py-2 text-sm font-medium md:w-auto ${
+              className={`w-full min-w-0 whitespace-normal rounded-2xl px-3 py-2 text-center text-sm font-medium leading-tight md:w-auto ${
                 isHighlighted
                   ? 'bg-slate-900 text-white'
                   : 'border border-slate-200 bg-white text-slate-700'
@@ -435,7 +435,7 @@ function OrdersPanel({ currentUser, role }) {
             </button>
             <button
               onClick={() => navigate(`/chat/${isVendor ? order.buyer_id : order.vendor_id}?order=${order.id}`)}
-              className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 md:w-auto"
+              className="w-full min-w-0 whitespace-normal rounded-2xl border border-slate-200 px-3 py-2 text-center text-sm font-medium leading-tight text-slate-700 md:w-auto"
             >
               Buka Chat
             </button>
@@ -446,7 +446,7 @@ function OrdersPanel({ currentUser, role }) {
                 disabled={action.disabled}
                 onClick={() => updateStatus(order.id, action.value)}
                 title={action.disabledReason || action.label}
-                className={`w-full rounded-2xl px-3 py-2 text-sm font-medium md:w-auto ${
+                className={`w-full min-w-0 whitespace-normal rounded-2xl px-3 py-2 text-center text-sm font-medium leading-tight md:w-auto ${
                   action.disabled
                     ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700 opacity-80'
                     : action.tone === 'danger'
@@ -464,7 +464,7 @@ function OrdersPanel({ currentUser, role }) {
               <button
                 key={action.value}
                 onClick={() => updatePaymentStatus(order.id, action.value)}
-                className={`w-full rounded-2xl px-3 py-2 text-sm font-medium md:w-auto ${
+                className={`w-full min-w-0 whitespace-normal rounded-2xl px-3 py-2 text-center text-sm font-medium leading-tight md:w-auto ${
                   action.tone === 'danger'
                     ? 'border border-red-200 bg-red-50 text-red-600'
                     : 'bg-emerald-600 text-white'
@@ -477,7 +477,7 @@ function OrdersPanel({ currentUser, role }) {
             {!isVendor && order.status === 'pending' && (
               <button
                 onClick={() => updateStatus(order.id, 'cancelled')}
-                className="w-full rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 md:w-auto"
+                className="w-full min-w-0 whitespace-normal rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-center text-sm font-medium leading-tight text-red-600 md:w-auto"
               >
                 Batalkan
               </button>
@@ -487,7 +487,7 @@ function OrdersPanel({ currentUser, role }) {
               <button
                 key={action.value}
                 onClick={() => updatePaymentStatus(order.id, action.value)}
-                className="w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm font-medium text-white md:w-auto"
+                className="w-full min-w-0 whitespace-normal rounded-2xl bg-slate-900 px-3 py-2 text-center text-sm font-medium leading-tight text-white md:w-auto"
               >
                 {action.label}
               </button>
@@ -532,7 +532,7 @@ function OrdersPanel({ currentUser, role }) {
   const spotlightOrder = activeOrders[0] || orders[0] || null
 
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
       {!isVendor && (
         <section className="mb-5 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -596,7 +596,7 @@ function OrdersPanel({ currentUser, role }) {
         </div>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-3">
         <OrdersSummaryCard
           label={isVendor ? 'Aktif Sekarang' : 'Pesanan Aktif'}
           value={activeOrders.length}
@@ -1621,8 +1621,8 @@ export default function DashboardScreen() {
 
   return (
     <div className="min-h-screen bg-transparent">
-      <div className="mx-auto max-w-6xl px-4 py-5 sm:py-6">
-        <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="mx-auto max-w-6xl overflow-x-hidden px-3 py-5 sm:px-4 sm:py-6">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
           <aside className="hidden space-y-4 lg:block lg:sticky lg:top-24 lg:self-start">
             <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
               <div className="flex items-center gap-3">
@@ -1679,7 +1679,7 @@ export default function DashboardScreen() {
             </nav>
           </aside>
 
-          <main className="space-y-4">
+          <main className="min-w-0 max-w-full space-y-4">
             {accountStatus !== 'active' && !isAdmin ? (
               <div className={`rounded-[28px] p-4 text-sm shadow-sm ring-1 ${
                 accountStatus === 'blocked'
@@ -1692,9 +1692,9 @@ export default function DashboardScreen() {
               </div>
             ) : null}
 
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+            <div className="min-w-0 rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+                <div className="min-w-0">
                   <h1 className="text-2xl font-semibold text-slate-900">
                     {activeTab === 'admin' && 'Panel Admin'}
                     {activeTab === 'products' && 'Produk Saya'}
