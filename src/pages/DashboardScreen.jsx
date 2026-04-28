@@ -622,7 +622,7 @@ function OrdersPanel({ currentUser, role }) {
       </div>
 
       {isVendor && orders.length > 0 && (
-        <div className="mt-5 hidden xl:block">
+        <div className="mt-4 sm:mt-5">
           <VendorDemandInsights orders={orders} />
         </div>
       )}
