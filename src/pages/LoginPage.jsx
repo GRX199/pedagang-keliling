@@ -188,9 +188,11 @@ export default function LoginPage() {
               </span>
               Kelilingku
             </Link>
-            <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-              {roleSummary.label}
-            </div>
+            {mode === 'register' ? (
+              <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                {roleSummary.label}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

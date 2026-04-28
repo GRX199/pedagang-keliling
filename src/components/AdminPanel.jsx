@@ -50,10 +50,10 @@ function SummaryCard({ label, value, hint, tone = 'default' }) {
   const hintClass = tone === 'primary' ? 'text-slate-300' : 'text-slate-500'
 
   return (
-    <div className={`rounded-[24px] p-4 ${toneClass}`}>
-      <div className="text-xs font-medium uppercase tracking-[0.16em] opacity-80">{label}</div>
+    <div className={`min-w-0 rounded-[20px] p-3 sm:rounded-[24px] sm:p-4 ${toneClass}`}>
+      <div className="break-words text-xs font-medium uppercase tracking-[0.12em] opacity-80 sm:tracking-[0.16em]">{label}</div>
       <div className="mt-2 text-3xl font-semibold">{value}</div>
-      <div className={`mt-1 text-sm ${hintClass}`}>{hint}</div>
+      <div className={`mt-1 hidden text-sm sm:block ${hintClass}`}>{hint}</div>
     </div>
   )
 }
@@ -282,13 +282,13 @@ export default function AdminPanel({ currentUser }) {
   const blockedCount = vendors.filter((vendor) => vendor.account_status === 'blocked').length
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+    <div className="min-w-0 space-y-4">
+      <section className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Admin Foundation</div>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Verifikasi pedagang dan moderasi dasar</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
+          <div className="min-w-0 max-w-2xl">
+            <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500 sm:tracking-[0.18em]">Admin Foundation</div>
+            <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">Verifikasi pedagang</h3>
+            <p className="mt-2 hidden text-sm leading-6 text-slate-500 sm:block">
               Panel ini sengaja dibuat ringan: fokus ke vendor yang perlu diverifikasi, ditangguhkan, atau diblokir lebih dulu.
               Analytics dan laporan lanjutan bisa menyusul setelah fondasi operasional ini stabil.
             </p>
@@ -299,7 +299,7 @@ export default function AdminPanel({ currentUser }) {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
           <SummaryCard
             label="Total Pedagang"
             value={vendors.length}
@@ -325,7 +325,7 @@ export default function AdminPanel({ currentUser }) {
         </div>
       </section>
 
-      <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+      <section className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-slate-700">Cari pedagang</span>
@@ -337,10 +337,10 @@ export default function AdminPanel({ currentUser }) {
             />
           </label>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             <button
               onClick={() => setFilter('all')}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-full px-3 py-2 text-sm font-medium transition sm:px-4 ${
                 filter === 'all' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-700'
               }`}
             >
@@ -348,15 +348,15 @@ export default function AdminPanel({ currentUser }) {
             </button>
             <button
               onClick={() => setFilter('verification')}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-full px-3 py-2 text-sm font-medium transition sm:px-4 ${
                 filter === 'verification' ? 'bg-amber-500 text-white' : 'border border-slate-200 bg-white text-slate-700'
               }`}
             >
-              Perlu verifikasi
+              Verifikasi
             </button>
             <button
               onClick={() => setFilter('suspended')}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-full px-3 py-2 text-sm font-medium transition sm:px-4 ${
                 filter === 'suspended' ? 'bg-amber-600 text-white' : 'border border-slate-200 bg-white text-slate-700'
               }`}
             >
@@ -364,7 +364,7 @@ export default function AdminPanel({ currentUser }) {
             </button>
             <button
               onClick={() => setFilter('blocked')}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-full px-3 py-2 text-sm font-medium transition sm:px-4 ${
                 filter === 'blocked' ? 'bg-rose-600 text-white' : 'border border-slate-200 bg-white text-slate-700'
               }`}
             >
@@ -386,37 +386,37 @@ export default function AdminPanel({ currentUser }) {
               const blockedStatusActionKey = `status:${vendor.id}:blocked`
 
               return (
-                <div key={vendor.id} className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div key={vendor.id} className="min-w-0 rounded-[20px] border border-slate-200 bg-slate-50/70 p-3 sm:rounded-[24px] sm:p-4">
+                  <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-lg font-semibold text-slate-900">{vendor.name || vendor.profile?.display_name || 'Pedagang'}</div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-medium ${vendor.is_verified ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-100'}`}>
+                        <div className="break-words text-base font-semibold text-slate-900 sm:text-lg">{vendor.name || vendor.profile?.display_name || 'Pedagang'}</div>
+                        <span className={`max-w-full break-words rounded-full px-3 py-1 text-xs font-medium leading-tight ${vendor.is_verified ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-100'}`}>
                           {vendor.is_verified ? 'Terverifikasi' : 'Belum diverifikasi'}
                         </span>
-                        <span className={`rounded-full px-3 py-1 text-xs font-medium ${getAccountStatusTone(vendor.account_status)}`}>
+                        <span className={`max-w-full break-words rounded-full px-3 py-1 text-xs font-medium leading-tight ${getAccountStatusTone(vendor.account_status)}`}>
                           {getAccountStatusLabel(vendor.account_status)}
                         </span>
-                        <span className={`rounded-full px-3 py-1 text-xs font-medium ${vendor.online ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100' : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'}`}>
+                        <span className={`max-w-full break-words rounded-full px-3 py-1 text-xs font-medium leading-tight ${vendor.online ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100' : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'}`}>
                           {vendor.online ? 'Sedang online' : 'Sedang offline'}
                         </span>
                       </div>
 
-                      <div className="mt-2 text-sm leading-6 text-slate-600">
+                      <div className="mt-2 line-clamp-2 break-words text-sm leading-6 text-slate-600">
                         {vendor.description || 'Belum ada deskripsi toko.'}
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                        <span className="rounded-full bg-white px-3 py-1 ring-1 ring-slate-200">
+                      <div className="mt-3 flex min-w-0 flex-wrap gap-2 text-xs text-slate-500">
+                        <span className="max-w-full break-words rounded-full bg-white px-3 py-1 leading-tight ring-1 ring-slate-200">
                           {formatVendorCategoryLabel(vendor.category_primary)}
                         </span>
-                        <span className="rounded-full bg-white px-3 py-1 ring-1 ring-slate-200">
+                        <span className="max-w-full break-words rounded-full bg-white px-3 py-1 leading-tight ring-1 ring-slate-200">
                           {formatVendorServiceMode(vendor.service_mode)}
                         </span>
-                        <span className="rounded-full bg-white px-3 py-1 ring-1 ring-slate-200">
+                        <span className="max-w-full break-words rounded-full bg-white px-3 py-1 leading-tight ring-1 ring-slate-200">
                           {formatVendorServiceRadius(vendor.service_radius_km)}
                         </span>
-                        <span className="rounded-full bg-white px-3 py-1 ring-1 ring-slate-200">
+                        <span className="max-w-full break-words rounded-full bg-white px-3 py-1 leading-tight ring-1 ring-slate-200">
                           {getOperatingHoursText(vendor.operating_hours)}
                         </span>
                       </div>
@@ -426,11 +426,11 @@ export default function AdminPanel({ currentUser }) {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 xl:w-[260px]">
+                    <div className="grid min-w-0 gap-2 xl:w-[260px]">
                       <button
                         onClick={() => updateVerification(vendor, !vendor.is_verified)}
                         disabled={savingKey === verificationActionKey}
-                        className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                        className={`min-w-0 whitespace-normal rounded-2xl px-4 py-3 text-sm font-medium leading-tight transition ${
                           vendor.is_verified
                             ? 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                             : 'bg-emerald-600 text-white hover:bg-emerald-700'
@@ -445,21 +445,21 @@ export default function AdminPanel({ currentUser }) {
                         <button
                           onClick={() => updateAccountStatus(vendor, 'active')}
                           disabled={savingKey === activeStatusActionKey}
-                          className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                          className="min-w-0 whitespace-normal rounded-2xl border border-slate-200 bg-white px-2 py-3 text-xs font-medium leading-tight text-slate-700 transition hover:bg-slate-50 sm:px-3"
                         >
                           {savingKey === activeStatusActionKey ? '...' : 'Aktifkan'}
                         </button>
                         <button
                           onClick={() => updateAccountStatus(vendor, 'suspended')}
                           disabled={savingKey === suspendedStatusActionKey}
-                          className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                          className="min-w-0 whitespace-normal rounded-2xl border border-amber-200 bg-amber-50 px-2 py-3 text-xs font-medium leading-tight text-amber-700 transition hover:bg-amber-100 sm:px-3"
                         >
                           {savingKey === suspendedStatusActionKey ? '...' : 'Suspend'}
                         </button>
                         <button
                           onClick={() => updateAccountStatus(vendor, 'blocked')}
                           disabled={savingKey === blockedStatusActionKey}
-                          className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+                          className="min-w-0 whitespace-normal rounded-2xl border border-rose-200 bg-rose-50 px-2 py-3 text-xs font-medium leading-tight text-rose-700 transition hover:bg-rose-100 sm:px-3"
                         >
                           {savingKey === blockedStatusActionKey ? '...' : 'Blokir'}
                         </button>

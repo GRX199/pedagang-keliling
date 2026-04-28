@@ -139,14 +139,14 @@ function TopNav() {
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-4">
-              <Link to={user ? (isAdmin ? '/dashboard?tab=admin' : '/map') : '/'} className="inline-flex items-center gap-3">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white shadow-sm">
+        <div className="mx-auto max-w-6xl px-3 py-3 sm:px-4">
+          <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
+            <div className="min-w-0 flex items-center gap-4">
+              <Link to={user ? (isAdmin ? '/dashboard?tab=admin' : '/map') : '/'} className="inline-flex min-w-0 items-center gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white shadow-sm">
                   K
                 </span>
-                <span>
+                <span className="min-w-0">
                   <span className="block text-lg font-bold tracking-tight text-slate-900">Kelilingku</span>
                   <span className="hidden text-xs text-slate-500 sm:block">Belanja sekitar, langsung terhubung</span>
                 </span>
@@ -159,13 +159,13 @@ function TopNav() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
               {user ? (
                 <>
                   {avatarUrl ? (
-                    <img src={avatarUrl} alt="avatar" className="h-9 w-9 rounded-full object-cover ring-2 ring-slate-100" />
+                    <img src={avatarUrl} alt="avatar" className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-slate-100" />
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
                       {(user.user_metadata?.full_name || user.email || 'U')[0]}
                     </div>
                   )}
@@ -201,9 +201,9 @@ function TopNav() {
       </header>
 
       {user && (
-        <nav className="fixed inset-x-3 bottom-3 z-50 md:hidden">
+        <nav className="fixed inset-x-2 bottom-3 z-50 md:hidden">
           <div
-            className="grid rounded-[26px] border border-slate-200/80 bg-white/95 p-2 shadow-2xl shadow-slate-900/10 backdrop-blur"
+            className="grid rounded-[24px] border border-slate-200/80 bg-white/95 p-1.5 shadow-2xl shadow-slate-900/10 backdrop-blur sm:inset-x-3 sm:p-2"
             style={{ gridTemplateColumns: `repeat(${navItems.length || 1}, minmax(0, 1fr))` }}
           >
             {navItems.map((item) => (
@@ -211,7 +211,7 @@ function TopNav() {
                 key={item.to}
                 to={item.to}
                 aria-label={item.label}
-                className={`rounded-[18px] px-2 py-2.5 text-center text-[11px] font-medium transition ${
+                className={`min-w-0 rounded-[16px] px-1 py-2 text-center text-[10px] font-medium transition sm:rounded-[18px] sm:px-2 sm:py-2.5 sm:text-[11px] ${
                   item.active
                     ? 'bg-slate-900 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -219,7 +219,7 @@ function TopNav() {
               >
                 <span className="flex flex-col items-center gap-1">
                   <span className={`h-1.5 w-1.5 rounded-full ${item.active ? 'bg-white' : 'bg-slate-300'}`} />
-                  <span className="truncate">{item.label}</span>
+                  <span className="max-w-full truncate">{item.label}</span>
                   {item.count > 0 ? (
                     <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                       item.active ? 'bg-white/15 text-white' : 'bg-rose-500 text-white'
