@@ -177,6 +177,7 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [pendingImage, setPendingImage] = useState(null)
   const endRef = useRef(null)
   const fileInputRef = useRef(null)
   const messageIdsRef = useRef(new Set())
@@ -288,7 +289,18 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  useEffect(() => {
+    return () => {
+      if (pendingImage?.previewUrl) URL.revokeObjectURL(pendingImage.previewUrl)
+    }
+  }, [pendingImage?.previewUrl])
+
   async function sendMessage() {
+    if (pendingImage) {
+      await sendImageMessage()
+      return
+    }
+
     if (sending || !chatId || !currentUser || !text.trim()) return
 
     setSending(true)
@@ -305,15 +317,15 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
     }
   }
 
-  async function sendImageMessage(file) {
-    if (sending || !chatId || !currentUser || !file) return
+  async function sendImageMessage() {
+    if (sending || !chatId || !currentUser || !pendingImage?.file) return
 
-    const caption = text.trim() || 'Bukti pembayaran'
+    const caption = text.trim()
     setSending(true)
     setUploadingImage(true)
     try {
       const imageUrl = await uploadImageFile({
-        file,
+        file: pendingImage.file,
         vendorId: currentUser.id,
         folder: 'chat',
       })
@@ -323,6 +335,7 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
       applyMessageRows(message ? [message] : [])
       onMessageActivity?.(chatId, message)
       setText('')
+      setPendingImage(null)
       toast.push('Foto berhasil dikirim', { type: 'success' })
     } catch (error) {
       console.error('sendImageMessage', error)
@@ -333,10 +346,20 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
     }
   }
 
+  function clearPendingImage() {
+    setPendingImage(null)
+  }
+
   function handleImageInputChange(event) {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (file) void sendImageMessage(file)
+    if (!file) return
+
+    setPendingImage({
+      file,
+      previewUrl: URL.createObjectURL(file),
+      name: file.name,
+    })
   }
 
   return (
@@ -392,6 +415,35 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
         <div ref={endRef} />
       </div>
 
+      {pendingImage ? (
+        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+              <img
+                src={pendingImage.previewUrl}
+                alt={pendingImage.name || 'Preview foto'}
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-slate-900">Foto siap dikirim</div>
+              <div className="mt-1 truncate text-xs text-slate-500">{pendingImage.name}</div>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Tulis caption jika perlu, lalu tekan Kirim. Jika caption kosong, foto tetap dikirim tanpa caption.
+              </p>
+              <button
+                type="button"
+                onClick={clearPendingImage}
+                disabled={sending}
+                className="mt-2 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row">
         <input
           ref={fileInputRef}
@@ -411,7 +463,7 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
           }}
           rows={1}
           className="min-h-[48px] min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3"
-          placeholder="Ketik pesan atau catatan bukti pembayaran..."
+          placeholder={pendingImage ? 'Tulis caption opsional...' : 'Ketik pesan...'}
         />
         <div className="grid grid-cols-2 gap-2 sm:flex">
           <button
@@ -420,14 +472,14 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
             disabled={sending || !chatId || !currentUser}
             className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 sm:min-w-24"
           >
-            {uploadingImage ? 'Upload...' : 'Foto'}
+            {pendingImage ? 'Ganti Foto' : 'Foto'}
           </button>
           <button
             onClick={sendMessage}
-            disabled={sending || !text.trim()}
+            disabled={sending || (!text.trim() && !pendingImage)}
             className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400 sm:min-w-24"
           >
-            {sending && !uploadingImage ? 'Mengirim...' : 'Kirim'}
+            {uploadingImage ? 'Upload...' : sending ? 'Mengirim...' : 'Kirim'}
           </button>
         </div>
       </div>
