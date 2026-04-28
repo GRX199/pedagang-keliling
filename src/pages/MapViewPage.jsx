@@ -19,6 +19,7 @@ import {
 } from '../lib/network'
 import { formatReviewScore, getReviewSummary } from '../lib/reviews'
 import { supabase } from '../lib/supabase'
+import { buildVendorTerritoryInsights } from '../lib/territory'
 import {
   createVendorLocationPayload,
   formatVendorCategoryLabel,
@@ -287,6 +288,7 @@ export default function MapViewPage() {
   const mapRef = useRef(null)
   const containerRef = useRef(null)
   const clusterRef = useRef(null)
+  const heatmapLayerRef = useRef(null)
   const autoLocateAttemptedRef = useRef(false)
   const lastSyncedLocationRef = useRef(null)
 
@@ -307,6 +309,8 @@ export default function MapViewPage() {
   const [onlyPromoVendors, setOnlyPromoVendors] = useState(false)
   const [favoriteBusyVendorId, setFavoriteBusyVendorId] = useState(null)
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [demandOrders, setDemandOrders] = useState([])
+  const [showDemandHeatmap, setShowDemandHeatmap] = useState(true)
 
   const serverOrigin = getServerOrigin()
   const isAdmin = role === 'admin'
@@ -508,6 +512,52 @@ export default function MapViewPage() {
 
     setOnlyFavoriteVendors(requestFavoriteView)
   }, [favoriteFeatureEnabled, isCustomerViewer, requestFavoriteView])
+
+  useEffect(() => {
+    if (!isVendor || !myVendorId) {
+      setDemandOrders([])
+      return undefined
+    }
+
+    let active = true
+
+    async function loadDemandOrders() {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, status, order_timing, fulfillment_type, meeting_point_label, meeting_point_location, customer_location, requested_fulfillment_at, total_amount, created_at, updated_at')
+          .eq('vendor_id', myVendorId)
+          .order('created_at', { ascending: false })
+          .limit(200)
+
+        if (error) throw error
+        if (active) setDemandOrders(data || [])
+      } catch (error) {
+        console.error('loadDemandOrders', error)
+        if (active && !isOptionalDataError(error)) {
+          toast.push(error.message || 'Gagal memuat area permintaan', { type: 'error' })
+        }
+      }
+    }
+
+    void loadDemandOrders()
+
+    const channel = supabase
+      .channel(`vendor-demand-map-${myVendorId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `vendor_id=eq.${myVendorId}` }, () => {
+        void loadDemandOrders()
+      })
+      .subscribe()
+
+    return () => {
+      active = false
+      try {
+        supabase.removeChannel(channel)
+      } catch (error) {
+        console.error('removeDemandOrdersChannel', error)
+      }
+    }
+  }, [isVendor, myVendorId, toast])
 
   const toggleVendorFavorite = useCallback(async (vendor) => {
     const vendorId = vendor?.id
@@ -886,6 +936,11 @@ export default function MapViewPage() {
     })
   }, [favoriteVendorIdSet, filteredVendors, userLocation])
 
+  const demandInsights = useMemo(
+    () => buildVendorTerritoryInsights(demandOrders),
+    [demandOrders]
+  )
+
   useEffect(() => {
     if (!selectedVendor) return
     if (filteredVendors.some((vendor) => vendor.id === selectedVendor.id)) return
@@ -1019,6 +1074,69 @@ export default function MapViewPage() {
     toggleVendorFavorite,
   ])
 
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return undefined
+
+    if (heatmapLayerRef.current) {
+      try {
+        map.removeLayer(heatmapLayerRef.current)
+      } catch (error) {
+        console.error('removeDemandHeatmapLayer', error)
+      }
+      heatmapLayerRef.current = null
+    }
+
+    if (!isVendor || !showDemandHeatmap || !demandInsights.hotspotCount) {
+      return undefined
+    }
+
+    const group = L.layerGroup()
+
+    demandInsights.hotspots.forEach((hotspot) => {
+      if (!Number.isFinite(hotspot.lat) || !Number.isFinite(hotspot.lng)) return
+
+      const radius = 120 + (hotspot.intensity * 95)
+      const fillOpacity = 0.1 + (hotspot.intensity * 0.08)
+      const circle = L.circle([hotspot.lat, hotspot.lng], {
+        radius,
+        color: '#f97316',
+        weight: 1,
+        opacity: 0.45,
+        fillColor: '#f59e0b',
+        fillOpacity,
+      })
+
+      circle.bindTooltip(
+        `${hotspot.label}: ${hotspot.orderCount} permintaan`,
+        { direction: 'top', opacity: 0.92 }
+      )
+
+      const core = L.circleMarker([hotspot.lat, hotspot.lng], {
+        radius: 5 + hotspot.intensity,
+        color: '#ea580c',
+        weight: 1,
+        fillColor: '#f97316',
+        fillOpacity: 0.85,
+      })
+
+      group.addLayer(circle)
+      group.addLayer(core)
+    })
+
+    heatmapLayerRef.current = group
+    group.addTo(map)
+
+    return () => {
+      try {
+        map.removeLayer(group)
+      } catch (error) {
+        console.error('cleanupDemandHeatmapLayer', error)
+      }
+      heatmapLayerRef.current = null
+    }
+  }, [demandInsights, isVendor, showDemandHeatmap])
+
   async function getAccessToken() {
     try {
       const response = await supabase.auth.getSession()
@@ -1119,12 +1237,12 @@ export default function MapViewPage() {
           : selectedRatingFilter !== 'all'
             ? `Menampilkan toko dengan rating ${selectedRatingFilterLabel}.`
             : 'Sesuai pencarian, status toko, dan filter radius yang aktif.'
-  const heroBadge = isVendor ? 'Mode Pedagang' : 'Mode Pelanggan'
+  const heroBadge = isVendor ? '' : 'Mode Pelanggan'
   const heroTitle = isVendor
-    ? 'Pantau toko dan status operasional dari satu layar.'
+    ? 'Peta operasional toko'
     : 'Cari pedagang online terdekat lalu lanjutkan transaksi.'
   const heroDescription = isVendor
-    ? 'Mode pedagang dibuat ringkas untuk online, sinkron lokasi, dan pantau toko tanpa langkah tambahan yang panjang.'
+    ? ''
     : 'Peta difokuskan untuk mencari toko aktif, memilih yang paling relevan, lalu lanjut ke chat atau pesanan.'
 
   return (
@@ -1133,15 +1251,19 @@ export default function MapViewPage() {
         <section className="order-2 rounded-[32px] bg-white/95 p-5 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-6 xl:order-1">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white">
-                {heroBadge}
-              </div>
-              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+              {heroBadge ? (
+                <div className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white">
+                  {heroBadge}
+                </div>
+              ) : null}
+              <h1 className={`${heroBadge ? 'mt-3' : ''} text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl`}>
                 {heroTitle}
               </h1>
-              <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-                {heroDescription}
-              </p>
+              {heroDescription ? (
+                <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
+                  {heroDescription}
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -1162,10 +1284,15 @@ export default function MapViewPage() {
               </button>
               {isVendor && (
                 <button
-                  onClick={syncStoreLocationNow}
-                  className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+                  onClick={() => setShowDemandHeatmap((current) => !current)}
+                  disabled={!demandInsights.hotspotCount}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    showDemandHeatmap && demandInsights.hotspotCount
+                      ? 'bg-amber-500 text-white'
+                      : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60'
+                  }`}
                 >
-                  {syncingStoreLocation ? 'Menyinkronkan...' : 'Sinkron Toko'}
+                  {showDemandHeatmap && demandInsights.hotspotCount ? 'Heatmap Aktif' : 'Heatmap'}
                 </button>
               )}
             </div>
@@ -1493,56 +1620,6 @@ export default function MapViewPage() {
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
-            {isVendor && (
-              <div className="rounded-[30px] bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-5 shadow-sm ring-1 ring-emerald-100">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-medium uppercase tracking-[0.22em] text-emerald-700">Kontrol Pedagang</div>
-                    <h3 className="mt-2 text-lg font-semibold text-slate-900">Status toko dan lokasi</h3>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    myVendorRow?.online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {myVendorRow?.online ? 'Online' : 'Offline'}
-                  </span>
-                </div>
-
-                <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
-                  <div className="text-sm font-medium text-slate-800">Lokasi toko</div>
-                  <div className="mt-2 text-sm text-slate-600">
-                    {getStoreLocationStatus(myVendorLocation, { owner: true })}
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Sinkron terakhir: {getVendorLocationUpdatedAtLabel(myVendorLocation)}
-                  </div>
-                  <div className="mt-2 text-xs text-slate-500">
-                    Saat toko online, lokasi akan terus diperbarui otomatis di background.
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-2">
-                  <button
-                    onClick={toggleMyOnlineStatus}
-                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
-                  >
-                    {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
-                  </button>
-                  <button
-                    onClick={syncStoreLocationNow}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    {syncingStoreLocation ? 'Sinkron Lokasi...' : 'Sinkron Sekarang'}
-                  </button>
-                  <button
-                    onClick={() => navigate('/dashboard?tab=products')}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Kelola Produk
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div className="hidden rounded-[30px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80 xl:block">
               {!selectedVendor ? (
                 <>
@@ -1715,6 +1792,71 @@ export default function MapViewPage() {
           <div className="overflow-hidden rounded-[30px] bg-white p-2 shadow-lg shadow-slate-200/50 ring-1 ring-slate-200/70">
             <div ref={containerRef} className="h-[52vh] rounded-[24px] sm:h-[60vh] lg:h-[68vh]" />
           </div>
+
+          {isVendor ? (
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-semibold text-slate-900">Kontrol toko</h3>
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      myVendorRow?.online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {myVendorRow?.online ? 'Online' : 'Offline'}
+                    </span>
+                    {demandInsights.hotspotCount > 0 ? (
+                      <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                        {demandInsights.hotspotCount} area permintaan
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    {myVendorRow?.online
+                      ? `Lokasi aktif. Sinkron terakhir ${getVendorLocationUpdatedAtLabel(myVendorLocation)}.`
+                      : 'Aktifkan online agar marker toko muncul ke pelanggan.'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                  <button
+                    onClick={toggleMyOnlineStatus}
+                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
+                  >
+                    {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
+                  </button>
+                  <button
+                    onClick={syncStoreLocationNow}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    {syncingStoreLocation ? 'Sinkron...' : 'Sinkron Lokasi'}
+                  </button>
+                  <button
+                    onClick={() => setShowDemandHeatmap((current) => !current)}
+                    disabled={!demandInsights.hotspotCount}
+                    className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                      showDemandHeatmap && demandInsights.hotspotCount
+                        ? 'bg-amber-500 text-white'
+                        : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60'
+                    }`}
+                  >
+                    {showDemandHeatmap && demandInsights.hotspotCount ? 'Heatmap Aktif' : 'Heatmap'}
+                  </button>
+                  <button
+                    onClick={() => navigate('/dashboard?tab=products')}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Produk
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                {demandInsights.hotspotCount > 0
+                  ? `Layer oranye di peta menunjukkan area dengan permintaan terbanyak. Area terkuat saat ini: ${demandInsights.leadHotspot?.label || 'belum terbaca'}.`
+                  : 'Heatmap akan muncul setelah order memiliki titik temu atau lokasi pelanggan.'}
+              </div>
+            </div>
+          ) : null}
 
           {selectedVendor ? (
             <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 xl:hidden">

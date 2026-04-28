@@ -79,8 +79,12 @@ export function buildVendorTerritoryInsights(orders, { lookbackDays = DEMAND_LOO
 
     const key = `${roundCell(coordinate.lat).toFixed(4)}:${roundCell(coordinate.lng).toFixed(4)}`
     if (!hotspotMap.has(key)) {
+      const cellLat = roundCell(coordinate.lat)
+      const cellLng = roundCell(coordinate.lng)
       hotspotMap.set(key, {
         key,
+        lat: cellLat,
+        lng: cellLng,
         labels: new Map(),
         orderCount: 0,
         activeCount: 0,
@@ -129,6 +133,8 @@ export function buildVendorTerritoryInsights(orders, { lookbackDays = DEMAND_LOO
 
       return {
         id: hotspot.key,
+        lat: hotspot.lat,
+        lng: hotspot.lng,
         label: pickAreaLabel(hotspot.labels, 'Area pelanggan'),
         orderCount: hotspot.orderCount,
         activeCount: hotspot.activeCount,
