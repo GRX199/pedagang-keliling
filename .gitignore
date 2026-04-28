@@ -4,3 +4,9 @@ dist/
 .env.local
 server/.env
 .DS_Store
+
+# Private proposal/seminar documents
+docs/seminar-proposal-*
+docs/*proposal*.docx
+docs/*proposal*.md
+docs/_rendered_seminar_proposal*/
