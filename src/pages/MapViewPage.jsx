@@ -91,7 +91,7 @@ function formatDistanceLabel(distanceMeters) {
 
 function getViewerLocationStatus(userLocation) {
   if (!userLocation) {
-    return 'Belum aktif. Tekan "Lokasi Saya" agar jarak pedagang bisa dihitung otomatis.'
+    return 'Belum aktif. Gunakan tombol lokasi pada peta agar jarak pedagang bisa dihitung otomatis.'
   }
 
   return 'Lokasi Anda aktif dan sudah dipakai untuk menghitung pedagang terdekat.'
@@ -1237,242 +1237,162 @@ export default function MapViewPage() {
           : selectedRatingFilter !== 'all'
             ? `Menampilkan toko dengan rating ${selectedRatingFilterLabel}.`
             : 'Sesuai pencarian, status toko, dan filter radius yang aktif.'
-  const heroBadge = isVendor ? '' : 'Mode Pelanggan'
-  const heroTitle = isVendor
-    ? 'Peta operasional toko'
-    : 'Cari pedagang online terdekat lalu lanjutkan transaksi.'
-  const heroDescription = isVendor
-    ? ''
-    : 'Peta difokuskan untuk mencari toko aktif, memilih yang paling relevan, lalu lanjut ke chat atau pesanan.'
-
   return (
     <div className="min-h-screen bg-transparent">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:py-6">
-        <section className="order-2 rounded-[32px] bg-white/95 p-5 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-6 xl:order-1">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-3xl">
-              {heroBadge ? (
-                <div className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white">
-                  {heroBadge}
-                </div>
-              ) : null}
-              <h1 className={`${heroBadge ? 'mt-3' : ''} text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl`}>
-                {heroTitle}
-              </h1>
-              {heroDescription ? (
-                <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-                  {heroDescription}
-                </p>
-              ) : null}
-            </div>
+        <section className="order-2 rounded-[24px] bg-white/95 p-3 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-4 xl:order-1">
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <label className="min-w-0">
+              <span className="sr-only">Cari pedagang atau produk</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Cari pedagang atau produk..."
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+              />
+            </label>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
               <button
-                onClick={() => requestCurrentLocation()}
-                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                onClick={() => setOnlyWithinRadius((current) => !current)}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
+                  onlyWithinRadius
+                    ? 'bg-emerald-600 text-white'
+                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                Lokasi Saya
+                {onlyWithinRadius ? 'Radius aktif' : 'Radius'}
+              </button>
+              {isCustomerViewer && (
+                <button
+                  onClick={() => setOnlyPromoVendors((current) => !current)}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
+                    onlyPromoVendors
+                      ? 'bg-amber-500 text-white'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {onlyPromoVendors ? 'Promo aktif' : 'Promo'}
+                </button>
+              )}
+              {isCustomerViewer && favoriteFeatureEnabled && (
+                <button
+                  onClick={() => setOnlyFavoriteVendors((current) => !current)}
+                  disabled={favoriteVendorCount === 0 && !onlyFavoriteVendors}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
+                    onlyFavoriteVendors
+                      ? 'bg-rose-500 text-white'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300'
+                  }`}
+                >
+                  {onlyFavoriteVendors ? 'Favorit aktif' : 'Favorit'}
+                </button>
+              )}
+              <button
+                onClick={() => setShowAdvancedFilters((current) => !current)}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
+                  showAdvancedFilters
+                    ? 'bg-slate-900 text-white'
+                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {showAdvancedFilters ? 'Tutup' : 'Filter'}
               </button>
               <button
                 onClick={() => {
-                  const bounds = clusterRef.current?.getBounds?.()
-                  if (bounds?.isValid?.()) mapRef.current?.fitBounds(bounds, { padding: [48, 48] })
+                  setQuery('')
+                  setSelectedCategory('all')
+                  setSelectedRatingFilter('all')
+                  setOnlyFavoriteVendors(false)
+                  setOnlyPromoVendors(false)
+                  setOnlyWithinRadius(false)
+                  setShowAdvancedFilters(false)
                 }}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
-                Zoom Semua Toko
+                Reset
               </button>
-              {isVendor && (
-                <button
-                  onClick={() => setShowDemandHeatmap((current) => !current)}
-                  disabled={!demandInsights.hotspotCount}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    showDemandHeatmap && demandInsights.hotspotCount
-                      ? 'bg-amber-500 text-white'
-                      : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60'
-                  }`}
-                >
-                  {showDemandHeatmap && demandInsights.hotspotCount ? 'Heatmap Aktif' : 'Heatmap'}
-                </button>
-              )}
             </div>
           </div>
 
-          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-slate-700">Cari pedagang atau produk</label>
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Contoh: bakso, cilok, kopi, sayur..."
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
-                />
-              </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-600">{filteredVendorCount} tampil</span>
+            <span className="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700">{onlineVendorCount} online</span>
+            {userLocation ? (
+              <span className="rounded-full bg-sky-50 px-3 py-1 font-medium text-sky-700">{onlineVendorsWithinRadius.length} dalam {radiusKm} km</span>
+            ) : null}
+            <span className="hidden min-w-0 break-words sm:inline">{activeFilterSummary}</span>
+          </div>
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setOnlyWithinRadius((current) => !current)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    onlyWithinRadius
-                      ? 'bg-emerald-600 text-white'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  {onlyWithinRadius ? 'Radius Aktif' : 'Radius'}
-                </button>
-                {isCustomerViewer && (
+          {showAdvancedFilters && (
+            <div className="mt-3 grid gap-3 lg:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                <div className="font-medium text-slate-800">Kategori</div>
+                <div className="mt-2 flex flex-wrap gap-2">
                   <button
-                    onClick={() => setOnlyPromoVendors((current) => !current)}
-                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                      onlyPromoVendors
-                        ? 'bg-amber-500 text-white'
+                    onClick={() => setSelectedCategory('all')}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                      selectedCategory === 'all'
+                        ? 'bg-slate-900 text-white'
                         : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    {onlyPromoVendors ? 'Promo Aktif' : 'Promo'}
+                    Semua
                   </button>
-                )}
-                {isCustomerViewer && favoriteFeatureEnabled && (
-                  <button
-                    onClick={() => setOnlyFavoriteVendors((current) => !current)}
-                    disabled={favoriteVendorCount === 0 && !onlyFavoriteVendors}
-                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                      onlyFavoriteVendors
-                        ? 'bg-rose-500 text-white'
-                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300'
-                    }`}
-                  >
-                    {onlyFavoriteVendors ? 'Favorit Aktif' : 'Favorit'}
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowAdvancedFilters((current) => !current)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    showAdvancedFilters
-                      ? 'bg-slate-900 text-white'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  {showAdvancedFilters ? 'Tutup Filter' : 'Filter Lanjutan'}
-                </button>
-                <button
-                  onClick={() => {
-                    setQuery('')
-                    setSelectedCategory('all')
-                    setSelectedRatingFilter('all')
-                    setOnlyFavoriteVendors(false)
-                    setOnlyPromoVendors(false)
-                    setOnlyWithinRadius(false)
-                    setShowAdvancedFilters(false)
-                  }}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  Reset
-                </button>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                <div className="font-medium text-slate-800">Ringkasan filter</div>
-                <div className="mt-2 text-sm text-slate-600">{activeFilterSummary}</div>
-              </div>
-
-              {showAdvancedFilters && (
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    <div className="font-medium text-slate-800">Filter kategori</div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        onClick={() => setSelectedCategory('all')}
-                        className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                          selectedCategory === 'all'
-                            ? 'bg-slate-900 text-white'
-                            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        Semua kategori
-                      </button>
-                      {categoryOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => setSelectedCategory(option.value)}
-                          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                            selectedCategory === option.value
-                              ? 'bg-emerald-600 text-white'
-                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          {formatVendorCategoryLabel(option.label)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    <div className="font-medium text-slate-800">Filter rating</div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {RATING_FILTER_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => setSelectedRatingFilter(option.value)}
-                          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                            selectedRatingFilter === option.value
-                              ? 'bg-amber-500 text-white'
-                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                      <div className="font-medium text-slate-800">Radius pencarian</div>
-                      <input
-                        type="number"
-                        min="0.1"
-                        step="0.1"
-                        value={radiusKm}
-                        onChange={(event) => setRadiusKm(Number(event.target.value || 0))}
-                        className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none focus:border-slate-400"
-                      />
-                    </label>
-
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                      <div className="font-medium text-slate-800">Status lokasi Anda</div>
-                      <div className="mt-2">{getViewerLocationStatus(userLocation)}</div>
-                    </div>
-                  </div>
+                  {categoryOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setSelectedCategory(option.value)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                        selectedCategory === option.value
+                          ? 'bg-emerald-600 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {formatVendorCategoryLabel(option.label)}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                <div className="font-medium text-slate-800">Rating</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {RATING_FILTER_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setSelectedRatingFilter(option.value)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                        selectedRatingFilter === option.value
+                          ? 'bg-amber-500 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                <div className="font-medium text-slate-800">Radius pencarian</div>
+                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    value={radiusKm}
+                    onChange={(event) => setRadiusKm(Number(event.target.value || 0))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none focus:border-slate-400"
+                  />
+                  <span className="text-xs text-slate-500">km</span>
+                </div>
+                <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
+                  {getViewerLocationStatus(userLocation)}
+                </div>
+              </label>
             </div>
-
-            <div className="flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 xl:grid-cols-1">
-              <div className="min-w-[220px] rounded-[20px] bg-slate-900 p-4 text-white sm:min-w-0">
-                <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Pedagang Online</div>
-                <div className="mt-2 text-2xl font-semibold">{onlineVendorCount}</div>
-                <div className="mt-1 text-sm text-slate-300">Siap diajak chat atau dipesan.</div>
-              </div>
-              <div className="min-w-[220px] rounded-[20px] bg-emerald-50 p-4 ring-1 ring-emerald-100 sm:min-w-0">
-                <div className="text-xs uppercase tracking-[0.2em] text-emerald-700">Online Dalam Radius</div>
-                <div className="mt-2 text-2xl font-semibold text-slate-900">
-                  {userLocation ? onlineVendorsWithinRadius.length : '-'}
-                </div>
-                <div className="mt-1 text-sm text-slate-600">
-                  {userLocation ? `Dalam radius ${radiusKm} km dari posisi Anda.` : 'Aktifkan lokasi untuk menghitung radius.'}
-                </div>
-              </div>
-              <div className="min-w-[220px] rounded-[20px] bg-slate-50 p-4 ring-1 ring-slate-200 sm:min-w-0">
-                <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Hasil Ditampilkan</div>
-                <div className="mt-2 text-2xl font-semibold text-slate-900">{filteredVendorCount}</div>
-                <div className="mt-1 text-sm text-slate-500">
-                  {selectedCategory !== 'all' ? selectedCategoryLabel : 'Sesuai pencarian dan filter aktif'}
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </section>
 
         <section className="order-3 grid gap-4 xl:order-2 xl:grid-cols-[minmax(0,1.35fr)_380px]">
