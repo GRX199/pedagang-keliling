@@ -9,10 +9,37 @@ import {
   formatPriceLabel,
   isActiveOrderStatus,
 } from '../lib/orders'
+import { uploadImageFile } from '../lib/media'
 import { loadIdentityMap } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from './ToastProvider'
+
+const IMAGE_MESSAGE_PREFIX = '[kelilingku:image] '
+
+function buildImageMessageText(imageUrl, caption = '') {
+  return `${IMAGE_MESSAGE_PREFIX}${JSON.stringify({
+    url: imageUrl,
+    caption: String(caption || '').trim(),
+  })}`
+}
+
+function parseImageMessageText(text) {
+  const value = String(text || '')
+  if (!value.startsWith(IMAGE_MESSAGE_PREFIX)) return null
+
+  try {
+    const payload = JSON.parse(value.slice(IMAGE_MESSAGE_PREFIX.length))
+    if (!payload?.url) return null
+    return {
+      url: String(payload.url),
+      caption: String(payload.caption || '').trim(),
+    }
+  } catch (error) {
+    console.warn('parseImageMessageText', error)
+    return null
+  }
+}
 
 function getPartnerId(chat, currentUserId) {
   return (chat?.participants || []).find((participant) => participant !== currentUserId) || null
@@ -149,7 +176,9 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const endRef = useRef(null)
+  const fileInputRef = useRef(null)
   const messageIdsRef = useRef(new Set())
   const latestMessageAtRef = useRef(null)
 
@@ -260,7 +289,7 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
   }, [messages])
 
   async function sendMessage() {
-    if (!chatId || !currentUser || !text.trim()) return
+    if (sending || !chatId || !currentUser || !text.trim()) return
 
     setSending(true)
     try {
@@ -276,6 +305,40 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
     }
   }
 
+  async function sendImageMessage(file) {
+    if (sending || !chatId || !currentUser || !file) return
+
+    const caption = text.trim() || 'Bukti pembayaran'
+    setSending(true)
+    setUploadingImage(true)
+    try {
+      const imageUrl = await uploadImageFile({
+        file,
+        vendorId: currentUser.id,
+        folder: 'chat',
+      })
+      if (!imageUrl) throw new Error('Gagal mendapatkan URL foto')
+
+      const message = await sendChatMessage(chatId, currentUser.id, buildImageMessageText(imageUrl, caption))
+      applyMessageRows(message ? [message] : [])
+      onMessageActivity?.(chatId, message)
+      setText('')
+      toast.push('Foto berhasil dikirim', { type: 'success' })
+    } catch (error) {
+      console.error('sendImageMessage', error)
+      toast.push(error.message || 'Gagal mengirim foto', { type: 'error' })
+    } finally {
+      setUploadingImage(false)
+      setSending(false)
+    }
+  }
+
+  function handleImageInputChange(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file) void sendImageMessage(file)
+  }
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <div className="min-h-0 flex-1 space-y-3 overflow-auto rounded-2xl border border-slate-100 bg-slate-50 p-3">
@@ -286,6 +349,7 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
         ) : (
           messages.map((message) => {
             const mine = message.from_user === currentUser.id
+            const imageMessage = parseImageMessageText(message.text)
             return (
               <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div
@@ -295,7 +359,28 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
                       : 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                  {imageMessage ? (
+                    <div className="space-y-2">
+                      <a
+                        href={imageMessage.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block overflow-hidden rounded-xl bg-black/10"
+                      >
+                        <img
+                          src={imageMessage.url}
+                          alt={imageMessage.caption || 'Foto chat'}
+                          loading="lazy"
+                          className="max-h-72 w-full object-cover"
+                        />
+                      </a>
+                      {imageMessage.caption ? (
+                        <div className="whitespace-pre-wrap break-words">{imageMessage.caption}</div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                  )}
                   <div className={`mt-1 break-words text-right text-xs ${mine ? 'text-slate-300' : 'text-slate-400'}`}>
                     {message.created_at ? new Date(message.created_at).toLocaleString('id-ID') : '-'}
                   </div>
@@ -308,6 +393,13 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
       </div>
 
       <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageInputChange}
+        />
         <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -319,15 +411,25 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
           }}
           rows={1}
           className="min-h-[48px] min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3"
-          placeholder="Ketik pesan..."
+          placeholder="Ketik pesan atau catatan bukti pembayaran..."
         />
-        <button
-          onClick={sendMessage}
-          disabled={sending || !text.trim()}
-          className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400 sm:min-w-24"
-        >
-          {sending ? 'Mengirim...' : 'Kirim'}
-        </button>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending || !chatId || !currentUser}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 sm:min-w-24"
+          >
+            {uploadingImage ? 'Upload...' : 'Foto'}
+          </button>
+          <button
+            onClick={sendMessage}
+            disabled={sending || !text.trim()}
+            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400 sm:min-w-24"
+          >
+            {sending && !uploadingImage ? 'Mengirim...' : 'Kirim'}
+          </button>
+        </div>
       </div>
     </div>
   )

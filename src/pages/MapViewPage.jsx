@@ -1240,7 +1240,66 @@ export default function MapViewPage() {
   return (
     <div className="min-h-screen bg-transparent">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:py-6">
-        <section className="order-2 rounded-[24px] bg-white/95 p-3 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-4 xl:order-1">
+        {isVendor ? (
+          <section className="order-1 rounded-[24px] bg-slate-950 p-3 text-white shadow-lg shadow-slate-200/60 ring-1 ring-slate-800 sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold">Kontrol pedagang</h2>
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    myVendorRow?.online ? 'bg-emerald-400 text-emerald-950' : 'bg-white/10 text-slate-200'
+                  }`}>
+                    {myVendorRow?.online ? 'Online' : 'Offline'}
+                  </span>
+                  {demandInsights.hotspotCount > 0 ? (
+                    <span className="rounded-full bg-amber-400 px-3 py-1 text-xs font-medium text-amber-950">
+                      {demandInsights.hotspotCount} area ramai
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-300">
+                  {myVendorRow?.online
+                    ? `Toko tampil ke pelanggan. Sinkron terakhir ${getVendorLocationUpdatedAtLabel(myVendorLocation)}.`
+                    : 'Aktifkan online agar toko dan lokasi Anda muncul di peta pelanggan.'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                <button
+                  onClick={toggleMyOnlineStatus}
+                  className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400"
+                >
+                  {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
+                </button>
+                <button
+                  onClick={syncStoreLocationNow}
+                  className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+                >
+                  {syncingStoreLocation ? 'Sinkron...' : 'Sinkron Lokasi'}
+                </button>
+                <button
+                  onClick={() => setShowDemandHeatmap((current) => !current)}
+                  disabled={!demandInsights.hotspotCount}
+                  className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                    showDemandHeatmap && demandInsights.hotspotCount
+                      ? 'bg-amber-400 text-amber-950'
+                      : 'border border-amber-300/30 bg-amber-300/10 text-amber-100 hover:bg-amber-300/15 disabled:cursor-not-allowed disabled:opacity-50'
+                  }`}
+                >
+                  {showDemandHeatmap && demandInsights.hotspotCount ? 'Heatmap Aktif' : 'Heatmap'}
+                </button>
+                <button
+                  onClick={() => navigate('/dashboard?tab=products')}
+                  className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+                >
+                  Produk
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        <section className="order-3 rounded-[24px] bg-white/95 p-3 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-4 xl:order-3">
           <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <label className="min-w-0">
               <span className="sr-only">Cari pedagang atau produk</span>
@@ -1395,7 +1454,7 @@ export default function MapViewPage() {
           )}
         </section>
 
-        <section className="order-3 grid gap-4 xl:order-2 xl:grid-cols-[minmax(0,1.35fr)_380px]">
+        <section className="order-4 grid gap-4 xl:order-4 xl:grid-cols-[minmax(0,1.35fr)_380px]">
           <div className="rounded-[30px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1694,7 +1753,7 @@ export default function MapViewPage() {
           </aside>
         </section>
 
-        <section className="order-1 space-y-3 xl:order-3">
+        <section className="order-2 space-y-3 xl:order-2">
           <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/80">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1712,71 +1771,6 @@ export default function MapViewPage() {
           <div className="overflow-hidden rounded-[30px] bg-white p-2 shadow-lg shadow-slate-200/50 ring-1 ring-slate-200/70">
             <div ref={containerRef} className="h-[52vh] rounded-[24px] sm:h-[60vh] lg:h-[68vh]" />
           </div>
-
-          {isVendor ? (
-            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-semibold text-slate-900">Kontrol toko</h3>
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      myVendorRow?.online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {myVendorRow?.online ? 'Online' : 'Offline'}
-                    </span>
-                    {demandInsights.hotspotCount > 0 ? (
-                      <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                        {demandInsights.hotspotCount} area permintaan
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    {myVendorRow?.online
-                      ? `Lokasi aktif. Sinkron terakhir ${getVendorLocationUpdatedAtLabel(myVendorLocation)}.`
-                      : 'Aktifkan online agar marker toko muncul ke pelanggan.'}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-                  <button
-                    onClick={toggleMyOnlineStatus}
-                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
-                  >
-                    {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
-                  </button>
-                  <button
-                    onClick={syncStoreLocationNow}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    {syncingStoreLocation ? 'Sinkron...' : 'Sinkron Lokasi'}
-                  </button>
-                  <button
-                    onClick={() => setShowDemandHeatmap((current) => !current)}
-                    disabled={!demandInsights.hotspotCount}
-                    className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                      showDemandHeatmap && demandInsights.hotspotCount
-                        ? 'bg-amber-500 text-white'
-                        : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60'
-                    }`}
-                  >
-                    {showDemandHeatmap && demandInsights.hotspotCount ? 'Heatmap Aktif' : 'Heatmap'}
-                  </button>
-                  <button
-                    onClick={() => navigate('/dashboard?tab=products')}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Produk
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                {demandInsights.hotspotCount > 0
-                  ? `Layer oranye di peta menunjukkan area dengan permintaan terbanyak. Area terkuat saat ini: ${demandInsights.leadHotspot?.label || 'belum terbaca'}.`
-                  : 'Heatmap akan muncul setelah order memiliki titik temu atau lokasi pelanggan.'}
-              </div>
-            </div>
-          ) : null}
 
           {selectedVendor ? (
             <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 xl:hidden">
