@@ -816,7 +816,6 @@ function OrdersPanel({ currentUser, role }) {
 function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
   const { refreshAuth } = useAuth()
   const toast = useToast()
-  const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1093,7 +1092,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
   const promoText = getVendorPromoText(profile)
 
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
+    <div className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
       <div className="flex items-center gap-4">
         <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-slate-100">
           {profile.photo_url ? (
@@ -1112,12 +1111,12 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
       <div className="mt-4">
         {!editing ? (
           <>
-            <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              {profile.description || 'Belum ada deskripsi profil.'}
+            <div className="rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-600 sm:p-4">
+              <span className="line-clamp-3 block">{profile.description || 'Belum ada deskripsi profil.'}</span>
             </div>
 
             {role === 'vendor' && (
-              <div className="mt-4 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-4 ring-1 ring-emerald-100">
+              <div className="mt-4 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-3 ring-1 ring-emerald-100 sm:p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">Lokasi Toko</div>
@@ -1129,28 +1128,13 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                   <button
                     onClick={saveCurrentLocation}
                     disabled={savingLocation}
-                    className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-70"
+                    className="rounded-full border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-70"
                   >
-                    {savingLocation ? 'Memperbarui...' : 'Gunakan Lokasi Saat Ini'}
+                    {savingLocation ? 'Memperbarui...' : 'Update Lokasi'}
                   </button>
                 </div>
 
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <button
-                    onClick={() => navigate('/map')}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Buka Peta
-                  </button>
-                  <button
-                    onClick={() => navigate('/dashboard?tab=products')}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Lihat Produk
-                  </button>
-                </div>
-
-                <div className="mt-4 grid gap-2 sm:hidden">
+                <div className="mt-3 grid gap-2 sm:hidden">
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
                       {profile.is_verified ? 'Terverifikasi' : 'Belum diverifikasi'}
@@ -1164,9 +1148,6 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
                       {formatVendorServiceMode(profile.service_mode)}
                     </span>
-                  </div>
-                  <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 ring-1 ring-white">
-                    Jam operasional: {getOperatingHoursText(profile.operating_hours)}
                   </div>
                 </div>
 
@@ -1205,17 +1186,12 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                       </div>
                     </>
                   ) : (
-                    <div className="mt-2 text-sm text-slate-500">
-                      Belum ada promo aktif yang tampil ke pelanggan.
-                    </div>
+                    <div className="mt-2 text-sm text-slate-500">Belum ada promo aktif.</div>
                   )}
                 </div>
 
                 <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
                   <div className="text-sm font-semibold text-slate-900">Pembayaran Non-Tunai</div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Informasi ini akan ditampilkan ke pelanggan saat mereka memilih metode pembayaran.
-                  </p>
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     {vendorPaymentSummary.map((entry) => (
@@ -1235,9 +1211,9 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                   <button
                     type="button"
                     onClick={() => setShowPaymentPreview((current) => !current)}
-                    className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
+                    className="mt-4 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
                   >
-                    {showPaymentPreview ? 'Sembunyikan Detail Pembayaran' : 'Lihat Detail Pembayaran'}
+                    {showPaymentPreview ? 'Tutup detail' : 'Detail'}
                   </button>
 
                   <div className={`mt-4 ${showPaymentPreview ? 'grid' : 'hidden'} gap-3 sm:grid md:grid-cols-3`}>
@@ -1250,7 +1226,6 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                             alt="QRIS toko"
                             className="h-40 w-full rounded-2xl border border-slate-200 bg-white object-contain p-2"
                           />
-                          <div className="text-sm text-slate-600">Pelanggan bisa scan langsung dari halaman checkout.</div>
                         </div>
                       ) : (
                         <div className="mt-2 text-sm text-slate-500">Belum ada foto QRIS.</div>
@@ -1370,24 +1345,15 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-slate-900">Promo Ringan</div>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        Tampilkan penawaran singkat yang akan muncul di peta dan profil toko pelanggan.
-                      </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowVendorPromoEditor((current) => !current)}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
                     >
                       {showVendorPromoEditor ? 'Tutup' : 'Buka'}
                     </button>
                   </div>
-
-                  {!showVendorPromoEditor && (
-                    <div className="mt-3 text-sm text-slate-500 sm:hidden">
-                      Buka bagian ini saat Anda ingin menambah atau mengubah promo toko.
-                    </div>
-                  )}
 
                   <div className={`${showVendorPromoEditor ? 'mt-4 block' : 'hidden'} space-y-3 sm:mt-4 sm:block`}>
                     <textarea
@@ -1412,24 +1378,15 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-slate-900">Pembayaran Non-Tunai</div>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        Isi QRIS, rekening bank, atau e-wallet yang ingin langsung terlihat oleh pelanggan saat checkout.
-                      </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowVendorPaymentEditor((current) => !current)}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
                     >
                       {showVendorPaymentEditor ? 'Tutup' : 'Buka'}
                     </button>
                   </div>
-
-                  {!showVendorPaymentEditor && (
-                    <div className="mt-3 text-sm text-slate-500 sm:hidden">
-                      Buka bagian ini saat Anda ingin memperbarui QRIS, rekening, atau e-wallet.
-                    </div>
-                  )}
 
                   <div className={`${showVendorPaymentEditor ? 'mt-4 block' : 'hidden'} space-y-4 sm:mt-4 sm:block`}>
                     <div>
@@ -1516,7 +1473,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700">Ganti Foto</label>
+              <label className="block text-sm font-medium text-slate-700">Foto profil</label>
               <input
                 type="file"
                 accept="image/*"

@@ -333,21 +333,21 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
   const unavailableProductCount = products.length - availableProductCount
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="min-w-0 space-y-3 sm:space-y-4">
       <div className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold text-slate-900">Produk Saya</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-500">
+            <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Produk Saya</h2>
+            <p className="mt-1 hidden text-sm leading-6 text-slate-500 sm:block">
               Kelola menu, harga, foto, dan stok opsional. Kosongkan stok jika jumlahnya fleksibel.
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowCreateForm((current) => !current)}
-            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+            className="rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
           >
-            {showCreateForm ? 'Tutup Form' : 'Tambah Produk'}
+            {showCreateForm ? 'Tutup' : 'Tambah Produk'}
           </button>
         </div>
 
@@ -365,12 +365,6 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
             <div className="mt-1 text-xl font-semibold text-slate-900">{unavailableProductCount}</div>
           </div>
         </div>
-
-        {!showCreateForm && (
-          <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-            Buka form saat ingin menambah menu baru. Produk yang sudah ada bisa diedit langsung dari daftar di bawah.
-          </div>
-        )}
 
         {showCreateForm && (
         <form onSubmit={addProduct} className="mt-4 space-y-3">
@@ -414,7 +408,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
             />
           </div>
 
-          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
+          <div className="hidden rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500 sm:block">
             Stok boleh dikosongkan untuk produk fleksibel seperti sayur timbang, jajanan campur, atau menu yang jumlahnya tidak tetap.
           </div>
 
@@ -457,7 +451,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
         <div className="mb-4">
           <div>
             <h3 className="font-semibold text-slate-900">Daftar Produk</h3>
-            <p className="text-sm text-slate-500">Produk aktif akan tampil di profil toko dan checkout pelanggan.</p>
+            <p className="hidden text-sm text-slate-500 sm:block">Produk aktif akan tampil di profil toko dan checkout pelanggan.</p>
           </div>
         </div>
 
@@ -475,16 +469,16 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
               return (
                 <div key={product.id} className="min-w-0 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm sm:rounded-[24px]">
                   {product.image_url ? (
-                    <img src={product.image_url} alt={product.name} className="h-32 w-full object-cover sm:h-44" />
+                    <img src={product.image_url} alt={product.name} className="h-24 w-full object-cover sm:h-44" />
                   ) : (
-                    <div className="flex h-32 items-center justify-center bg-slate-100 text-sm text-slate-400 sm:h-44">
+                    <div className="flex h-24 items-center justify-center bg-slate-100 text-sm text-slate-400 sm:h-44">
                       Belum ada gambar
                     </div>
                   )}
 
-                  <div className="space-y-2 p-4">
+                  <div className="space-y-2 p-3 sm:p-4">
                     <div className="break-words font-semibold text-slate-900">{product.name}</div>
-                    <div className="line-clamp-2 break-words text-sm leading-6 text-slate-600">{product.description || 'Tanpa deskripsi'}</div>
+                    <div className="line-clamp-1 break-words text-sm leading-6 text-slate-600 sm:line-clamp-2">{product.description || 'Tanpa deskripsi'}</div>
                     <div className="text-sm font-medium text-slate-900">{formatPrice(product.price)}</div>
                     <div className="flex min-w-0 flex-wrap gap-2 text-xs">
                       <span className={`max-w-full break-words rounded-full px-3 py-1 font-medium leading-tight ${
@@ -492,7 +486,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
                           ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
                           : 'bg-rose-50 text-rose-700 ring-1 ring-rose-100'
                       }`}>
-                        {orderable ? 'Tersedia' : 'Habis / nonaktif'}
+                        {orderable ? 'Tersedia' : 'Habis'}
                       </span>
                       <span className={`max-w-full break-words rounded-full px-3 py-1 font-medium leading-tight ${
                         orderable
