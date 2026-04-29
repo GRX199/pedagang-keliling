@@ -10,6 +10,20 @@ function formatPrice(price) {
   return `Rp ${Number(price).toLocaleString('id-ID')}`
 }
 
+function getProductStockLabel(product) {
+  const stock = Number(product?.stock)
+  if (!Number.isFinite(stock)) return 'Stok fleksibel'
+  if (stock <= 0) return 'Stok habis'
+  return `Stok: ${stock}`
+}
+
+function isProductOrderable(product) {
+  const stock = Number(product?.stock)
+  if (product?.is_available === false) return false
+  if (Number.isFinite(stock) && stock <= 0) return false
+  return true
+}
+
 export default function VendorProductsManager({ vendorId: propVendorId }) {
   const { user } = useAuth()
   const toast = useToast()
@@ -19,6 +33,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+  const [availabilityId, setAvailabilityId] = useState(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
 
   const [name, setName] = useState('')
@@ -269,7 +284,39 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
     }
   }
 
-  const availableProductCount = products.filter((product) => product.is_available !== false).length
+  async function toggleProductSoldOut(product) {
+    if (!product?.id) return
+
+    const productIsOrderable = isProductOrderable(product)
+    const stock = Number(product.stock)
+    const nextPayload = productIsOrderable
+      ? { is_available: false, stock: 0 }
+      : {
+          is_available: true,
+          stock: Number.isFinite(stock) && stock <= 0 ? null : product.stock,
+        }
+
+    setAvailabilityId(product.id)
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update(nextPayload)
+        .eq('id', product.id)
+        .eq('vendor_id', vendorId)
+
+      if (error) throw error
+
+      toast.push(productIsOrderable ? 'Produk ditandai habis' : 'Produk tersedia lagi', { type: 'success' })
+      fetchProducts()
+    } catch (error) {
+      console.error('toggleProductSoldOut', error)
+      toast.push(error.message || 'Gagal memperbarui ketersediaan produk', { type: 'error' })
+    } finally {
+      setAvailabilityId(null)
+    }
+  }
+
+  const availableProductCount = products.filter((product) => isProductOrderable(product)).length
   const unavailableProductCount = products.length - availableProductCount
 
   return (
@@ -279,7 +326,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
           <div className="min-w-0">
             <h2 className="text-xl font-semibold text-slate-900">Produk Saya</h2>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              Kelola menu, stok, harga, dan foto produk yang tampil ke pelanggan.
+              Kelola menu, harga, foto, dan stok opsional. Kosongkan stok jika jumlahnya fleksibel.
             </p>
           </div>
           <button
@@ -301,7 +348,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
             <div className="mt-1 text-xl font-semibold text-slate-900">{availableProductCount}</div>
           </div>
           <div className="rounded-2xl bg-rose-50 p-3 ring-1 ring-rose-100">
-            <div className="text-xs uppercase tracking-[0.12em] text-rose-700">Nonaktif</div>
+            <div className="text-xs uppercase tracking-[0.12em] text-rose-700">Habis</div>
             <div className="mt-1 text-xl font-semibold text-slate-900">{unavailableProductCount}</div>
           </div>
         </div>
@@ -352,6 +399,10 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
               onChange={(event) => setStock(event.target.value)}
               placeholder="Stok (opsional)"
             />
+          </div>
+
+          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
+            Stok boleh dikosongkan untuk produk fleksibel seperti sayur timbang, jajanan campur, atau menu yang jumlahnya tidak tetap.
           </div>
 
           <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
@@ -405,56 +456,80 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
           </div>
         ) : (
           <div className="grid min-w-0 gap-3 md:grid-cols-2">
-            {products.map((product) => (
-              <div key={product.id} className="min-w-0 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm sm:rounded-[24px]">
-                {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="h-32 w-full object-cover sm:h-44" />
-                ) : (
-                  <div className="flex h-32 items-center justify-center bg-slate-100 text-sm text-slate-400 sm:h-44">
-                    Belum ada gambar
-                  </div>
-                )}
+            {products.map((product) => {
+              const orderable = isProductOrderable(product)
 
-                <div className="space-y-2 p-4">
-                  <div className="break-words font-semibold text-slate-900">{product.name}</div>
-                  <div className="line-clamp-2 break-words text-sm leading-6 text-slate-600">{product.description || 'Tanpa deskripsi'}</div>
-                  <div className="text-sm font-medium text-slate-900">{formatPrice(product.price)}</div>
-                  <div className="flex min-w-0 flex-wrap gap-2 text-xs">
-                    <span className={`max-w-full break-words rounded-full px-3 py-1 font-medium leading-tight ${
-                      product.is_available === false
-                        ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-100'
-                        : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
-                    }`}>
-                      {product.is_available === false ? 'Tidak tersedia' : 'Tersedia'}
-                    </span>
-                    <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1 font-medium leading-tight text-slate-700">
-                      Stok: {Number.isFinite(Number(product.stock)) ? Number(product.stock) : 'fleksibel'}
-                    </span>
-                    {product.category_name && (
-                      <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1 font-medium leading-tight text-slate-700">
-                        {product.category_name}
+              return (
+                <div key={product.id} className="min-w-0 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm sm:rounded-[24px]">
+                  {product.image_url ? (
+                    <img src={product.image_url} alt={product.name} className="h-32 w-full object-cover sm:h-44" />
+                  ) : (
+                    <div className="flex h-32 items-center justify-center bg-slate-100 text-sm text-slate-400 sm:h-44">
+                      Belum ada gambar
+                    </div>
+                  )}
+
+                  <div className="space-y-2 p-4">
+                    <div className="break-words font-semibold text-slate-900">{product.name}</div>
+                    <div className="line-clamp-2 break-words text-sm leading-6 text-slate-600">{product.description || 'Tanpa deskripsi'}</div>
+                    <div className="text-sm font-medium text-slate-900">{formatPrice(product.price)}</div>
+                    <div className="flex min-w-0 flex-wrap gap-2 text-xs">
+                      <span className={`max-w-full break-words rounded-full px-3 py-1 font-medium leading-tight ${
+                        orderable
+                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
+                          : 'bg-rose-50 text-rose-700 ring-1 ring-rose-100'
+                      }`}>
+                        {orderable ? 'Tersedia' : 'Habis / nonaktif'}
                       </span>
-                    )}
-                  </div>
+                      <span className={`max-w-full break-words rounded-full px-3 py-1 font-medium leading-tight ${
+                        orderable
+                          ? 'bg-slate-100 text-slate-700'
+                          : 'bg-rose-50 text-rose-700 ring-1 ring-rose-100'
+                      }`}>
+                        {getProductStockLabel(product)}
+                      </span>
+                      {product.category_name && (
+                        <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1 font-medium leading-tight text-slate-700">
+                          {product.category_name}
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => openEditModal(product)}
-                      className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteProduct(product.id)}
-                      disabled={deletingId === product.id}
-                      className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 disabled:opacity-60"
-                    >
-                      {deletingId === product.id ? 'Menghapus...' : 'Hapus'}
-                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void toggleProductSoldOut(product)}
+                        disabled={availabilityId === product.id}
+                        className={`col-span-2 rounded-2xl px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                          orderable
+                            ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        }`}
+                      >
+                        {availabilityId === product.id
+                          ? 'Menyimpan...'
+                          : orderable
+                            ? 'Tandai Habis'
+                            : 'Tersedia Lagi'}
+                      </button>
+                      <button
+                        onClick={() => openEditModal(product)}
+                        className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteProduct(product.id)}
+                        disabled={deletingId === product.id}
+                        className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 disabled:opacity-60"
+                      >
+                        {deletingId === product.id ? 'Menghapus...' : 'Hapus'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -506,7 +581,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3"
                   value={editStock}
                   onChange={(event) => setEditStock(event.target.value)}
-                  placeholder="Stok"
+                  placeholder="Stok (opsional)"
                 />
               </div>
 

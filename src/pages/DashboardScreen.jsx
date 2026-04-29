@@ -256,11 +256,101 @@ function OrdersPanel({ currentUser, role }) {
     }
   }, [currentUser, isVendor, role])
 
-  async function updateStatus(orderId, status) {
-    try {
-      const { error } = await supabase.from('orders').update({ status }).eq('id', orderId)
+  async function decrementProductStockForOrder(order) {
+    const itemRows = Array.isArray(order?.order_items) ? order.order_items : []
+    const quantityByProductId = itemRows.reduce((accumulator, item) => {
+      if (!item?.product_id) return accumulator
+      const quantity = Number(item.quantity) || 0
+      if (quantity <= 0) return accumulator
+      accumulator[item.product_id] = (accumulator[item.product_id] || 0) + quantity
+      return accumulator
+    }, {})
+    const productIds = Object.keys(quantityByProductId)
+    if (productIds.length === 0) return false
+
+    const { data: productsData, error: productsError } = await supabase
+      .from('products')
+      .select('id, vendor_id, stock, is_available')
+      .eq('vendor_id', order.vendor_id)
+      .in('id', productIds)
+
+    if (productsError) throw productsError
+
+    const stockUpdates = (productsData || [])
+      .map((product) => {
+        const currentStock = Number(product.stock)
+        if (!Number.isFinite(currentStock)) return null
+
+        const nextStock = Math.max(0, currentStock - (quantityByProductId[product.id] || 0))
+        return {
+          productId: product.id,
+          payload: {
+            stock: nextStock,
+            is_available: nextStock > 0 ? product.is_available !== false : false,
+          },
+        }
+      })
+      .filter(Boolean)
+
+    for (const update of stockUpdates) {
+      const { error } = await supabase
+        .from('products')
+        .update(update.payload)
+        .eq('id', update.productId)
+        .eq('vendor_id', order.vendor_id)
+
       if (error) throw error
-      toast.push('Status pesanan diperbarui', { type: 'success' })
+    }
+
+    return stockUpdates.length > 0
+  }
+
+  async function completeOrderWithStockSync(order) {
+    if (!order?.id) return false
+
+    try {
+      const { error } = await supabase.rpc('complete_order_and_decrement_stock', {
+        target_order_id: order.id,
+      })
+
+      if (error) throw error
+      return true
+    } catch (rpcError) {
+      if (!isSchemaCompatibilityError(rpcError)) throw rpcError
+      console.info('complete_order_and_decrement_stock belum tersedia, memakai fallback client.', rpcError)
+    }
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'completed' })
+      .eq('id', order.id)
+      .neq('status', 'completed')
+
+    if (error) throw error
+
+    return decrementProductStockForOrder(order)
+  }
+
+  async function updateStatus(orderOrId, status) {
+    const order = orderOrId && typeof orderOrId === 'object' ? orderOrId : null
+    const orderId = order?.id || orderOrId
+
+    try {
+      let stockSynced = false
+
+      if (status === 'completed' && order && order.status !== 'completed') {
+        stockSynced = await completeOrderWithStockSync(order)
+      } else {
+        const { error } = await supabase.from('orders').update({ status }).eq('id', orderId)
+        if (error) throw error
+      }
+
+      toast.push(
+        status === 'completed' && stockSynced
+          ? 'Pesanan selesai dan stok produk disesuaikan'
+          : 'Status pesanan diperbarui',
+        { type: 'success' }
+      )
       void fetchOrders({ background: true, silent: true })
     } catch (error) {
       console.error('updateStatus', error)
@@ -443,7 +533,7 @@ function OrdersPanel({ currentUser, role }) {
               <button
                 key={action.value}
                 disabled={action.disabled}
-                onClick={() => updateStatus(order.id, action.value)}
+                onClick={() => updateStatus(order, action.value)}
                 title={action.disabledReason || action.label}
                 className={`w-full min-w-0 whitespace-normal rounded-2xl px-3 py-2 text-center text-sm font-medium leading-tight md:w-auto ${
                   action.disabled
@@ -475,7 +565,7 @@ function OrdersPanel({ currentUser, role }) {
 
             {!isVendor && order.status === 'pending' && (
               <button
-                onClick={() => updateStatus(order.id, 'cancelled')}
+                onClick={() => updateStatus(order, 'cancelled')}
                 className="w-full min-w-0 whitespace-normal rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-center text-sm font-medium leading-tight text-red-600 md:w-auto"
               >
                 Batalkan
