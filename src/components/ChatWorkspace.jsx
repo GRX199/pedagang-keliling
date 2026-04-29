@@ -41,6 +41,21 @@ function parseImageMessageText(text) {
   }
 }
 
+function formatChatTimestamp(value) {
+  if (!value) return '-'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+  const time = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+
+  if (isToday) return time
+
+  return `${date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} ${time}`
+}
+
 function getPartnerId(chat, currentUserId) {
   return (chat?.participants || []).find((participant) => participant !== currentUserId) || null
 }
@@ -65,6 +80,13 @@ function pickFeaturedOrder(orderRows, preferredOrderId = null) {
   return orderRows[0] || null
 }
 
+function shouldShowPaymentProofShortcut(order, currentUser) {
+  if (!order || !currentUser) return false
+  if (order.buyer_id !== currentUser.id) return false
+  if (!['qris', 'bank_transfer', 'ewallet'].includes(order.payment_method)) return false
+  return ['unpaid', 'failed', null, undefined].includes(order.payment_status)
+}
+
 function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOpenOrders, onTrackOrder }) {
   if (!order) return null
 
@@ -78,8 +100,8 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOp
     <div className="min-w-0 max-w-full overflow-hidden rounded-[18px] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-3 text-white shadow-sm sm:rounded-[24px] sm:p-4">
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 max-w-2xl">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300 sm:text-xs">Order Terkait</div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300 sm:text-xs">Order</div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 sm:mt-1.5">
             <div className="break-words text-sm font-semibold tracking-tight sm:text-lg">
               Pesanan #{String(order.id).slice(0, 8)}
             </div>
@@ -91,11 +113,7 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOp
             {counterpartName}
             {relatedCount > 1 ? ` • ${relatedCount} transaksi terkait` : ''}
           </div>
-          <p className="mt-2 hidden text-sm leading-6 text-slate-300 sm:block">
-            {isActive
-              ? 'Order aktif ini diprioritaskan supaya percakapan tetap fokus ke transaksi yang sedang berjalan.'
-              : 'Order terbaru yang terkait dengan percakapan ini tetap bisa dibuka lagi untuk klarifikasi atau tindak lanjut.'}
-          </p>
+          {isActive && <div className="mt-1 hidden text-xs text-emerald-100 sm:block">Order aktif</div>}
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
@@ -114,7 +132,7 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOp
         </div>
       </div>
 
-      <div className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200 md:hidden">
+      <div className="mt-2 rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200 md:hidden">
         <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1">
           <span>{formatPaymentMethodLabel(order.payment_method)}</span>
           <span>{formatPaymentStatusLabel(order.payment_status)}</span>
@@ -171,7 +189,7 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOp
   )
 }
 
-function ChatThread({ chatId, currentUser, onMessageActivity }) {
+function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode = false }) {
   const toast = useToast()
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
@@ -404,8 +422,8 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
                   ) : (
                     <div className="whitespace-pre-wrap break-words">{message.text}</div>
                   )}
-                  <div className={`mt-1 break-words text-right text-xs ${mine ? 'text-slate-300' : 'text-slate-400'}`}>
-                    {message.created_at ? new Date(message.created_at).toLocaleString('id-ID') : '-'}
+                  <div className={`mt-1 break-words text-right text-[11px] ${mine ? 'text-slate-300' : 'text-slate-400'}`}>
+                    {formatChatTimestamp(message.created_at)}
                   </div>
                 </div>
               </div>
@@ -428,9 +446,7 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-slate-900">Foto siap dikirim</div>
               <div className="mt-1 truncate text-xs text-slate-500">{pendingImage.name}</div>
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                Tulis caption jika perlu, lalu tekan Kirim. Jika caption kosong, foto tetap dikirim tanpa caption.
-              </p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">Tambahkan caption opsional sebelum kirim.</p>
               <button
                 type="button"
                 onClick={clearPendingImage}
@@ -462,8 +478,8 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
             }
           }}
           rows={1}
-          className="min-h-[48px] min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3"
-          placeholder={pendingImage ? 'Tulis caption opsional...' : 'Ketik pesan...'}
+          className="min-h-[48px] min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+          placeholder={pendingImage ? 'Caption opsional...' : 'Ketik pesan...'}
         />
         <div className="grid grid-cols-2 gap-2 sm:flex">
           <button
@@ -472,7 +488,7 @@ function ChatThread({ chatId, currentUser, onMessageActivity }) {
             disabled={sending || !chatId || !currentUser}
             className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 sm:min-w-24"
           >
-            {pendingImage ? 'Ganti Foto' : 'Foto'}
+            {pendingImage ? 'Ganti' : paymentProofMode ? 'Bukti' : 'Foto'}
           </button>
           <button
             onClick={sendMessage}
@@ -515,6 +531,10 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
   const featuredOrder = useMemo(
     () => pickFeaturedOrder(relatedOrders, initialOrderId),
     [initialOrderId, relatedOrders]
+  )
+  const paymentProofMode = useMemo(
+    () => shouldShowPaymentProofShortcut(featuredOrder, user),
+    [featuredOrder, user]
   )
 
   useEffect(() => {
@@ -862,8 +882,8 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
             </div>
             <div className="min-w-0 space-y-3">
               {loadingRelatedOrders ? (
-                <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                  Menautkan pesanan terkait ke percakapan ini...
+                <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                  Memuat order terkait...
                 </div>
               ) : featuredOrder ? (
                 <OrderContextCard
@@ -885,6 +905,7 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
                 chatId={selectedChat.id}
                 currentUser={user}
                 onMessageActivity={handleMessageActivity}
+                paymentProofMode={paymentProofMode}
               />
               </div>
             </div>
