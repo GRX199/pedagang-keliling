@@ -116,6 +116,7 @@ export default function VendorStorePage() {
   const [showCustomerNote, setShowCustomerNote] = useState(false)
   const [showAllReviews, setShowAllReviews] = useState(false)
   const [showAllCartItems, setShowAllCartItems] = useState(false)
+  const [expandedProductNoteIds, setExpandedProductNoteIds] = useState({})
 
   const isOwner = user?.id === id
   const isFavorite = isVendorFavorited(favoriteVendorIds, id)
@@ -309,6 +310,13 @@ export default function VendorStorePage() {
   }, [availablePaymentMethods, paymentMethod])
 
   function updateQuantity(product, nextQuantity) {
+    if (product && (Number(nextQuantity) || 0) <= 0) {
+      setExpandedProductNoteIds((current) => {
+        const { [product.id]: _removed, ...rest } = current
+        return rest
+      })
+    }
+
     setCart((current) => {
       if (!product) return current
 
@@ -348,6 +356,13 @@ export default function VendorStorePage() {
     }))
   }
 
+  function toggleProductNote(productId, isExpanded = false) {
+    setExpandedProductNoteIds((current) => ({
+      ...current,
+      [productId]: !isExpanded,
+    }))
+  }
+
   function clearCart() {
     setCart({})
     setOrderTiming('asap')
@@ -357,6 +372,7 @@ export default function VendorStorePage() {
     setCustomerNote('')
     setShowCustomerNote(false)
     setShowAllCartItems(false)
+    setExpandedProductNoteIds({})
   }
 
   async function applyMeetingPointPreset(preset) {
@@ -649,7 +665,7 @@ export default function VendorStorePage() {
     <div className="min-h-screen overflow-x-hidden bg-transparent">
       <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
         <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="order-2 min-w-0 space-y-4 lg:order-1 lg:sticky lg:top-24 lg:self-start">
+          <aside className="order-2 min-w-0 space-y-3 lg:order-1 lg:sticky lg:top-24 lg:self-start lg:space-y-4">
             <div className="hidden rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80 lg:block">
               <div className="flex flex-col items-center text-center">
                 <div className="h-28 w-28 overflow-hidden rounded-full bg-slate-100">
@@ -761,7 +777,7 @@ export default function VendorStorePage() {
             </div>
 
             {!isOwner && (
-              <section id="order-summary" className="scroll-mt-24 rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
+              <section id="order-summary" className="scroll-mt-24 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="text-lg font-semibold text-slate-900">Ringkasan Pesanan</h2>
@@ -777,11 +793,11 @@ export default function VendorStorePage() {
                 </div>
 
                 {cartEntries.length === 0 ? (
-                  <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                    Belum ada produk dipilih.
+                  <div className="mt-3 rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
+                    Pilih produk dari menu.
                   </div>
                 ) : (
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-3 space-y-2.5 sm:space-y-3">
                     {visibleCartEntries.map((entry) => (
                       <div key={entry.product.id} className="min-w-0 rounded-2xl bg-slate-50 p-3">
                         <div className="flex items-start justify-between gap-3">
@@ -805,17 +821,16 @@ export default function VendorStorePage() {
                     )}
 
                     <div className="rounded-2xl border border-slate-200 p-3 text-sm text-slate-600 sm:p-4">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>{cartTotals.types} produk</div>
-                        <div>{cartTotals.items} item</div>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>{cartTotals.types} produk, {cartTotals.items} item</div>
                       </div>
-                      <div className="mt-2 font-medium text-slate-900">
+                      <div className="mt-1 font-medium text-slate-900 sm:mt-2">
                         Total: {cartTotals.estimatedTotal > 0 ? formatPriceLabel(cartTotals.estimatedTotal) : 'Menyesuaikan harga'}
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 p-3 sm:p-4">
-                      <div className="text-sm font-medium text-slate-900">Waktu Pesanan</div>
+                      <div className="text-sm font-medium text-slate-900">Waktu</div>
                       <div className="mt-2 hidden text-sm text-slate-500 sm:block">
                         {getOrderTimingHint(orderTiming)}
                       </div>
@@ -829,7 +844,7 @@ export default function VendorStorePage() {
                               : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                           }`}
                         >
-                          Pesan Sekarang
+                          Sekarang
                         </button>
                         <button
                           type="button"
@@ -840,13 +855,13 @@ export default function VendorStorePage() {
                               : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                           }`}
                         >
-                          Titip untuk Nanti
+                          Nanti
                         </button>
                       </div>
                       {orderTiming === 'preorder' && (
                         <>
                           <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                            Pilih waktu perkiraan agar pedagang bisa menyesuaikan rute.
+                            Isi waktu perkiraan.
                           </div>
                           <input
                             type="datetime-local"
@@ -859,7 +874,7 @@ export default function VendorStorePage() {
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 p-3 sm:p-4">
-                      <div className="text-sm font-medium text-slate-900">Metode Pembayaran</div>
+                      <div className="text-sm font-medium text-slate-900">Pembayaran</div>
                       <div className={`mt-3 grid grid-cols-2 gap-2 ${
                         availablePaymentMethods.length >= 4
                           ? 'sm:grid-cols-2'
@@ -891,26 +906,24 @@ export default function VendorStorePage() {
                       </div>
 
                       {paymentMethod !== 'cod' && (
-                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
                           <div className="text-sm font-medium text-slate-900">{selectedPaymentDetails.title}</div>
                           {selectedPaymentDetails.ready ? (
                             <>
-                              <div className="mt-2 text-sm leading-6 text-slate-600">{selectedPaymentDetails.description}</div>
-
                               {selectedPaymentDetails.imageUrl && (
                                 <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2">
                                   <img
                                     src={selectedPaymentDetails.imageUrl}
                                     alt={selectedPaymentDetails.title}
-                                    className="h-44 w-full rounded-xl object-contain sm:h-56"
+                                    className="h-36 w-full rounded-xl object-contain sm:h-56"
                                   />
                                 </div>
                               )}
 
                               {selectedPaymentDetails.rows.length > 0 && (
-                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                <div className="mt-3 grid gap-2 sm:grid-cols-2">
                                   {selectedPaymentDetails.rows.map((row) => (
-                                    <div key={row.label} className="rounded-2xl bg-slate-50 px-4 py-3">
+                                    <div key={row.label} className="rounded-2xl bg-slate-50 px-4 py-2.5 sm:py-3">
                                       <div className="text-xs uppercase tracking-[0.16em] text-slate-400">{row.label}</div>
                                       <div className="mt-1 text-sm font-medium text-slate-900">{row.value}</div>
                                     </div>
@@ -920,13 +933,13 @@ export default function VendorStorePage() {
 
                               {selectedPaymentDetails.note && (
                                 <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                                  Catatan pedagang: {selectedPaymentDetails.note}
+                                  {selectedPaymentDetails.note}
                                 </div>
                               )}
                             </>
                           ) : (
                             <div className="mt-2 text-sm text-slate-500">
-                              Pedagang belum menyiapkan detail untuk metode ini. Gunakan metode lain atau klarifikasi lewat chat.
+                              Detail metode ini belum tersedia.
                             </div>
                           )}
                         </div>
@@ -934,13 +947,13 @@ export default function VendorStorePage() {
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 p-3 sm:p-4">
-                      <div className="text-sm font-medium text-slate-900">Metode Serah Terima</div>
+                      <div className="text-sm font-medium text-slate-900">Serah Terima</div>
                       <div className="mt-2 hidden text-sm text-slate-500 sm:block">
                         {getFulfillmentTypeHint(fulfillmentType)}
                       </div>
                       {orderTiming === 'preorder' && (
-                        <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                          Untuk titip pesanan, isi area tujuan atau titik temu utama agar pedagang tahu ke mana pesanan ini perlu diarahkan.
+                        <div className="mt-3 hidden rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:block">
+                          Isi area tujuan atau titik temu utama.
                         </div>
                       )}
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -994,7 +1007,7 @@ export default function VendorStorePage() {
                       />
                       {meetingPointLocation && (
                         <div className="mt-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                          Lokasi saat ini sudah disimpan untuk membantu pedagang menemukan titik {fulfillmentType === 'delivery' ? 'antar' : 'temu'}.
+                          Lokasi tersimpan.
                         </div>
                       )}
                     </div>
@@ -1019,11 +1032,7 @@ export default function VendorStorePage() {
                           className="mt-3 min-h-[84px] w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm"
                           placeholder="Contoh: tunggu di depan rumah, tidak pedas, hubungi saat dekat"
                         />
-                      ) : (
-                        <div className="mt-2 text-sm text-slate-500">
-                          Opsional. Tambahkan kalau ada instruksi khusus untuk pedagang.
-                        </div>
-                      )}
+                      ) : null}
                     </div>
 
                     {!user ? (
@@ -1035,7 +1044,7 @@ export default function VendorStorePage() {
                       </button>
                     ) : (
                       <form onSubmit={submitOrder} className="space-y-2">
-                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        <div className="hidden rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:block">
                           {formatOrderTimingLabel(orderTiming)}
                           {orderTiming === 'preorder' && requestedFulfillmentAt
                             ? ` • sekitar ${new Date(requestedFulfillmentAt).toLocaleString('id-ID', {
@@ -1052,15 +1061,15 @@ export default function VendorStorePage() {
                           {submittingOrder
                             ? 'Mengirim Pesanan...'
                             : orderTiming === 'preorder'
-                              ? 'Titip Pesanan & Buka Chat'
-                              : 'Kirim Pesanan & Buka Chat'}
+                              ? 'Titip & Chat'
+                              : 'Pesan & Chat'}
                         </button>
                         <button
                           type="button"
                           onClick={clearCart}
                           className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
                         >
-                          Kosongkan Pilihan
+                          Kosongkan
                         </button>
                       </form>
                     )}
@@ -1144,7 +1153,7 @@ export default function VendorStorePage() {
                           : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70'
                       }`}
                     >
-                      {favoriteBusy ? 'Menyimpan...' : isFavorite ? 'Tersimpan di Favorit' : 'Simpan ke Favorit'}
+                      {favoriteBusy ? 'Menyimpan...' : isFavorite ? 'Tersimpan' : 'Favorit'}
                     </button>
                   )}
                   <button
@@ -1153,17 +1162,17 @@ export default function VendorStorePage() {
                       favoriteFeatureEnabled ? '' : 'col-span-2'
                     }`}
                   >
-                    Chat Pedagang
+                    Chat
                   </button>
                 </div>
               )}
             </section>
 
             {hasActivePromo && (
-              <section className="rounded-[24px] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4 shadow-sm sm:rounded-[28px] sm:p-5">
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-amber-700">Promo Aktif</div>
-                <div className="mt-2 line-clamp-2 text-lg font-semibold text-slate-900 sm:line-clamp-none">{getVendorPromoText(vendor)}</div>
-                <div className="mt-1 text-sm text-slate-600">
+              <section className="rounded-[22px] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-3 shadow-sm sm:rounded-[28px] sm:p-5">
+                <div className="text-xs font-medium uppercase tracking-[0.16em] text-amber-700">Promo</div>
+                <div className="mt-1 line-clamp-2 text-base font-semibold text-slate-900 sm:mt-2 sm:line-clamp-none sm:text-lg">{getVendorPromoText(vendor)}</div>
+                <div className="mt-1 text-xs text-slate-600 sm:text-sm">
                   Berlaku sampai {formatVendorPromoExpiry(vendor)}
                 </div>
               </section>
@@ -1172,7 +1181,7 @@ export default function VendorStorePage() {
             <section className="rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
-                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Menu Tersedia</h2>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Menu</h2>
                   <p className="mt-1 hidden text-sm text-slate-500 sm:block">Pilih dari produk yang memang tersedia agar order lebih mudah diproses oleh pedagang.</p>
                 </div>
                 {!isOwner && cartEntries.length > 0 && (
@@ -1195,15 +1204,16 @@ export default function VendorStorePage() {
                     const quantity = cart[product.id]?.quantity || 0
                     const note = cart[product.id]?.note || ''
                     const orderable = isOwner || isProductOrderable(product)
+                    const noteExpanded = expandedProductNoteIds[product.id] ?? Boolean(note)
 
                     return (
                       <div key={product.id} className={`min-w-0 overflow-hidden rounded-[22px] border bg-white shadow-sm sm:rounded-[24px] ${
                         orderable ? 'border-slate-200' : 'border-slate-200/70 opacity-80'
                       }`}>
                         {product.image_url ? (
-                          <img src={product.image_url} alt={product.name} className="h-24 w-full object-cover sm:h-44" />
+                          <img src={product.image_url} alt={product.name} className="h-20 w-full object-cover sm:h-44" />
                         ) : (
-                          <div className="flex h-24 items-center justify-center bg-slate-100 text-sm text-slate-400 sm:h-44">
+                          <div className="flex h-20 items-center justify-center bg-slate-100 text-sm text-slate-400 sm:h-44">
                             Belum ada gambar
                           </div>
                         )}
@@ -1241,7 +1251,7 @@ export default function VendorStorePage() {
                             <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
                               {!orderable ? (
                                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
-                                  Produk sedang tidak tersedia. Chat pedagang bila perlu klarifikasi.
+                                  Sedang habis.
                                 </div>
                               ) : quantity === 0 ? (
                                 <button
@@ -1274,14 +1284,29 @@ export default function VendorStorePage() {
                                     </div>
                                   </div>
 
-                                  <textarea
-                                    value={note}
-                                    onChange={(event) => updateNote(product.id, event.target.value)}
-                                    maxLength={140}
-                                    rows={2}
-                                    className="min-h-[68px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
-                                    placeholder="Catatan opsional"
-                                  />
+                                  <div className="flex items-center justify-between gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleProductNote(product.id, noteExpanded)}
+                                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                                    >
+                                      {noteExpanded ? 'Tutup catatan' : note ? 'Edit catatan' : 'Catatan'}
+                                    </button>
+                                    {note && !noteExpanded && (
+                                      <div className="min-w-0 flex-1 truncate text-right text-xs text-slate-500">{note}</div>
+                                    )}
+                                  </div>
+
+                                  {noteExpanded && (
+                                    <textarea
+                                      value={note}
+                                      onChange={(event) => updateNote(product.id, event.target.value)}
+                                      maxLength={140}
+                                      rows={2}
+                                      className="min-h-[68px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
+                                      placeholder="Catatan opsional"
+                                    />
+                                  )}
                                 </>
                               )}
                             </div>
