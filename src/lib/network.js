@@ -72,7 +72,7 @@ export function getGeolocationErrorMessage(error) {
     case 2:
       return 'Lokasi tidak tersedia. Pastikan GPS atau layanan lokasi perangkat aktif.'
     case 3:
-      return 'Permintaan lokasi timeout. Coba lagi saat sinyal GPS lebih stabil.'
+      return 'Lokasi belum sempat terbaca. Pastikan GPS aktif, coba di area terbuka, lalu tekan Lokasi Saya lagi.'
     default:
       return 'Tidak dapat mengakses lokasi Anda'
   }

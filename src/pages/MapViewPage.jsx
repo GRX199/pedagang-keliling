@@ -32,6 +32,16 @@ import {
 
 const DEFAULT_CENTER = [-2.5489, 118.0149]
 const LOCATION_SYNC_DISTANCE_METERS = 20
+const PRECISE_GEOLOCATION_OPTIONS = {
+  enableHighAccuracy: true,
+  timeout: 25000,
+  maximumAge: 30000,
+}
+const RELAXED_GEOLOCATION_OPTIONS = {
+  enableHighAccuracy: false,
+  timeout: 18000,
+  maximumAge: 120000,
+}
 const RATING_FILTER_OPTIONS = [
   { value: 'all', label: 'Semua rating' },
   { value: '4', label: '4.0+' },
@@ -123,6 +133,26 @@ function formatVendorRatingMeta(vendor) {
   const reviewCount = getVendorReviewCount(vendor)
   if (reviewCount <= 0) return 'Belum ada ulasan'
   return `${formatReviewScore(getVendorAverageRating(vendor))} • ${reviewCount} ulasan`
+}
+
+function getBrowserPosition(options) {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject(new Error('Browser ini tidak mendukung akses lokasi'))
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, options)
+  })
+}
+
+async function getBrowserPositionWithFallback() {
+  try {
+    return await getBrowserPosition(PRECISE_GEOLOCATION_OPTIONS)
+  } catch (error) {
+    if (error?.code === 1) throw error
+    return getBrowserPosition(RELAXED_GEOLOCATION_OPTIONS)
+  }
 }
 
 function matchesRatingFilter(vendor, selectedRatingFilter) {
@@ -389,51 +419,58 @@ export default function MapViewPage() {
     }
   }, [isVendor, myVendorId, toast])
 
-  const syncStoreLocationNow = useCallback(() => {
+  const syncStoreLocationNow = useCallback(async () => {
     if (!isVendor || !myVendorId) return
     if (!navigator.geolocation) {
       toast.push('Browser ini tidak mendukung akses lokasi', { type: 'error' })
       return
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude
-        const lng = position.coords.longitude
+    try {
+      const position = await getBrowserPositionWithFallback()
+      const lat = position.coords.latitude
+      const lng = position.coords.longitude
 
-        suppressNextFitBoundsRef.current = true
-        applyViewerLocation(lat, lng, { focus: true, zoom: 16 })
+      suppressNextFitBoundsRef.current = true
+      applyViewerLocation(lat, lng, { focus: true, zoom: 16 })
 
-        void syncMyVendorLocation({
-          lat,
-          lng,
-          accuracy: position.coords.accuracy,
-        }, { force: true })
-      },
-      (error) => {
-        toast.push(getGeolocationErrorMessage(error), { type: 'error' })
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 10000,
-      }
-    )
+      await syncMyVendorLocation({
+        lat,
+        lng,
+        accuracy: position.coords.accuracy,
+      }, { force: true })
+    } catch (error) {
+      suppressNextFitBoundsRef.current = false
+      toast.push(getGeolocationErrorMessage(error), { type: 'error' })
+    }
   }, [applyViewerLocation, isVendor, myVendorId, syncMyVendorLocation, toast])
 
-  function requestCurrentLocation(options = {}) {
+  async function requestCurrentLocation(options = {}) {
     if (!mapRef.current) return
+    if (!navigator.geolocation) {
+      toast.push('Browser ini tidak mendukung akses lokasi', { type: 'error' })
+      return
+    }
 
     suppressNextFitBoundsRef.current = true
     if (options.clearSelection !== false) {
       setSelectedVendor(null)
     }
 
-    mapRef.current.locate({
-      enableHighAccuracy: true,
-      maxZoom: options.maxZoom || 16,
-      setView: false,
-    })
+    try {
+      const position = await getBrowserPositionWithFallback()
+      const lat = position.coords.latitude
+      const lng = position.coords.longitude
+
+      suppressNextFitBoundsRef.current = true
+      applyViewerLocation(lat, lng, {
+        focus: true,
+        zoom: options.maxZoom || 16,
+      })
+    } catch (error) {
+      suppressNextFitBoundsRef.current = false
+      toast.push(getGeolocationErrorMessage(error), { type: 'error' })
+    }
   }
 
   const focusVendor = useCallback((vendor) => {
@@ -766,7 +803,7 @@ export default function MapViewPage() {
       L.DomEvent.disableClickPropagation(element)
       L.DomEvent.on(element, 'click', (event) => {
         L.DomEvent.preventDefault(event)
-        requestCurrentLocation({ clearSelection: true })
+        void requestCurrentLocation({ clearSelection: true })
       })
       return element
     }
@@ -846,7 +883,7 @@ export default function MapViewPage() {
 
     autoLocateAttemptedRef.current = true
     toast.push('Izinkan lokasi agar posisi toko Anda muncul di peta pelanggan.', { type: 'info' })
-    syncStoreLocationNow()
+    void syncStoreLocationNow()
   }, [isVendor, myVendorId, syncStoreLocationNow, toast, vendors])
 
   const filteredVendors = useMemo(() => {
