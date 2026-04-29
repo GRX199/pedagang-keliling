@@ -278,6 +278,7 @@ function OrdersPanel({ currentUser, role }) {
 
     const stockUpdates = (productsData || [])
       .map((product) => {
+        if (product.stock === null || typeof product.stock === 'undefined' || product.stock === '') return null
         const currentStock = Number(product.stock)
         if (!Number.isFinite(currentStock)) return null
 

@@ -10,17 +10,27 @@ function formatPrice(price) {
   return `Rp ${Number(price).toLocaleString('id-ID')}`
 }
 
+function hasManagedStock(product) {
+  return product?.stock !== null && typeof product?.stock !== 'undefined' && product?.stock !== ''
+}
+
+function getManagedStockNumber(product) {
+  if (!hasManagedStock(product)) return null
+  const stock = Number(product.stock)
+  return Number.isFinite(stock) ? stock : null
+}
+
 function getProductStockLabel(product) {
-  const stock = Number(product?.stock)
-  if (!Number.isFinite(stock)) return 'Stok fleksibel'
+  const stock = getManagedStockNumber(product)
+  if (stock === null) return 'Stok fleksibel'
   if (stock <= 0) return 'Stok habis'
   return `Stok: ${stock}`
 }
 
 function isProductOrderable(product) {
-  const stock = Number(product?.stock)
+  const stock = getManagedStockNumber(product)
   if (product?.is_available === false) return false
-  if (Number.isFinite(stock) && stock <= 0) return false
+  if (stock !== null && stock <= 0) return false
   return true
 }
 
@@ -288,12 +298,12 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
     if (!product?.id) return
 
     const productIsOrderable = isProductOrderable(product)
-    const stock = Number(product.stock)
+    const stock = getManagedStockNumber(product)
     const nextPayload = productIsOrderable
       ? { is_available: false, stock: 0 }
       : {
           is_available: true,
-          stock: Number.isFinite(stock) && stock <= 0 ? null : product.stock,
+          stock: stock !== null && stock <= 0 ? null : product.stock,
         }
 
     setAvailabilityId(product.id)
@@ -306,6 +316,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
 
       if (error) throw error
 
+      setProducts((current) => current.map((item) => (
+        item.id === product.id ? { ...item, ...nextPayload } : item
+      )))
       toast.push(productIsOrderable ? 'Produk ditandai habis' : 'Produk tersedia lagi', { type: 'success' })
       fetchProducts()
     } catch (error) {

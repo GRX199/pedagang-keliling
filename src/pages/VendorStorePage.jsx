@@ -40,20 +40,27 @@ import {
 } from '../lib/vendor'
 import { formatReviewScore, getReviewSummary } from '../lib/reviews'
 
+function hasManagedStock(product) {
+  return product?.stock !== null && typeof product?.stock !== 'undefined' && product?.stock !== ''
+}
+
+function getManagedStockNumber(product) {
+  if (!hasManagedStock(product)) return null
+  const stock = Number(product.stock)
+  return Number.isFinite(stock) ? stock : null
+}
+
 function getProductStockLabel(product) {
-  const stock = Number(product?.stock)
-  if (Number.isFinite(stock)) {
-    if (stock <= 0) return 'Stok habis'
-    return `Stok ${stock}`
-  }
+  const stock = getManagedStockNumber(product)
+  if (stock !== null) return stock <= 0 ? 'Stok habis' : `Stok ${stock}`
 
   return 'Stok fleksibel'
 }
 
 function isProductOrderable(product) {
-  const stock = Number(product?.stock)
+  const stock = getManagedStockNumber(product)
   if (product?.is_available === false) return false
-  if (Number.isFinite(stock) && stock <= 0) return false
+  if (stock !== null && stock <= 0) return false
   return true
 }
 
@@ -239,8 +246,8 @@ export default function VendorStorePage() {
           continue
         }
 
-        const numericStock = Number(product.stock)
-        const maxQuantity = Number.isFinite(numericStock) && numericStock > 0
+        const numericStock = getManagedStockNumber(product)
+        const maxQuantity = numericStock !== null && numericStock > 0
           ? numericStock
           : currentEntry.quantity
         const safeQuantity = Math.min(currentEntry.quantity, maxQuantity)
@@ -310,8 +317,8 @@ export default function VendorStorePage() {
         return rest
       }
 
-      const numericStock = Number(product.stock)
-      const maxQuantity = Number.isFinite(numericStock) && numericStock > 0
+      const numericStock = getManagedStockNumber(product)
+      const maxQuantity = numericStock !== null && numericStock > 0
         ? numericStock
         : Number.POSITIVE_INFINITY
       const quantity = Math.max(0, Number(nextQuantity) || 0)
