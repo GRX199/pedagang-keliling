@@ -786,8 +786,8 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
       <div className={`min-w-0 overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-4 ${selectedChat && !showInboxMobile ? 'hidden lg:block' : ''}`}>
         <div className="mb-3 flex items-center justify-between">
           <div className="min-w-0">
-            <div className="font-semibold text-slate-900">Daftar Chat</div>
-            <div className="text-sm text-slate-500">Pilih percakapan.</div>
+            <div className="font-semibold text-slate-900">Chat</div>
+            <div className="text-sm text-slate-500">{chats.length} percakapan</div>
           </div>
         </div>
 
@@ -847,7 +847,6 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
             <div className="mb-3 border-b border-slate-100 pb-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-sm text-slate-500">Sedang chat dengan</div>
                   <div className="truncate font-semibold text-slate-900">
                     {selectedPartnerLabel}
                   </div>

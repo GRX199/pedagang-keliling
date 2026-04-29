@@ -11,33 +11,33 @@ const categories = [
 ]
 
 const customerPoints = [
-  'Lihat pedagang yang benar-benar sedang online di sekitar Anda.',
-  'Pesan dari menu yang tersedia sebelum pedagang sampai.',
-  'Lacak status, chat, dan titik temu tanpa pindah ke banyak layar.',
+  'Lihat pedagang online terdekat.',
+  'Pesan dari menu yang tersedia.',
+  'Lacak status, chat, dan titik temu.',
 ]
 
 const vendorPoints = [
-  'Terima order lebih awal sambil tetap bergerak di area jualan.',
-  'Ubah status toko dan sinkronkan lokasi otomatis saat online.',
-  'Kelola produk, pesanan, dan komunikasi pelanggan dengan alur yang lebih rapi.',
+  'Terima order sebelum sampai.',
+  'Online/offline dan lokasi lebih rapi.',
+  'Kelola produk, pesanan, dan chat.',
 ]
 
 const steps = [
   {
     title: 'Buka peta',
-    body: 'Pelanggan melihat pedagang online yang aktif, dekat, dan sesuai kategori.',
+    body: 'Lihat pedagang online di sekitar Anda.',
   },
   {
     title: 'Pilih toko',
-    body: 'Profil toko menampilkan deskripsi, produk, stok, jam operasional, dan area layanan.',
+    body: 'Cek profil, menu, stok, dan rating.',
   },
   {
     title: 'Pesan lebih awal',
-    body: 'Order dikirim ke pedagang beserta catatan dan titik temu untuk tindak lanjut di chat.',
+    body: 'Kirim order, catatan, dan titik temu.',
   },
   {
     title: 'Lacak sampai selesai',
-    body: 'Status pesanan dan pergerakan pedagang dipantau secara realtime sampai transaksi selesai.',
+    body: 'Pantau status dan posisi pedagang.',
   },
 ]
 
@@ -48,16 +48,16 @@ export default function LandingPage() {
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-9 sm:py-14 lg:grid-cols-[minmax(0,1.1fr)_420px] lg:items-center lg:py-20">
           <div className="min-w-0">
             <div className="inline-flex max-w-full rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-emerald-700 sm:tracking-[0.22em]">
-              Map-First Commerce Untuk Pedagang Keliling
+              Peta Pedagang Keliling
             </div>
 
             <h1 className="mt-5 max-w-3xl text-3xl font-black tracking-tight text-slate-950 sm:mt-6 sm:text-5xl lg:text-6xl">
-              Pedagang keliling terlihat real-time, pelanggan bisa pesan sebelum pedagang tiba.
+              Temukan pedagang keliling terdekat, pesan, lalu lacak dari peta.
             </h1>
 
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:mt-5 sm:text-lg sm:leading-8">
-              Kelilingku membantu pelanggan menemukan pedagang yang sedang online di sekitar mereka, lalu
-              melanjutkan transaksi dari peta ke chat, checkout, dan tracking dalam satu alur yang lebih rapi.
+              Kelilingku menghubungkan pelanggan dan pedagang online sekitar dalam satu alur: peta, toko, chat,
+              checkout, dan tracking.
             </p>
 
             <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row">
@@ -170,7 +170,7 @@ export default function LandingPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-[24px] border border-slate-200/80 bg-white/85 p-5 shadow-sm backdrop-blur sm:rounded-[30px] sm:p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:tracking-[0.22em]">Untuk Pelanggan</div>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900">Lebih cepat tahu siapa yang benar-benar dekat</h2>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900">Cari dari peta, pesan lebih cepat</h2>
             <div className="mt-5 space-y-3">
               {customerPoints.map((point) => (
                 <div key={point} className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3 sm:py-4">
@@ -183,7 +183,7 @@ export default function LandingPage() {
 
           <div className="rounded-[24px] border border-slate-200/80 bg-slate-950 p-5 text-white shadow-sm sm:rounded-[30px] sm:p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 sm:tracking-[0.22em]">Untuk Pedagang</div>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight">Bukan sekadar tampil di katalog, tapi siap menerima order saat bergerak</h2>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight">Toko aktif saat Anda keliling</h2>
             <div className="mt-5 space-y-3">
               {vendorPoints.map((point) => (
                 <div key={point} className="flex items-start gap-3 rounded-2xl bg-white/6 px-4 py-3 ring-1 ring-white/8 sm:py-4">
@@ -200,7 +200,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-4 py-9 sm:py-14">
           <div className="max-w-2xl">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:tracking-[0.22em]">Cara Kerja</div>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Alur singkat untuk transaksi pedagang keliling</h2>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Alur sederhana</h2>
             <p className="mt-4 hidden text-sm leading-7 text-slate-600 sm:block">
               Kami menjaga pengalaman tetap sederhana: peta sebagai pintu masuk, toko sebagai tempat memilih menu, lalu order, chat,
               dan tracking berjalan sebagai satu rangkaian.

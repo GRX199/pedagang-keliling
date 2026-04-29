@@ -1815,9 +1815,6 @@ export default function MapViewPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Peta pedagang sekitar</h2>
-                <p className="text-sm leading-6 text-slate-500">
-                  Lihat peta lebih dulu, lalu lanjut pilih toko yang paling relevan.
-                </p>
               </div>
               <div className="text-sm text-slate-500">
                 {loading ? 'Memuat pedagang...' : `${filteredVendorCount} toko tampil di peta`}
