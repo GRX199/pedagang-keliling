@@ -201,7 +201,7 @@ function TopNav() {
       </header>
 
       {user && (
-        <nav className="fixed inset-x-2 bottom-3 z-50 md:hidden">
+        <nav className="fixed inset-x-2 bottom-3 z-[1200] md:hidden">
           <div
             className="grid rounded-[24px] border border-slate-200/80 bg-white/95 p-1.5 shadow-2xl shadow-slate-900/10 backdrop-blur sm:inset-x-3 sm:p-2"
             style={{ gridTemplateColumns: `repeat(${navItems.length || 1}, minmax(0, 1fr))` }}

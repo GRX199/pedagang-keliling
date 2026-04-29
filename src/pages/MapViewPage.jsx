@@ -290,6 +290,7 @@ export default function MapViewPage() {
   const clusterRef = useRef(null)
   const heatmapLayerRef = useRef(null)
   const autoLocateAttemptedRef = useRef(false)
+  const suppressNextFitBoundsRef = useRef(false)
   const lastSyncedLocationRef = useRef(null)
 
   const [vendors, setVendors] = useState([])
@@ -324,7 +325,7 @@ export default function MapViewPage() {
     return params.get('favorites') === '1'
   }, [location.search])
 
-  const applyViewerLocation = useCallback((lat, lng) => {
+  const applyViewerLocation = useCallback((lat, lng, options = {}) => {
     const map = mapRef.current
     setUserLocation({ lat, lng })
 
@@ -337,6 +338,13 @@ export default function MapViewPage() {
       fillColor: '#2563eb',
       fillOpacity: 0.9,
     }).addTo(map)
+
+    if (options.focus) {
+      map.flyTo([lat, lng], options.zoom || 16, {
+        animate: true,
+        duration: options.duration || 0.6,
+      })
+    }
   }, [])
 
   const syncMyVendorLocation = useCallback(async (coords, options = {}) => {
@@ -393,11 +401,8 @@ export default function MapViewPage() {
         const lat = position.coords.latitude
         const lng = position.coords.longitude
 
-        applyViewerLocation(lat, lng)
-        mapRef.current?.flyTo([lat, lng], 16, {
-          animate: true,
-          duration: 0.6,
-        })
+        suppressNextFitBoundsRef.current = true
+        applyViewerLocation(lat, lng, { focus: true, zoom: 16 })
 
         void syncMyVendorLocation({
           lat,
@@ -417,10 +422,17 @@ export default function MapViewPage() {
   }, [applyViewerLocation, isVendor, myVendorId, syncMyVendorLocation, toast])
 
   function requestCurrentLocation(options = {}) {
-    mapRef.current?.locate({
+    if (!mapRef.current) return
+
+    suppressNextFitBoundsRef.current = true
+    if (options.clearSelection !== false) {
+      setSelectedVendor(null)
+    }
+
+    mapRef.current.locate({
       enableHighAccuracy: true,
-      maxZoom: options.maxZoom || 15,
-      setView: options.setView !== false,
+      maxZoom: options.maxZoom || 16,
+      setView: false,
     })
   }
 
@@ -744,23 +756,30 @@ export default function MapViewPage() {
     locateControl.onAdd = function onAdd() {
       const element = L.DomUtil.create('button', 'leaflet-bar')
       element.type = 'button'
-      element.textContent = 'Lokasi'
+      element.textContent = 'Lokasi Saya'
       element.style.background = 'white'
       element.style.padding = '8px'
       element.style.cursor = 'pointer'
       element.style.border = 'none'
-      element.title = 'Tampilkan lokasi saya'
-      L.DomEvent.on(element, 'click', () => requestCurrentLocation())
+      element.style.fontWeight = '700'
+      element.title = 'Fokus ke lokasi saya'
+      L.DomEvent.disableClickPropagation(element)
+      L.DomEvent.on(element, 'click', (event) => {
+        L.DomEvent.preventDefault(event)
+        requestCurrentLocation({ clearSelection: true })
+      })
       return element
     }
     locateControl.addTo(map)
 
     map.on('locationfound', (event) => {
       const { lat, lng } = event.latlng
-      applyViewerLocation(lat, lng)
+      suppressNextFitBoundsRef.current = true
+      applyViewerLocation(lat, lng, { focus: true, zoom: 16 })
     })
 
     map.on('locationerror', (error) => {
+      suppressNextFitBoundsRef.current = false
       toast.push(getGeolocationErrorMessage(error), { type: 'error' })
     })
 
@@ -1044,13 +1063,14 @@ export default function MapViewPage() {
     clusterRef.current = group
     group.addTo(map)
 
-    if (bounds.length > 0) {
+    if (bounds.length > 0 && !suppressNextFitBoundsRef.current) {
       try {
         map.fitBounds(bounds, { padding: [48, 48] })
       } catch (error) {
         console.error('fitBounds', error)
       }
     }
+    suppressNextFitBoundsRef.current = false
 
     return () => {
       try {
