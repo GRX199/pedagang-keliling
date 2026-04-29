@@ -1070,8 +1070,8 @@ export default function VendorStorePage() {
             )}
           </aside>
 
-          <main className="order-1 min-w-0 space-y-4 lg:order-2">
-            <section className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5 lg:hidden">
+          <main className="order-1 min-w-0 space-y-3 lg:order-2 lg:space-y-4">
+            <section className="rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5 lg:hidden">
               <div className="flex items-start gap-4">
                 <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-slate-100 sm:h-16 sm:w-16">
                   {vendor.photo_url ? (
@@ -1085,13 +1085,13 @@ export default function VendorStorePage() {
 
                 <div className="min-w-0 flex-1">
                   <h1 className="break-words text-xl font-semibold text-slate-900">{vendor.name}</h1>
-                  <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">
+                  <p className="mt-1 line-clamp-1 text-sm leading-6 text-slate-600 sm:line-clamp-2">
                     {vendor.description || 'Pedagang lokal siap melayani Anda.'}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <span className={`rounded-full px-3 py-1 text-xs font-medium ${
                   vendor.online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
                 }`}>
@@ -1118,7 +1118,7 @@ export default function VendorStorePage() {
               </div>
 
               {isOwner ? (
-                <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     onClick={() => navigate('/dashboard?tab=products')}
                     className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
@@ -1133,7 +1133,7 @@ export default function VendorStorePage() {
                   </button>
                 </div>
               ) : (
-                <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   {favoriteFeatureEnabled && (
                     <button
                       onClick={() => void toggleFavoriteVendor()}
@@ -1169,16 +1169,16 @@ export default function VendorStorePage() {
               </section>
             )}
 
-            <section className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
+            <section className="rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
-                  <h2 className="text-xl font-semibold text-slate-900">Menu Tersedia</h2>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Menu Tersedia</h2>
                   <p className="mt-1 hidden text-sm text-slate-500 sm:block">Pilih dari produk yang memang tersedia agar order lebih mudah diproses oleh pedagang.</p>
                 </div>
                 {!isOwner && cartEntries.length > 0 && (
                   <button
                     onClick={() => document.getElementById('order-summary')?.scrollIntoView({ behavior: 'smooth' })}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
+                    className="rounded-full border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700"
                   >
                     Lihat {cartTotals.items} Item Dipilih
                   </button>
@@ -1201,14 +1201,14 @@ export default function VendorStorePage() {
                         orderable ? 'border-slate-200' : 'border-slate-200/70 opacity-80'
                       }`}>
                         {product.image_url ? (
-                          <img src={product.image_url} alt={product.name} className="h-28 w-full object-cover sm:h-44" />
+                          <img src={product.image_url} alt={product.name} className="h-24 w-full object-cover sm:h-44" />
                         ) : (
-                          <div className="flex h-28 items-center justify-center bg-slate-100 text-sm text-slate-400 sm:h-44">
+                          <div className="flex h-24 items-center justify-center bg-slate-100 text-sm text-slate-400 sm:h-44">
                             Belum ada gambar
                           </div>
                         )}
 
-                        <div className="space-y-3 p-3 sm:p-4">
+                        <div className="space-y-2.5 p-3 sm:space-y-3 sm:p-4">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <div className="break-words font-semibold text-slate-900">{product.name}</div>
@@ -1217,10 +1217,10 @@ export default function VendorStorePage() {
                                   ? 'bg-emerald-50 text-emerald-700'
                                   : 'bg-rose-50 text-rose-700'
                               }`}>
-                                {orderable ? 'Siap dipesan' : 'Belum tersedia'}
+                                {orderable ? 'Siap' : 'Habis'}
                               </span>
                             </div>
-                            <div className="mt-1 line-clamp-2 break-words text-sm leading-6 text-slate-600">{product.description || 'Tanpa deskripsi'}</div>
+                            <div className="mt-1 line-clamp-1 break-words text-sm leading-6 text-slate-600 sm:line-clamp-2">{product.description || 'Tanpa deskripsi'}</div>
                           </div>
 
                           <div className="flex flex-wrap gap-2 text-xs">
@@ -1239,44 +1239,50 @@ export default function VendorStorePage() {
 
                           {!isOwner && (
                             <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="text-sm font-medium text-slate-700">Jumlah Pesanan</div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateQuantity(product, quantity - 1)}
-                                    disabled={quantity === 0}
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg text-slate-700 disabled:opacity-50"
-                                  >
-                                    -
-                                  </button>
-                                  <div className="min-w-8 text-center text-sm font-semibold text-slate-900">{quantity}</div>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateQuantity(product, quantity + 1)}
-                                    disabled={!orderable}
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg text-slate-700 disabled:opacity-50"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </div>
-
-                              {!orderable && (
+                              {!orderable ? (
                                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
-                                  Produk ini sedang tidak tersedia untuk dipesan. Anda masih bisa chat pedagang untuk klarifikasi.
+                                  Produk sedang tidak tersedia. Chat pedagang bila perlu klarifikasi.
                                 </div>
-                              )}
+                              ) : quantity === 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(product, 1)}
+                                  className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                >
+                                  Tambah
+                                </button>
+                              ) : (
+                                <>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-sm font-medium text-slate-700">Jumlah</div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateQuantity(product, quantity - 1)}
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg text-slate-700"
+                                      >
+                                        -
+                                      </button>
+                                      <div className="min-w-8 text-center text-sm font-semibold text-slate-900">{quantity}</div>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateQuantity(product, quantity + 1)}
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg text-slate-700"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
 
-                              {quantity > 0 && orderable && (
-                                <textarea
-                                  value={note}
-                                  onChange={(event) => updateNote(product.id, event.target.value)}
-                                  maxLength={140}
-                                  rows={2}
-                                  className="min-h-[72px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
-                                  placeholder="Catatan opsional, misalnya: tidak pedas, sayur dipisah, kirim sore hari"
-                                />
+                                  <textarea
+                                    value={note}
+                                    onChange={(event) => updateNote(product.id, event.target.value)}
+                                    maxLength={140}
+                                    rows={2}
+                                    className="min-h-[68px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
+                                    placeholder="Catatan opsional"
+                                  />
+                                </>
                               )}
                             </div>
                           )}

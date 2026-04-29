@@ -75,19 +75,19 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOp
   const isActive = isActiveOrderStatus(order.status)
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-[20px] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-3 text-white shadow-sm sm:rounded-[24px] sm:p-4">
-      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-[18px] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-3 text-white shadow-sm sm:rounded-[24px] sm:p-4">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 max-w-2xl">
-          <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-300">Order Terkait</div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <div className="break-words text-base font-semibold tracking-tight sm:text-lg">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300 sm:text-xs">Order Terkait</div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <div className="break-words text-sm font-semibold tracking-tight sm:text-lg">
               Pesanan #{String(order.id).slice(0, 8)}
             </div>
             <span className="max-w-full rounded-full bg-white/10 px-3 py-1 text-xs font-medium leading-tight text-slate-100 ring-1 ring-white/10">
               {formatOrderStatusLabel(order.status)}
             </span>
           </div>
-          <div className="mt-2 break-words text-sm text-slate-200">
+          <div className="mt-1 break-words text-xs text-slate-200 sm:text-sm">
             {counterpartName}
             {relatedCount > 1 ? ` • ${relatedCount} transaksi terkait` : ''}
           </div>
@@ -101,26 +101,26 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOp
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <button
             onClick={onTrackOrder}
-            className="min-w-0 rounded-2xl bg-white px-4 py-3 text-sm font-medium leading-tight text-slate-900 transition hover:bg-slate-100"
+            className="min-w-0 rounded-full bg-white px-4 py-2.5 text-sm font-medium leading-tight text-slate-900 transition hover:bg-slate-100"
           >
             Lacak
           </button>
           <button
             onClick={onOpenOrders}
-            className="min-w-0 whitespace-normal rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium leading-tight text-white transition hover:bg-white/15"
+            className="min-w-0 whitespace-normal rounded-full border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-medium leading-tight text-white transition hover:bg-white/15"
           >
             Pesanan
           </button>
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl bg-white/10 px-3 py-3 text-sm text-slate-200 md:hidden">
+      <div className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200 md:hidden">
         <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1">
           <span>{formatPaymentMethodLabel(order.payment_method)}</span>
           <span>{formatPaymentStatusLabel(order.payment_status)}</span>
           <span>{formatFulfillmentTypeLabel(order.fulfillment_type)}</span>
         </div>
-        <div className="mt-2 line-clamp-2 break-words text-xs leading-5 text-slate-300">
+        <div className="mt-1 line-clamp-1 break-words leading-5 text-slate-300">
           {Number(order.total_amount || 0) > 0
             ? `${formatPriceLabel(order.total_amount)} • `
             : ''}
@@ -782,8 +782,8 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
   }, [selectedPartnerId, toast, user?.id])
 
   return (
-    <div className={`grid min-w-0 max-w-full gap-4 ${embedded ? 'grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)]' : 'grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]'}`}>
-      <div className={`min-w-0 overflow-hidden rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] ${selectedChat && !showInboxMobile ? 'hidden lg:block' : ''}`}>
+    <div className={`grid min-w-0 max-w-full gap-3 sm:gap-4 ${embedded ? 'grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)]' : 'grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]'}`}>
+      <div className={`min-w-0 overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-4 ${selectedChat && !showInboxMobile ? 'hidden lg:block' : ''}`}>
         <div className="mb-3 flex items-center justify-between">
           <div className="min-w-0">
             <div className="font-semibold text-slate-900">Daftar Chat</div>
@@ -810,7 +810,7 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
                 <button
                   key={chat.id}
                   onClick={() => selectChat(chat.id)}
-                  className={`flex min-w-0 w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
+                  className={`flex min-w-0 w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
                     active
                       ? 'border-slate-900 bg-slate-50'
                       : 'border-slate-200 bg-white hover:border-slate-300'
@@ -879,8 +879,8 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
 
               <div
                 className={embedded
-                  ? (featuredOrder ? 'h-[50vh] min-h-[360px] sm:h-[50vh]' : 'h-[62vh] min-h-[420px] sm:h-[60vh]')
-                  : (featuredOrder ? 'h-[58vh] min-h-[390px] sm:h-[58vh]' : 'h-[70vh] min-h-[460px] sm:h-[70vh]')}
+                  ? (featuredOrder ? 'h-[52vh] min-h-[320px] sm:h-[50vh] sm:min-h-[360px]' : 'h-[62vh] min-h-[380px] sm:h-[60vh] sm:min-h-[420px]')
+                  : (featuredOrder ? 'h-[58vh] min-h-[340px] sm:h-[58vh] sm:min-h-[390px]' : 'h-[70vh] min-h-[400px] sm:h-[70vh] sm:min-h-[460px]')}
               >
               <ChatThread
                 chatId={selectedChat.id}

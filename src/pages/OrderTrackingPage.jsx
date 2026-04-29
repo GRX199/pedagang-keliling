@@ -590,11 +590,11 @@ export default function OrderTrackingPage() {
   return (
     <div className="min-h-screen bg-transparent">
       <div className="mx-auto max-w-6xl space-y-4 overflow-x-hidden px-3 py-5 sm:px-4 sm:py-6">
-        <section className="min-w-0 rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <section className="min-w-0 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400 sm:tracking-[0.22em]">Tracking Pesanan</div>
-              <h1 className="mt-2 text-2xl font-semibold text-slate-900">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 sm:text-xs sm:tracking-[0.22em]">Tracking Pesanan</div>
+              <h1 className="mt-1 text-xl font-semibold text-slate-900 sm:mt-2 sm:text-2xl">
                 Pesanan #{String(order.id).slice(0, 8)}
               </h1>
               <p className="mt-2 hidden text-sm leading-6 text-slate-500 sm:block">
@@ -602,12 +602,12 @@ export default function OrderTrackingPage() {
               </p>
             </div>
 
-            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-wrap">
+            <div className="flex w-full gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
               {paymentActions.map((action) => (
                 <button
                   key={action.value}
                   onClick={() => updatePaymentStatus(action.value)}
-                  className={`min-w-0 whitespace-normal rounded-2xl px-3 py-3 text-sm font-medium leading-tight sm:px-4 ${
+                  className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-medium leading-tight ${
                     action.tone === 'danger'
                       ? 'border border-red-200 bg-red-50 text-red-600'
                       : action.tone === 'success'
@@ -620,27 +620,27 @@ export default function OrderTrackingPage() {
               ))}
               <button
                 onClick={() => navigate(`/chat/${partnerId}?order=${order.id}`)}
-                className="min-w-0 whitespace-normal rounded-2xl border border-slate-200 px-3 py-3 text-sm font-medium leading-tight text-slate-700 sm:px-4"
+                className="shrink-0 whitespace-nowrap rounded-full border border-slate-200 px-4 py-2.5 text-sm font-medium leading-tight text-slate-700"
               >
-                Buka Chat
+                Chat
               </button>
               <button
                 onClick={() => navigate('/dashboard?tab=orders')}
-                className="min-w-0 whitespace-normal rounded-2xl bg-slate-900 px-3 py-3 text-sm font-medium leading-tight text-white sm:px-4"
+                className="shrink-0 whitespace-nowrap rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium leading-tight text-white"
               >
                 Pesanan
               </button>
             </div>
           </div>
 
-          <div className="mt-3 text-xs text-slate-400">
+          <div className="mt-2 text-xs text-slate-400 sm:mt-3">
             {refreshing ? 'Tracking diperbarui di background...' : 'Tracking aktif dan diperbarui di background'}
           </div>
         </section>
 
         <section className="grid min-w-0 grid-cols-3 gap-2 sm:gap-4">
           <div className="min-w-0 rounded-[18px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[24px] sm:p-4">
-            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Status Tracking</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 sm:text-xs sm:tracking-[0.16em]">Status</div>
             <div className="mt-2 break-words text-base font-semibold leading-tight text-slate-900 sm:text-lg">{formatOrderStatusLabel(order.status)}</div>
             <div className="mt-1 hidden text-xs text-slate-500 sm:block">
               {routeReady
@@ -649,12 +649,12 @@ export default function OrderTrackingPage() {
             </div>
           </div>
           <div className="min-w-0 rounded-[18px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[24px] sm:p-4">
-            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Jarak Saat Ini</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 sm:text-xs sm:tracking-[0.16em]">Jarak</div>
             <div className="mt-2 break-words text-base font-semibold leading-tight text-slate-900 sm:text-lg">{formatDistance(routeDistance)}</div>
             <div className="mt-1 hidden text-xs text-slate-500 sm:block">{routeReady ? 'Dihitung dari dua titik aktif di peta' : 'Menunggu data lokasi lengkap'}</div>
           </div>
           <div className="min-w-0 rounded-[18px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[24px] sm:p-4">
-            <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Estimasi Tiba</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 sm:text-xs sm:tracking-[0.16em]">ETA</div>
             <div className="mt-2 break-words text-base font-semibold leading-tight text-slate-900 sm:text-lg">{routeEtaLabel}</div>
             <div className="mt-1 hidden text-xs text-slate-500 sm:block">
               {order.status === 'on_the_way' ? 'Pedagang sedang menuju titik pelanggan' : 'Akan makin akurat saat pedagang bergerak'}
@@ -683,7 +683,7 @@ export default function OrderTrackingPage() {
                 </span>
               </div>
               <div className="relative">
-                <div ref={containerRef} className="tracking-map h-[52vh] min-h-[320px] rounded-[18px] sm:h-[56vh] sm:min-h-[360px] sm:rounded-[22px]" />
+                <div ref={containerRef} className="tracking-map h-[48vh] min-h-[300px] rounded-[18px] sm:h-[56vh] sm:min-h-[360px] sm:rounded-[22px]" />
               </div>
               {mapNotice && (
                 <div className="px-3 pb-2 pt-3 text-xs text-slate-500">{mapNotice}</div>
