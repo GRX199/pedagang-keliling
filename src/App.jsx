@@ -250,8 +250,12 @@ function RootRedirect() {
 
 function LoginGuard({ children }) {
   const { user, role, loading } = useAuth()
+  const location = useLocation()
+  const hashParams = new URLSearchParams(String(location.hash || '').replace(/^#/, ''))
+  const isPasswordReset = new URLSearchParams(location.search).get('reset') === 'password' || hashParams.get('type') === 'recovery'
+
   if (loading) return <div className="p-6">Memuat...</div>
-  if (user) {
+  if (user && !isPasswordReset) {
     return role === 'admin'
       ? <Navigate to="/dashboard?tab=admin" replace />
       : <Navigate to="/map" replace />

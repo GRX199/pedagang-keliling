@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../components/ToastProvider'
+
+const REMEMBER_EMAIL_KEY = 'kelilingku:remember-email'
 
 const ROLE_OPTIONS = [
   {
@@ -23,21 +25,110 @@ const LOGIN_POINTS = [
 ]
 
 export default function LoginPage() {
+  const location = useLocation()
   const [mode, setMode] = useState('login')
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return window.localStorage.getItem(REMEMBER_EMAIL_KEY) || ''
+  })
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return Boolean(window.localStorage.getItem(REMEMBER_EMAIL_KEY))
+  })
   const [role, setRole] = useState('customer')
   const [loading, setLoading] = useState(false)
   const [inlineMsg, setInlineMsg] = useState(null)
   const toast = useToast()
   const navigate = useNavigate()
   const emailRedirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+  const resetRedirectTo = typeof window !== 'undefined' ? `${window.location.origin}/login?reset=password` : undefined
+
+  const isLoginMode = mode === 'login'
+  const isRegisterMode = mode === 'register'
+  const isForgotMode = mode === 'forgot'
+  const isUpdatePasswordMode = mode === 'update_password'
+
+  const modeLabel = isLoginMode
+    ? 'Login'
+    : isRegisterMode
+      ? 'Register'
+      : isForgotMode
+        ? 'Reset Password'
+        : 'Password Baru'
+
+  const modeTitle = isLoginMode
+    ? 'Masuk ke akun Anda'
+    : isRegisterMode
+      ? 'Buat akun Kelilingku'
+      : isForgotMode
+        ? 'Lupa password?'
+        : 'Buat password baru'
+
+  const modeDescription = isLoginMode
+    ? 'Gunakan email dan password yang sudah terdaftar.'
+    : isRegisterMode
+      ? 'Pilih peran yang sesuai agar tampilan aplikasi langsung menyesuaikan alur Anda.'
+      : isForgotMode
+        ? 'Masukkan email akun Anda. Kami kirim link reset dari Supabase.'
+        : 'Masukkan password baru untuk akun Anda.'
+
+  const primaryActionLabel = loading
+    ? 'Memproses...'
+    : isLoginMode
+      ? 'Masuk Sekarang'
+      : isRegisterMode
+        ? 'Buat Akun'
+        : isForgotMode
+          ? 'Kirim Link Reset'
+          : 'Simpan Password'
 
   const roleSummary = useMemo(
     () => ROLE_OPTIONS.find((item) => item.value === role) || ROLE_OPTIONS[0],
     [role]
   )
+
+  function switchMode(nextMode) {
+    setMode(nextMode)
+    setInlineMsg(null)
+    setConfirmPassword('')
+    if (nextMode === 'forgot') {
+      setPassword('')
+      setShowPassword(false)
+    }
+  }
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search)
+    const hashParams = new URLSearchParams(String(location.hash || '').replace(/^#/, ''))
+    const isRecoveryFlow = searchParams.get('reset') === 'password' || hashParams.get('type') === 'recovery'
+
+    if (isRecoveryFlow) {
+      setMode('update_password')
+      setInlineMsg('Silakan buat password baru untuk akun Anda.')
+    }
+  }, [location.hash, location.search])
+
+  function validatePasswordConfirmation() {
+    if (password.length < 6) {
+      const message = 'Password minimal 6 karakter.'
+      toast.push(message, { type: 'error' })
+      setInlineMsg(message)
+      return false
+    }
+
+    if (password !== confirmPassword) {
+      const message = 'Konfirmasi password belum sama.'
+      toast.push(message, { type: 'error' })
+      setInlineMsg(message)
+      return false
+    }
+
+    return true
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -45,7 +136,43 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      if (mode === 'register') {
+      if (isForgotMode) {
+        if (!email.trim()) {
+          const message = 'Masukkan email akun Anda terlebih dahulu.'
+          toast.push(message, { type: 'error' })
+          setInlineMsg(message)
+          return
+        }
+
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: resetRedirectTo,
+        })
+
+        if (error) throw error
+
+        const message = 'Link reset password sudah dikirim. Cek email Anda.'
+        toast.push(message, { type: 'success' })
+        setInlineMsg(message)
+        return
+      }
+
+      if (isUpdatePasswordMode) {
+        if (!validatePasswordConfirmation()) return
+
+        const { error } = await supabase.auth.updateUser({ password })
+        if (error) throw error
+
+        toast.push('Password berhasil diperbarui', { type: 'success' })
+        setInlineMsg('Password berhasil diperbarui. Anda akan diarahkan ke aplikasi.')
+        setPassword('')
+        setConfirmPassword('')
+        navigate('/', { replace: true })
+        return
+      }
+
+      if (isRegisterMode) {
+        if (!validatePasswordConfirmation()) return
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -96,6 +223,11 @@ export default function LoginPage() {
       }
 
       toast.push('Login berhasil', { type: 'success' })
+      if (rememberMe && typeof window !== 'undefined') {
+        window.localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim())
+      } else if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(REMEMBER_EMAIL_KEY)
+      }
       navigate('/')
     } catch (error) {
       console.error('auth unexpected error', error)
@@ -146,15 +278,17 @@ export default function LoginPage() {
               </Link>
 
               <div className="rounded-full bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
-                {mode === 'login' ? 'Masuk ke aplikasi' : 'Buat akun baru'}
+                {isLoginMode ? 'Masuk ke aplikasi' : isRegisterMode ? 'Buat akun baru' : 'Bantuan akun'}
               </div>
             </div>
 
             <div className="mt-10 max-w-2xl">
               <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-                {mode === 'login'
+                {isLoginMode
                   ? 'Masuk untuk lanjut ke peta, pesanan, dan chat yang sudah berjalan.'
-                  : 'Mulai sebagai pelanggan atau pedagang dengan alur yang dibedakan sejak awal.'}
+                  : isRegisterMode
+                    ? 'Mulai sebagai pelanggan atau pedagang dengan alur yang dibedakan sejak awal.'
+                    : 'Pulihkan akses akun dengan alur reset password yang aman.'}
               </h1>
               <p className="mt-5 text-base leading-8 text-slate-200">
                 Kelilingku dirancang sebagai platform map-first untuk pedagang keliling. Karena itu halaman masuk ini
@@ -170,7 +304,7 @@ export default function LoginPage() {
               ))}
             </div>
 
-            {mode === 'register' ? (
+            {isRegisterMode ? (
               <div className="mt-8 rounded-[28px] border border-white/10 bg-white/8 p-5">
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Peran yang dipilih</div>
                 <div className="mt-3 text-2xl font-bold">{roleSummary.label}</div>
@@ -188,43 +322,36 @@ export default function LoginPage() {
               </span>
               Kelilingku
             </Link>
-            {mode === 'register' ? (
-              <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                {roleSummary.label}
-              </div>
-            ) : null}
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:tracking-[0.22em]">
-                {mode === 'login' ? 'Login' : 'Register'}
+                {modeLabel}
               </div>
               <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-                {mode === 'login' ? 'Masuk ke akun Anda' : 'Buat akun Kelilingku'}
+                {modeTitle}
               </h2>
               <p className="mt-2 hidden text-sm leading-7 text-slate-600 sm:block">
-                {mode === 'login'
-                  ? 'Gunakan email dan password yang sudah terdaftar.'
-                  : 'Pilih peran yang sesuai agar tampilan aplikasi langsung menyesuaikan alur Anda.'}
+                {modeDescription}
               </p>
             </div>
 
             <div className="grid grid-cols-2 rounded-full bg-slate-100 p-1 sm:inline-flex">
               <button
                 type="button"
-                onClick={() => setMode('login')}
+                onClick={() => switchMode('login')}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  mode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+                  isLoginMode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
                 }`}
               >
                 Masuk
               </button>
               <button
                 type="button"
-                onClick={() => setMode('register')}
+                onClick={() => switchMode('register')}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  mode === 'register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+                  isRegisterMode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
                 }`}
               >
                 Daftar
@@ -232,12 +359,12 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-5 space-y-4 sm:mt-8">
-            {mode === 'register' ? (
+          <form onSubmit={handleSubmit} className="mt-5 space-y-3 sm:mt-8 sm:space-y-4">
+            {isRegisterMode ? (
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-slate-700">Nama lengkap</span>
                 <input
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white sm:text-base"
                   placeholder="Nama Anda atau nama toko"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
@@ -246,34 +373,86 @@ export default function LoginPage() {
               </label>
             ) : null}
 
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
-              <input
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-                placeholder="nama@email.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                type="email"
-              />
-            </label>
+            {!isUpdatePasswordMode ? (
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
+                <input
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white sm:text-base"
+                  placeholder="nama@email.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                  type="email"
+                />
+              </label>
+            ) : null}
 
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
-              <input
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-                placeholder="Minimal 6 karakter"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-            </label>
+            {!isForgotMode ? (
+              <>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">
+                    {isUpdatePasswordMode ? 'Password baru' : 'Password'}
+                  </span>
+                  <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 transition focus-within:border-slate-400 focus-within:bg-white">
+                    <input
+                      className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm text-slate-900 outline-none sm:text-base"
+                      placeholder="Minimal 6 karakter"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="shrink-0 px-4 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+                    >
+                      {showPassword ? 'Sembunyi' : 'Lihat'}
+                    </button>
+                  </div>
+                </label>
 
-            {mode === 'register' ? (
+                {(isRegisterMode || isUpdatePasswordMode) ? (
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Konfirmasi password</span>
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white sm:text-base"
+                      placeholder="Ulangi password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      required
+                    />
+                  </label>
+                ) : null}
+              </>
+            ) : null}
+
+            {isLoginMode ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(event) => setRememberMe(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                  Ingat saya
+                </label>
+                <button
+                  type="button"
+                  onClick={() => switchMode('forgot')}
+                  className="text-sm font-medium text-slate-500 underline-offset-4 transition hover:text-slate-900 hover:underline"
+                >
+                  Lupa password?
+                </button>
+              </div>
+            ) : null}
+
+            {isRegisterMode ? (
               <div>
                 <div className="mb-2 text-sm font-medium text-slate-700">Pilih peran akun</div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   {ROLE_OPTIONS.map((option) => {
                     const active = role === option.value
                     return (
@@ -293,7 +472,7 @@ export default function LoginPage() {
                             active ? 'border-white bg-white/20' : 'border-slate-300 bg-white'
                           }`} />
                         </div>
-                        <div className={`mt-2 line-clamp-2 text-sm leading-6 sm:line-clamp-none ${active ? 'text-slate-200' : 'text-slate-600'}`}>
+                        <div className={`mt-2 line-clamp-2 text-xs leading-5 sm:line-clamp-none sm:text-sm sm:leading-6 ${active ? 'text-slate-200' : 'text-slate-600'}`}>
                           {option.description}
                         </div>
                       </button>
@@ -305,7 +484,7 @@ export default function LoginPage() {
 
             {inlineMsg ? (
               <div className={`rounded-2xl border px-4 py-3 text-sm ${
-                inlineMsg.toLowerCase().includes('berhasil')
+                ['berhasil', 'dikirim', 'diperbarui'].some((word) => inlineMsg.toLowerCase().includes(word))
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                   : 'border-rose-200 bg-rose-50 text-rose-700'
               }`}>
@@ -318,18 +497,18 @@ export default function LoginPage() {
                 disabled={loading}
                 className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {loading ? 'Memproses...' : mode === 'login' ? 'Masuk Sekarang' : 'Buat Akun'}
+                {primaryActionLabel}
               </button>
 
               <button
                 type="button"
-                onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+                onClick={() => switchMode(isLoginMode ? 'register' : 'login')}
                 className="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-5 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                {mode === 'login' ? 'Belum punya akun?' : 'Sudah punya akun?'}
+                {isLoginMode ? 'Daftar akun' : 'Masuk akun'}
               </button>
 
-              {mode === 'login' ? (
+              {isLoginMode ? (
                 <button
                   type="button"
                   onClick={handleResendVerification}
