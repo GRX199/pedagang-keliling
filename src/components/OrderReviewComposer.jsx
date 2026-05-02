@@ -88,8 +88,8 @@ export default function OrderReviewComposer({
   }
 
   const wrapperClass = compact
-    ? 'min-w-0 overflow-hidden rounded-[22px] border border-slate-200 bg-slate-50 p-3 sm:p-4'
-    : 'mt-4 min-w-0 overflow-hidden rounded-[22px] border border-slate-200 bg-slate-50 p-3 sm:p-4'
+    ? 'min-w-0 overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50 p-3 sm:rounded-[22px] sm:p-4'
+    : 'mt-4 min-w-0 overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50 p-3 sm:rounded-[22px] sm:p-4'
 
   return (
     <div className={wrapperClass}>
@@ -97,7 +97,7 @@ export default function OrderReviewComposer({
         <div className="min-w-0">
           <div className="text-sm font-semibold text-slate-900">Ulasan Anda</div>
           <div className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500 sm:line-clamp-none">
-            {existingReview ? `Rating ${formatReviewScore(existingReview.rating)} • ${getReviewRatingLabel(existingReview.rating)}` : 'Bagikan pengalaman Anda agar pelanggan lain punya gambaran yang lebih jelas.'}
+            {existingReview ? `Rating ${formatReviewScore(existingReview.rating)} • ${getReviewRatingLabel(existingReview.rating)}` : 'Bantu pelanggan lain menilai toko ini.'}
           </div>
         </div>
 
@@ -107,7 +107,7 @@ export default function OrderReviewComposer({
             onClick={() => setEditing(true)}
             className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
-            {existingReview ? 'Ubah Ulasan' : 'Beri Ulasan'}
+            {existingReview ? 'Ubah' : 'Beri Ulasan'}
           </button>
         )}
       </div>
@@ -119,10 +119,10 @@ export default function OrderReviewComposer({
       )}
 
       {editing && (
-        <div className="mt-4 space-y-4">
+        <div className="mt-3 space-y-3 sm:mt-4 sm:space-y-4">
           <div>
-            <div className="text-sm font-medium text-slate-900">Nilai pengalaman Anda</div>
-            <div className="mt-3 grid grid-cols-5 gap-1.5 sm:flex sm:flex-wrap sm:gap-2">
+            <div className="text-sm font-medium text-slate-900">Rating</div>
+            <div className="mt-2 grid grid-cols-5 gap-1.5 sm:mt-3 sm:flex sm:flex-wrap sm:gap-2">
               {[1, 2, 3, 4, 5].map((value) => (
                 <RatingOption
                   key={value}
@@ -142,7 +142,7 @@ export default function OrderReviewComposer({
               onChange={(event) => setComment(event.target.value)}
               maxLength={240}
               rows={3}
-              className="mt-3 min-h-[84px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+              className="mt-2 min-h-[76px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400 sm:mt-3 sm:min-h-[84px]"
               placeholder="Contoh: pedagang ramah, datang tepat waktu, atau produk sesuai harapan"
             />
             <div className="mt-1 text-right text-xs text-slate-400">{comment.length}/240</div>
@@ -155,7 +155,7 @@ export default function OrderReviewComposer({
               onClick={saveReview}
               className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:bg-slate-400"
             >
-              {saving ? 'Menyimpan...' : existingReview ? 'Simpan Perubahan' : 'Kirim Ulasan'}
+              {saving ? 'Menyimpan...' : existingReview ? 'Simpan' : 'Kirim'}
             </button>
             <button
               type="button"

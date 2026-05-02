@@ -50,9 +50,9 @@ function SummaryCard({ label, value, hint, tone = 'default' }) {
   const hintClass = tone === 'primary' ? 'text-slate-300' : 'text-slate-500'
 
   return (
-    <div className={`min-w-0 rounded-[20px] p-3 sm:rounded-[24px] sm:p-4 ${toneClass}`}>
+    <div className={`min-w-0 rounded-[18px] p-3 sm:rounded-[24px] sm:p-4 ${toneClass}`}>
       <div className="break-words text-xs font-medium uppercase tracking-[0.12em] opacity-80 sm:tracking-[0.16em]">{label}</div>
-      <div className="mt-2 text-3xl font-semibold">{value}</div>
+      <div className="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{value}</div>
       <div className={`mt-1 hidden text-sm sm:block ${hintClass}`}>{hint}</div>
     </div>
   )
@@ -282,26 +282,22 @@ export default function AdminPanel({ currentUser }) {
   const blockedCount = vendors.filter((vendor) => vendor.account_status === 'blocked').length
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="min-w-0 space-y-3 sm:space-y-4">
       <section className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 max-w-2xl">
-            <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500 sm:tracking-[0.18em]">Admin Foundation</div>
-            <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">Verifikasi pedagang</h3>
-            <p className="mt-2 hidden text-sm leading-6 text-slate-500 sm:block">
-              Panel ini sengaja dibuat ringan: fokus ke vendor yang perlu diverifikasi, ditangguhkan, atau diblokir lebih dulu.
-              Analytics dan laporan lanjutan bisa menyusul setelah fondasi operasional ini stabil.
-            </p>
+            <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500 sm:tracking-[0.18em]">Admin</div>
+            <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">Verifikasi Pedagang</h3>
           </div>
 
-          <div className="text-xs text-slate-400">
-            {refreshing ? 'Menyegarkan data admin...' : 'Update berjalan di background'}
+          <div className="text-xs text-slate-400 sm:text-right">
+            {refreshing ? 'Memperbarui...' : 'Realtime aktif'}
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 md:grid-cols-4">
           <SummaryCard
-            label="Total Pedagang"
+            label="Total"
             value={vendors.length}
             hint="Semua vendor yang terdaftar di sistem."
             tone="primary"
@@ -328,11 +324,11 @@ export default function AdminPanel({ currentUser }) {
       <section className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Cari pedagang</span>
+            <span className="mb-2 block text-sm font-medium text-slate-700">Cari</span>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Nama toko, kategori, atau deskripsi"
+              placeholder="Nama toko atau kategori"
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
             />
           </label>
@@ -360,7 +356,7 @@ export default function AdminPanel({ currentUser }) {
                 filter === 'suspended' ? 'bg-amber-600 text-white' : 'border border-slate-200 bg-white text-slate-700'
               }`}
             >
-              Ditangguhkan
+              Suspend
             </button>
             <button
               onClick={() => setFilter('blocked')}
@@ -376,7 +372,7 @@ export default function AdminPanel({ currentUser }) {
         <div className="mt-4 space-y-3">
           {filteredVendors.length === 0 ? (
             <div className="rounded-[24px] border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-              Tidak ada pedagang yang cocok dengan filter admin saat ini.
+              Tidak ada pedagang yang cocok.
             </div>
           ) : (
             filteredVendors.map((vendor) => {
@@ -387,7 +383,7 @@ export default function AdminPanel({ currentUser }) {
 
               return (
                 <div key={vendor.id} className="min-w-0 rounded-[20px] border border-slate-200 bg-slate-50/70 p-3 sm:rounded-[24px] sm:p-4">
-                  <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="break-words text-base font-semibold text-slate-900 sm:text-lg">{vendor.name || vendor.profile?.display_name || 'Pedagang'}</div>
@@ -402,7 +398,7 @@ export default function AdminPanel({ currentUser }) {
                         </span>
                       </div>
 
-                      <div className="mt-2 line-clamp-2 break-words text-sm leading-6 text-slate-600">
+                      <div className="mt-2 line-clamp-1 break-words text-sm leading-6 text-slate-600 sm:line-clamp-2">
                         {vendor.description || 'Belum ada deskripsi toko.'}
                       </div>
 
@@ -416,12 +412,12 @@ export default function AdminPanel({ currentUser }) {
                         <span className="max-w-full break-words rounded-full bg-white px-3 py-1 leading-tight ring-1 ring-slate-200">
                           {formatVendorServiceRadius(vendor.service_radius_km)}
                         </span>
-                        <span className="max-w-full break-words rounded-full bg-white px-3 py-1 leading-tight ring-1 ring-slate-200">
+                        <span className="hidden max-w-full break-words rounded-full bg-white px-3 py-1 leading-tight ring-1 ring-slate-200 sm:inline-flex">
                           {getOperatingHoursText(vendor.operating_hours)}
                         </span>
                       </div>
 
-                      <div className="mt-3 text-xs text-slate-400">
+                      <div className="mt-2 text-xs text-slate-400 sm:mt-3">
                         Update terakhir: {vendor.updated_at ? new Date(vendor.updated_at).toLocaleString('id-ID') : '-'}
                       </div>
                     </div>
@@ -438,7 +434,7 @@ export default function AdminPanel({ currentUser }) {
                       >
                         {savingKey === verificationActionKey
                           ? 'Menyimpan...'
-                          : vendor.is_verified ? 'Cabut Verifikasi' : 'Verifikasi Pedagang'}
+                          : vendor.is_verified ? 'Cabut Verifikasi' : 'Verifikasi'}
                       </button>
 
                       <div className="grid grid-cols-3 gap-2">
