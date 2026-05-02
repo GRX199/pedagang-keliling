@@ -191,7 +191,8 @@ function TopNav() {
                     Cara Kerja
                   </a>
                   <Link to="/login" className="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
-                    Login / Daftar
+                    <span className="sm:hidden">Masuk</span>
+                    <span className="hidden sm:inline">Login / Daftar</span>
                   </Link>
                 </div>
               )}

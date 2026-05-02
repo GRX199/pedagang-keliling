@@ -45,41 +45,41 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,#dbeafe_0%,#eff6ff_24%,#f8fafc_52%,#e2e8f0_100%)]">
       <section className="border-b border-slate-200/80">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-9 sm:py-14 lg:grid-cols-[minmax(0,1.1fr)_420px] lg:items-center lg:py-20">
+        <div className="mx-auto grid max-w-6xl gap-6 px-4 py-7 sm:gap-8 sm:py-14 lg:grid-cols-[minmax(0,1.1fr)_420px] lg:items-center lg:py-20">
           <div className="min-w-0">
-            <div className="inline-flex max-w-full rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-emerald-700 sm:tracking-[0.22em]">
+            <div className="inline-flex max-w-full rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold uppercase leading-5 tracking-[0.14em] text-emerald-700 sm:px-4 sm:py-2 sm:text-xs sm:tracking-[0.22em]">
               Peta Pedagang Keliling
             </div>
 
-            <h1 className="mt-5 max-w-3xl text-3xl font-black tracking-tight text-slate-950 sm:mt-6 sm:text-5xl lg:text-6xl">
+            <h1 className="mt-4 max-w-3xl text-3xl font-black tracking-tight text-slate-950 sm:mt-6 sm:text-5xl lg:text-6xl">
               Temukan pedagang keliling terdekat, pesan, lalu lacak dari peta.
             </h1>
 
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:mt-5 sm:text-lg sm:leading-8">
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:mt-5 sm:text-lg sm:leading-8">
               Kelilingku menghubungkan pelanggan dan pedagang online sekitar dalam satu alur: peta, toko, chat,
               checkout, dan tracking.
             </p>
 
-            <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row">
+            <div className="mt-5 flex flex-col gap-3 sm:mt-8 sm:flex-row">
               <Link
                 to="/login"
                 className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/15 transition hover:bg-slate-800"
               >
-                Masuk atau Daftar
+                Mulai Sekarang
               </Link>
               <a
                 href="#cara-kerja"
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="hidden items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
               >
                 Lihat Cara Kerja
               </a>
             </div>
 
-            <div className="mt-7 flex flex-wrap gap-2 sm:mt-10">
+            <div className="mt-5 flex flex-wrap gap-2 sm:mt-10">
               {categories.map((category, index) => (
                 <span
                   key={category}
-                  className={`rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm ${
+                  className={`rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm sm:px-4 sm:py-2 sm:text-sm ${
                     index >= 3 ? 'hidden sm:inline-flex' : ''
                   }`}
                 >
@@ -166,29 +166,29 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-9 sm:py-14">
+      <section className="mx-auto max-w-6xl px-4 py-7 sm:py-14">
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-[24px] border border-slate-200/80 bg-white/85 p-5 shadow-sm backdrop-blur sm:rounded-[30px] sm:p-6">
+          <div className="rounded-[22px] border border-slate-200/80 bg-white/85 p-4 shadow-sm backdrop-blur sm:rounded-[30px] sm:p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:tracking-[0.22em]">Untuk Pelanggan</div>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900">Cari dari peta, pesan lebih cepat</h2>
-            <div className="mt-5 space-y-3">
+            <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-900 sm:mt-3 sm:text-2xl">Cari dari peta, pesan lebih cepat</h2>
+            <div className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
               {customerPoints.map((point) => (
-                <div key={point} className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3 sm:py-4">
+                <div key={point} className="flex items-start gap-3 rounded-2xl bg-slate-50 px-3 py-2.5 sm:px-4 sm:py-4">
                   <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">✓</span>
-                  <p className="text-sm leading-7 text-slate-600">{point}</p>
+                  <p className="text-sm leading-6 text-slate-600 sm:leading-7">{point}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-slate-200/80 bg-slate-950 p-5 text-white shadow-sm sm:rounded-[30px] sm:p-6">
+          <div className="rounded-[22px] border border-slate-200/80 bg-slate-950 p-4 text-white shadow-sm sm:rounded-[30px] sm:p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 sm:tracking-[0.22em]">Untuk Pedagang</div>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight">Toko aktif saat Anda keliling</h2>
-            <div className="mt-5 space-y-3">
+            <h2 className="mt-2 text-xl font-bold tracking-tight sm:mt-3 sm:text-2xl">Toko aktif saat Anda keliling</h2>
+            <div className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
               {vendorPoints.map((point) => (
-                <div key={point} className="flex items-start gap-3 rounded-2xl bg-white/6 px-4 py-3 ring-1 ring-white/8 sm:py-4">
+                <div key={point} className="flex items-start gap-3 rounded-2xl bg-white/6 px-3 py-2.5 ring-1 ring-white/8 sm:px-4 sm:py-4">
                   <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-950">✓</span>
-                  <p className="text-sm leading-7 text-slate-200">{point}</p>
+                  <p className="text-sm leading-6 text-slate-200 sm:leading-7">{point}</p>
                 </div>
               ))}
             </div>
@@ -197,7 +197,7 @@ export default function LandingPage() {
       </section>
 
       <section id="cara-kerja" className="border-y border-slate-200/80 bg-white/70">
-        <div className="mx-auto max-w-6xl px-4 py-9 sm:py-14">
+        <div className="mx-auto max-w-6xl px-4 py-7 sm:py-14">
           <div className="max-w-2xl">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:tracking-[0.22em]">Cara Kerja</div>
             <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Alur sederhana</h2>
@@ -207,21 +207,21 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:mt-8 lg:grid-cols-4">
+          <div className="mt-5 grid gap-3 sm:mt-8 lg:grid-cols-4">
             {steps.map((step, index) => (
-              <div key={step.title} className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[28px] sm:p-5">
-                <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-sm font-bold text-white">
+              <div key={step.title} className="rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm sm:rounded-[28px] sm:p-5">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-sm font-bold text-white sm:h-11 sm:w-11">
                   {index + 1}
                 </div>
-                <h3 className="mt-4 text-lg font-semibold text-slate-900">{step.title}</h3>
-                <p className="mt-2 text-sm leading-7 text-slate-600">{step.body}</p>
+                <h3 className="mt-3 text-base font-semibold text-slate-900 sm:mt-4 sm:text-lg">{step.title}</h3>
+                <p className="mt-1.5 text-sm leading-6 text-slate-600 sm:mt-2 sm:leading-7">{step.body}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-9 sm:py-14">
+      <section className="mx-auto hidden max-w-6xl px-4 py-14 sm:block">
         <div className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-[linear-gradient(135deg,#0f172a_0%,#172554_35%,#14532d_100%)] p-5 text-white shadow-xl shadow-slate-900/10 sm:rounded-[36px] sm:p-10">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
             <div>
