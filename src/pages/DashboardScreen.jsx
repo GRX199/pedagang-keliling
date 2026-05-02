@@ -1602,6 +1602,7 @@ export default function DashboardScreen() {
   const avatarUrl = isVendor
     ? (vendorProfile?.photo_url || user?.user_metadata?.avatar_url)
     : user?.user_metadata?.avatar_url
+  const roleLabel = isAdmin ? 'Admin' : isVendor ? 'Pedagang' : 'Pelanggan'
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -1632,7 +1633,7 @@ export default function DashboardScreen() {
                       ? 'bg-emerald-50 text-emerald-700'
                       : 'bg-slate-100 text-slate-700'
                 }`}>
-                  {isAdmin ? 'Mode Admin' : isVendor ? 'Mode Pedagang' : 'Mode Pelanggan'}
+                  {roleLabel}
                 </span>
                 {accountStatus !== 'active' && !isAdmin ? (
                   <span className={`rounded-full px-3 py-1 text-xs font-medium ${
@@ -1665,31 +1666,10 @@ export default function DashboardScreen() {
                   : 'bg-amber-50 text-amber-700 ring-amber-100'
               }`}>
                 {accountStatus === 'blocked'
-                  ? 'Akun ini sedang diblokir oleh admin. Beberapa fitur operasional bisa dibatasi sampai status akun dipulihkan.'
-                  : 'Akun ini sedang ditangguhkan oleh admin. Silakan selesaikan peninjauan sebelum kembali beroperasi penuh.'}
+                  ? 'Akun diblokir admin. Beberapa fitur dibatasi.'
+                  : 'Akun ditangguhkan admin. Tunggu peninjauan selesai.'}
               </div>
             ) : null}
-
-            <div className="min-w-0 rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
-                    {activeTab === 'admin' && 'Panel Admin'}
-                    {activeTab === 'products' && 'Produk Saya'}
-                    {activeTab === 'chats' && 'Percakapan'}
-                    {activeTab === 'orders' && 'Pesanan'}
-                    {activeTab === 'profile' && 'Profil Saya'}
-                  </h1>
-                  <p className="hidden text-sm leading-6 text-slate-500 sm:block">
-                    {activeTab === 'admin' && 'Verifikasi pedagang, tangguhkan akun bermasalah, dan pantau moderasi dasar.'}
-                    {activeTab === 'products' && 'Kelola katalog produk dan foto dagangan Anda.'}
-                    {activeTab === 'chats' && 'Balas pesan dari pelanggan atau pedagang lain.'}
-                    {activeTab === 'orders' && 'Pantau transaksi terbaru dan ubah statusnya.'}
-                    {activeTab === 'profile' && 'Perbarui identitas akun dan tampilan profil.'}
-                  </p>
-                </div>
-              </div>
-            </div>
 
             {activeTab === 'admin' && isAdmin && <AdminPanel currentUser={user} />}
             {activeTab === 'products' && isVendor && <VendorProductsManager />}
