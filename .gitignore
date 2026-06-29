@@ -10,3 +10,11 @@ docs/seminar-proposal-*
 docs/*proposal*.docx
 docs/*proposal*.md
 docs/_rendered_seminar_proposal*/
+docs/_direct_render_debug/
+docs/_proposal_format_lampiran_render/
+docs/_proposal_render_check/
+docs/_proposal_render_check_verbose/
+docs/_render_smoke_test/
+docs/render_smoke_test.docx
+docs/screenshots-lampiran-skripsi-png/
+docs/~$*.docx

@@ -734,4 +734,26 @@ grant execute on function public.complete_order_and_decrement_stock(uuid) to aut
 create index if not exists vendors_presence_idx
   on public.vendors (online, last_seen_at desc);
 
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.products;
+  exception when duplicate_object then
+    null;
+  end;
+
+  begin
+    alter publication supabase_realtime add table public.reviews;
+  exception when duplicate_object then
+    null;
+  end;
+
+  begin
+    alter publication supabase_realtime add table public.favorites;
+  exception when duplicate_object then
+    null;
+  end;
+end
+$$;
+
 commit;

@@ -59,8 +59,8 @@ Bisa, tapi saya tidak sarankan sebelum:
 5. Tambahkan environment variables:
 
 ```env
-VITE_SUPABASE_URL=https://gjjjspwqxoctucghazoy.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_s2ZGAA5OGZTbENoYZ7rABQ_Hiob2HMH
+VITE_SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_SUPABASE_PUBLISHABLE_KEY
 VITE_SUPABASE_BUCKET=data
 VITE_SERVER_URL=https://YOUR-RENDER-BACKEND.onrender.com
 ```
@@ -85,7 +85,7 @@ Referensi resmi: [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vi
 5. Tambahkan environment variables:
 
 ```env
-SUPABASE_URL=https://gjjjspwqxoctucghazoy.supabase.co
+SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
 SUPABASE_BUCKET=data
 PORT=10000

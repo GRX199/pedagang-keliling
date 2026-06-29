@@ -409,6 +409,12 @@ begin
   end;
 
   begin
+    alter publication supabase_realtime add table public.products;
+  exception when duplicate_object then
+    null;
+  end;
+
+  begin
     alter publication supabase_realtime add table public.chats;
   exception when duplicate_object then
     null;

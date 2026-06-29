@@ -726,6 +726,18 @@ begin
   exception when duplicate_object then
     null;
   end;
+
+  begin
+    alter publication supabase_realtime add table public.reviews;
+  exception when duplicate_object then
+    null;
+  end;
+
+  begin
+    alter publication supabase_realtime add table public.favorites;
+  exception when duplicate_object then
+    null;
+  end;
 end
 $$;
 
