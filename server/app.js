@@ -123,7 +123,10 @@ async function getAuthenticatedUser(req, res) {
   const { data, error } = await supabaseAdmin.auth.getUser(token)
   if (error || !data?.user) {
     console.error('auth.getUser failed', error)
-    res.status(401).json({ error: 'Invalid token' })
+    res.status(401).json({
+      code: 'invalid_token',
+      error: 'Sesi login tidak valid atau sudah kedaluwarsa. Logout lalu login ulang, dan pastikan backend memakai Supabase project yang sama dengan frontend.',
+    })
     return null
   }
 
