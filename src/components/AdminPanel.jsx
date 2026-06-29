@@ -239,8 +239,9 @@ export default function AdminPanel({ currentUser }) {
       .subscribe()
 
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void fetchAdminVendors({ background: true, silent: true })
-    }, 10000)
+    }, 60000)
 
     return () => {
       window.clearInterval(intervalId)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { isFavoritesSchemaCompatibilityError, normalizeFavoriteVendorIds } from './favorites'
 import { loadIdentityMap } from './profiles'
 import { supabase } from './supabase'
-import { getVendorCoordinates } from './vendor'
+import { getVendorCoordinates, isVendorPresenceFresh } from './vendor'
 
 const PROXIMITY_ALERT_THRESHOLDS = [
   { distanceMeters: 500, label: 'sudah dalam radius 500 meter dari titik temu Anda.' },
@@ -249,7 +249,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
           } catch (error) {
             console.warn('pollNotifications.inbox', error)
           }
-        }, 5000)
+        }, 30000)
 
         return true
       } catch (error) {
@@ -294,7 +294,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
         if (vendorIds.length > 0) {
           const { data: vendorRows, error: vendorError } = await supabase
             .from('vendors')
-            .select('id, name, location, online')
+            .select('id, name, location, online, last_seen_at')
             .in('id', vendorIds)
 
           if (vendorError) throw vendorError
@@ -373,13 +373,13 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
 
         const { data: vendorRows, error: vendorError } = await supabase
           .from('vendors')
-          .select('id, name, location, online')
+          .select('id, name, location, online, last_seen_at')
           .in('id', favoriteVendorIds)
 
         if (vendorError) throw vendorError
 
         for (const vendor of vendorRows || []) {
-          if (!vendor?.online) continue
+          if (!isVendorPresenceFresh(vendor)) continue
           const coordinates = getVendorCoordinates(vendor.location)
           if (!coordinates) continue
 
@@ -601,7 +601,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
       pollId = window.setInterval(() => {
         if (document.visibilityState === 'hidden') return
         void pollLegacyNotifications()
-      }, 5000)
+      }, 30000)
     }
 
     async function startNotifications() {
@@ -613,12 +613,14 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
     void startNotifications()
 
     const proximityPollId = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void monitorCustomerOrderProximity()
-    }, 15000)
+    }, 30000)
 
     const favoriteVendorPollId = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void monitorFavoriteVendorNearby()
-    }, 30000)
+    }, 60000)
 
     void monitorCustomerOrderProximity()
     void monitorFavoriteVendorNearby()

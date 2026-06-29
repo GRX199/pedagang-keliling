@@ -23,10 +23,15 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed inset-x-3 top-3 z-50 flex flex-col gap-2 sm:inset-x-auto sm:right-4 sm:top-4">
+      <div
+        className="fixed inset-x-3 top-3 z-50 flex flex-col gap-2 sm:inset-x-auto sm:right-4 sm:top-4"
+        aria-live="polite"
+        aria-atomic="false"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
+            role={t.type === 'error' ? 'alert' : 'status'}
             className={`max-w-full break-words rounded-2xl px-4 py-3 text-sm shadow sm:max-w-sm ${
               t.type === 'error' ? 'bg-red-600 text-white' : t.type === 'success' ? 'bg-green-600 text-white' : 'bg-black text-white/90'
             }`}

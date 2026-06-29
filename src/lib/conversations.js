@@ -27,6 +27,18 @@ export async function findOrCreateDirectChat(userId, partnerId) {
     .select()
     .single()
 
+  if (createError?.code === '23505') {
+    const { data: existingRows, error: existingError } = await supabase
+      .from('chats')
+      .select('*')
+      .contains('participants', [userId, partnerId])
+      .order('last_updated', { ascending: false })
+      .limit(1)
+
+    if (existingError) throw existingError
+    if (existingRows?.[0]) return existingRows[0]
+  }
+
   if (createError) throw createError
   return createdChat
 }

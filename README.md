@@ -9,6 +9,7 @@ Kelilingku adalah platform map-first commerce untuk pedagang keliling seperti sa
 - [Supabase Data Model](./docs/supabase-data-model.md)
 - [Supabase Setup](./docs/supabase-setup.md)
 - [Phase 1 Upgrade Guide](./docs/phase1-upgrade.md)
+- [Production Hardening](./docs/production-hardening.md)
 - [Deploy Staging](./docs/deploy-staging.md)
 - [Phase 1 Foundation SQL](./supabase/phase1-foundation.sql)
 
@@ -52,4 +53,4 @@ Prioritas pengembangan yang penting sekarang:
 
 ## Catatan
 
-Schema Supabase saat ini sudah cukup untuk alur dasar, tetapi belum sepenuhnya mencerminkan blueprint produk akhir. Untuk database baru atau upgrade bertahap, gunakan `supabase/schema.sql` lalu lanjutkan dengan `supabase/phase1-foundation.sql`.
+Untuk database baru, jalankan SQL secara berurutan: `schema.sql`, `phase1-foundation.sql`, `admin-foundation.sql`, lalu `production-hardening.sql`.

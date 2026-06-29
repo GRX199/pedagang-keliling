@@ -1,7 +1,6 @@
 import { supabase } from './supabase'
 import { getFriendlyFetchErrorMessage, getServerOrigin } from './network'
 
-const BUCKET = import.meta.env.VITE_SUPABASE_BUCKET || 'data'
 const SERVER_ORIGIN = getServerOrigin()
 
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -13,15 +12,6 @@ const ALLOWED_IMAGE_TYPES = new Set([
 ])
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-
-function sanitizeFileName(name) {
-  return String(name || 'upload')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '') || 'upload'
-}
 
 export function validateImageFile(file) {
   if (!file) return 'File gambar belum dipilih'
@@ -41,20 +31,10 @@ export async function uploadImageFile({ file, vendorId, folder = 'products' }) {
   const validationError = validateImageFile(file)
   if (validationError) throw new Error(validationError)
 
-  const filePath = `vendors/${vendorId}/${folder}/${Date.now()}-${sanitizeFileName(file.name)}`
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .upload(filePath, file, { cacheControl: '3600', upsert: false })
-
-  if (!uploadError) {
-    const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath)
-    return data?.publicUrl || null
-  }
-
   const sessionRes = await supabase.auth.getSession()
   const accessToken = sessionRes?.data?.session?.access_token
   if (!accessToken) {
-    throw new Error(uploadError.message || 'Gagal upload gambar')
+    throw new Error('Sesi login tidak ditemukan untuk upload gambar')
   }
 
   const formData = new FormData()
@@ -71,12 +51,12 @@ export async function uploadImageFile({ file, vendorId, folder = 'products' }) {
       body: formData,
     })
   } catch (error) {
-    throw new Error(getFriendlyFetchErrorMessage(error, 'Gagal upload gambar.'))
+    throw new Error(getFriendlyFetchErrorMessage(error, 'Gagal upload gambar.'), { cause: error })
   }
 
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(payload?.error || uploadError.message || 'Gagal upload gambar')
+    throw new Error(payload?.error || 'Gagal upload gambar')
   }
 
   return payload.imageUrl || null

@@ -22,7 +22,8 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/gif',
 ])
 
-const ALLOWED_UPLOAD_FOLDERS = new Set(['products', 'profiles'])
+const ALLOWED_UPLOAD_FOLDERS = new Set(['products', 'profiles', 'payments', 'chat'])
+const VENDOR_ONLY_UPLOAD_FOLDERS = new Set(['products', 'payments'])
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env')
@@ -53,6 +54,8 @@ const upload = multer({
   },
 })
 
+app.disable('x-powered-by')
+
 app.use(cors({
   origin(origin, callback) {
     if (allowedOrigins === '*' || !origin || allowedOrigins.includes(origin)) {
@@ -65,6 +68,13 @@ app.use(cors({
 }))
 
 app.use(express.json({ limit: '1mb' }))
+
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=()')
+  next()
+})
 
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -85,7 +95,9 @@ function sanitizeFilename(filename) {
 function normalizeUploadFolder(folder) {
   const normalizedFolder = String(folder || 'products').trim().toLowerCase()
   if (!ALLOWED_UPLOAD_FOLDERS.has(normalizedFolder)) {
-    throw new Error('Folder upload tidak valid')
+    const error = new Error('Folder upload tidak valid')
+    error.statusCode = 400
+    throw error
   }
 
   return normalizedFolder
@@ -116,6 +128,62 @@ async function getAuthenticatedUser(req, res) {
   }
 
   return data.user
+}
+
+async function getUserAccessContext(userId) {
+  const [{ data: profile, error: profileError }, { data: vendor, error: vendorError }] = await Promise.all([
+    supabaseAdmin
+      .from('profiles')
+      .select('id, account_status')
+      .eq('id', userId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('vendors')
+      .select('id, user_id')
+      .eq('id', userId)
+      .maybeSingle(),
+  ])
+
+  if (profileError) throw profileError
+  if (vendorError) throw vendorError
+
+  return {
+    accountStatus: profile?.account_status || 'active',
+    isVendor: Boolean(vendor?.id && vendor.user_id === userId),
+  }
+}
+
+function detectImageMimeType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return null
+
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg'
+  }
+
+  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return 'image/png'
+  }
+
+  const header = buffer.subarray(0, 12).toString('ascii')
+  if (header.startsWith('GIF87a') || header.startsWith('GIF89a')) {
+    return 'image/gif'
+  }
+
+  if (header.startsWith('RIFF') && header.slice(8, 12) === 'WEBP') {
+    return 'image/webp'
+  }
+
+  return null
+}
+
+function assertImageSignature(file) {
+  const detectedType = detectImageMimeType(file?.buffer)
+  const declaredType = file?.mimetype === 'image/jpg' ? 'image/jpeg' : file?.mimetype
+  if (!detectedType || detectedType !== declaredType) {
+    const error = new Error('Isi file tidak cocok dengan format gambar yang diizinkan')
+    error.statusCode = 400
+    throw error
+  }
 }
 
 async function uploadBufferToStorage({ file, userId, folder }) {
@@ -151,6 +219,17 @@ app.post('/upload-only', upload.single('file'), async (req, res) => {
     }
 
     const folder = normalizeUploadFolder(req.body?.folder)
+    const accessContext = await getUserAccessContext(user.id)
+    if (accessContext.accountStatus !== 'active') {
+      res.status(403).json({ error: 'Akun sedang dibatasi' })
+      return
+    }
+    if (VENDOR_ONLY_UPLOAD_FOLDERS.has(folder) && !accessContext.isVendor) {
+      res.status(403).json({ error: 'Folder ini hanya tersedia untuk pedagang' })
+      return
+    }
+
+    assertImageSignature(req.file)
     const payload = await uploadBufferToStorage({
       file: req.file,
       userId: user.id,
@@ -163,7 +242,7 @@ app.post('/upload-only', upload.single('file'), async (req, res) => {
     })
   } catch (error) {
     console.error('upload-only unexpected', error)
-    res.status(500).json({ error: error.message || 'Gagal mengunggah file' })
+    res.status(error.statusCode || 500).json({ error: error.message || 'Gagal mengunggah file' })
   }
 })
 
@@ -171,6 +250,12 @@ app.post('/upload-product', upload.single('file'), async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req, res)
     if (!user) return
+
+    const accessContext = await getUserAccessContext(user.id)
+    if (accessContext.accountStatus !== 'active' || !accessContext.isVendor) {
+      res.status(403).json({ error: 'Hanya pedagang aktif yang dapat membuat produk' })
+      return
+    }
 
     const productName = String(req.body?.name || '').trim()
     if (!productName) {
@@ -180,6 +265,7 @@ app.post('/upload-product', upload.single('file'), async (req, res) => {
 
     let imageUrl = null
     if (req.file) {
+      assertImageSignature(req.file)
       const payload = await uploadBufferToStorage({
         file: req.file,
         userId: user.id,
@@ -209,7 +295,7 @@ app.post('/upload-product', upload.single('file'), async (req, res) => {
     })
   } catch (error) {
     console.error('upload-product unexpected', error)
-    res.status(500).json({ error: error.message || 'Gagal membuat produk' })
+    res.status(error.statusCode || 500).json({ error: error.message || 'Gagal membuat produk' })
   }
 })
 
@@ -217,6 +303,12 @@ app.post(['/vendor/:id/online', '/api/vendor/:id/online'], async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req, res)
     if (!user) return
+
+    const accessContext = await getUserAccessContext(user.id)
+    if (accessContext.accountStatus !== 'active' || !accessContext.isVendor) {
+      res.status(403).json({ error: 'Akun pedagang sedang tidak aktif' })
+      return
+    }
 
     const vendorId = req.params.id
     const { data: vendorRow, error: vendorError } = await supabaseAdmin
@@ -238,11 +330,15 @@ app.post(['/vendor/:id/online', '/api/vendor/:id/online'], async (req, res) => {
 
     const nextStatus = typeof req.body?.online === 'boolean'
       ? req.body.online
-      : !Boolean(vendorRow.online)
+      : !vendorRow.online
+
+    const updatePayload = nextStatus
+      ? { online: true }
+      : { online: false, location: null, last_seen_at: null }
 
     const { data, error } = await supabaseAdmin
       .from('vendors')
-      .update({ online: nextStatus })
+      .update(updatePayload)
       .eq('id', vendorId)
       .select()
       .maybeSingle()

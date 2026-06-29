@@ -9,6 +9,8 @@ Dokumen ini dipakai jika project Supabase Anda sudah berjalan dan Anda ingin men
 3. Jalankan file berikut:
 
 - [phase1-foundation.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/phase1-foundation.sql)
+- [admin-foundation.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/admin-foundation.sql)
+- [production-hardening.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/production-hardening.sql)
 
 Jika database Anda sudah pernah menjalankan `phase1-foundation.sql` versi lama dan hanya ingin menambahkan tracking dua titik pelanggan-pedagang, jalankan juga:
 
@@ -46,4 +48,4 @@ Frontend saat ini sudah dibuat kompatibel bertahap:
 - jika field atau tabel baru sudah ada, app akan memakainya
 - jika migration belum dijalankan penuh, flow lama masih berusaha tetap jalan
 
-Tetap disarankan menjalankan migration ini penuh agar fitur status order, notifikasi, dan struktur item pesanan bekerja konsisten.
+Migration `production-hardening.sql` wajib dijalankan sebelum deploy versi frontend terbaru karena checkout sudah memprioritaskan RPC atomik dan upload memakai backend tervalidasi.

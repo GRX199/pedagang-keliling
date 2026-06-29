@@ -233,7 +233,7 @@ export function getNextVendorStatusActions(input) {
   const order = input && typeof input === 'object' ? input : null
   const status = order ? order.status : input
 
-  let actions = []
+  let actions
 
   switch (status) {
     case 'pending':

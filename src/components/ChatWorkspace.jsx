@@ -31,8 +31,12 @@ function parseImageMessageText(text) {
   try {
     const payload = JSON.parse(value.slice(IMAGE_MESSAGE_PREFIX.length))
     if (!payload?.url) return null
+
+    const parsedUrl = new URL(String(payload.url))
+    if (!['https:', 'http:'].includes(parsedUrl.protocol)) return null
+
     return {
-      url: String(payload.url),
+      url: parsedUrl.toString(),
       caption: String(payload.caption || '').trim(),
     }
   } catch (error) {
@@ -289,8 +293,9 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
       .subscribe()
 
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void pollNewMessages()
-    }, 4000)
+    }, 15000)
 
     return () => {
       active = false
@@ -659,8 +664,9 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
       .subscribe()
 
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void fetchChats({ background: true, silent: true })
-    }, 10000)
+    }, 30000)
 
     return () => {
       window.clearInterval(intervalId)
@@ -787,8 +793,9 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
       .subscribe()
 
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void fetchRelatedOrders({ background: true, silent: true })
-    }, 10000)
+    }, 30000)
 
     return () => {
       active = false

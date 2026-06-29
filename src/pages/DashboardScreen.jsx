@@ -256,8 +256,9 @@ function OrdersPanel({ currentUser, role }) {
       .subscribe()
 
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void fetchOrders({ background: true, silent: true })
-    }, 8000)
+    }, 30000)
 
     return () => {
       window.clearInterval(intervalId)

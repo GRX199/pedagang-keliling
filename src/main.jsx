@@ -5,18 +5,21 @@ import App from './App'
 import './styles/index.css'
 import { AuthProvider } from './lib/auth'
 import { ToastProvider } from './components/ToastProvider'
+import AppErrorBoundary from './components/AppErrorBoundary'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ToastProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </AuthProvider>
-    </ToastProvider>
+    <AppErrorBoundary>
+      <ToastProvider>
+        <AuthProvider>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <App />
+          </BrowserRouter>
+        </AuthProvider>
+      </ToastProvider>
+    </AppErrorBoundary>
   </React.StrictMode>
 )

@@ -7,6 +7,7 @@ const AuthContext = createContext({
   user: null,
   role: null,
   accountStatus: 'active',
+  authError: '',
   loading: true,
   refreshAuth: async () => {},
 })
@@ -15,6 +16,7 @@ export function AuthProvider({ children }){
   const [user, setUser] = useState(null)
   const [role, setRole] = useState(null)
   const [accountStatus, setAccountStatus] = useState('active')
+  const [authError, setAuthError] = useState('')
   const [loading, setLoading] = useState(true)
 
   const determineAuthMeta = useCallback(async (uid) => {
@@ -70,10 +72,7 @@ export function AuthProvider({ children }){
       }
     } catch (error) {
       console.error('determineAuthMeta', error)
-      return {
-        role: 'customer',
-        accountStatus: 'active',
-      }
+      throw new Error('Gagal memverifikasi role dan status akun. Periksa koneksi lalu coba lagi.', { cause: error })
     }
   }, [])
 
@@ -82,15 +81,23 @@ export function AuthProvider({ children }){
     if (!sessionUser) {
       setRole(null)
       setAccountStatus('active')
+      setAuthError('')
       setLoading(false)
       return
     }
 
-    const { role: nextRole, accountStatus: nextAccountStatus } = await determineAuthMeta(sessionUser.id)
-    setRole(nextRole)
-    setAccountStatus(nextAccountStatus || 'active')
-    await syncCurrentProfile(sessionUser, nextRole)
-    setLoading(false)
+    try {
+      const { role: nextRole, accountStatus: nextAccountStatus } = await determineAuthMeta(sessionUser.id)
+      setRole(nextRole)
+      setAccountStatus(nextAccountStatus || 'active')
+      setAuthError('')
+      await syncCurrentProfile(sessionUser, nextRole)
+    } catch (error) {
+      setRole(null)
+      setAuthError(error.message || 'Gagal memverifikasi akses akun.')
+    } finally {
+      setLoading(false)
+    }
   }, [determineAuthMeta])
 
   const refreshAuth = useCallback(async () => {
@@ -139,9 +146,10 @@ export function AuthProvider({ children }){
     user,
     role,
     accountStatus,
+    authError,
     loading,
     refreshAuth,
-  }), [accountStatus, loading, refreshAuth, role, user])
+  }), [accountStatus, authError, loading, refreshAuth, role, user])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

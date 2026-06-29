@@ -9,7 +9,6 @@ import { useAuth } from '../lib/auth'
 import {
   formatFavoriteCountLabel,
   isFavoritesSchemaCompatibilityError,
-  isVendorFavorited,
   normalizeFavoriteVendorIds,
 } from '../lib/favorites'
 import {
@@ -27,6 +26,7 @@ import {
   getVendorCoordinates,
   getVendorLocationUpdatedAtLabel,
   getVendorPromoText,
+  isVendorPresenceFresh,
   isVendorPromoActive,
 } from '../lib/vendor'
 
@@ -342,6 +342,7 @@ export default function MapViewPage() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [demandOrders, setDemandOrders] = useState([])
   const [showDemandHeatmap, setShowDemandHeatmap] = useState(true)
+  const [presenceClock, setPresenceClock] = useState(() => Date.now())
 
   const serverOrigin = getServerOrigin()
   const isAdmin = role === 'admin'
@@ -350,6 +351,11 @@ export default function MapViewPage() {
   const myVendorId = user?.id
   const clusterEnabled = true
   const favoriteVendorIdSet = useMemo(() => new Set(favoriteVendorIds), [favoriteVendorIds])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setPresenceClock(Date.now()), 30000)
+    return () => window.clearInterval(intervalId)
+  }, [])
   const requestFavoriteView = useMemo(() => {
     const params = new URLSearchParams(location.search)
     return params.get('favorites') === '1'
@@ -392,7 +398,7 @@ export default function MapViewPage() {
     try {
       const { data, error } = await supabase
         .from('vendors')
-        .update({ location: nextLocation })
+          .update({ location: nextLocation, last_seen_at: new Date().toISOString() })
         .eq('id', myVendorId)
         .select('id, name, description, photo_url, location, online, category_primary')
         .maybeSingle()
@@ -835,11 +841,23 @@ export default function MapViewPage() {
 
     const channel = supabase
       .channel('vendors-map')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors' }, () => {
-        loadVendors()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          setVendors((current) => current.filter((vendor) => vendor.id !== payload.old?.id))
+          return
+        }
+
+        if (payload.eventType === 'UPDATE' && payload.new?.id) {
+          setVendors((current) => current.map((vendor) => (
+            vendor.id === payload.new.id ? { ...vendor, ...payload.new } : vendor
+          )))
+          return
+        }
+
+        void loadVendors()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, () => {
-        loadVendors()
+        void loadVendors()
       })
       .subscribe()
 
@@ -856,7 +874,7 @@ export default function MapViewPage() {
     if (!selectedVendor) return
 
     const nextVendor = vendors.find((vendor) => vendor.id === selectedVendor.id)
-    if (!nextVendor || !nextVendor.online || !getVendorCoordinates(nextVendor.location)) {
+    if (!nextVendor || !isVendorPresenceFresh(nextVendor, presenceClock)) {
       setSelectedVendor(null)
       return
     }
@@ -864,7 +882,7 @@ export default function MapViewPage() {
     if (nextVendor !== selectedVendor) {
       setSelectedVendor(nextVendor)
     }
-  }, [selectedVendor, vendors])
+  }, [presenceClock, selectedVendor, vendors])
 
   useEffect(() => {
     const existingLocation = getVendorCoordinates(vendors.find((vendor) => vendor.id === myVendorId)?.location)
@@ -889,7 +907,7 @@ export default function MapViewPage() {
   const filteredVendors = useMemo(() => {
     return vendors.filter((vendor) => {
       const coordinates = getVendorCoordinates(vendor.location)
-      if (!vendor.online || !coordinates || isVendorModeratedOut(vendor)) return false
+      if (!isVendorPresenceFresh(vendor, presenceClock) || !coordinates || isVendorModeratedOut(vendor)) return false
 
       const vendorCategory = getVendorCategory(vendor)
       if (selectedCategory !== 'all') {
@@ -925,6 +943,7 @@ export default function MapViewPage() {
     onlyPromoVendors,
     onlyWithinRadius,
     radiusKm,
+    presenceClock,
     selectedCategory,
     selectedRatingFilter,
     userLocation,
@@ -932,8 +951,8 @@ export default function MapViewPage() {
   ])
 
   const onlineVendors = useMemo(
-    () => vendors.filter((vendor) => vendor.online && !isVendorModeratedOut(vendor) && getVendorCoordinates(vendor.location)),
-    [vendors]
+    () => vendors.filter((vendor) => isVendorPresenceFresh(vendor, presenceClock) && !isVendorModeratedOut(vendor)),
+    [presenceClock, vendors]
   )
 
   const categoryOptions = useMemo(() => {
@@ -1233,7 +1252,10 @@ export default function MapViewPage() {
           body: JSON.stringify({ online: nextStatus }),
         })
       } catch (error) {
-        throw new Error(getFriendlyFetchErrorMessage(error, 'Gagal menghubungi server untuk mengubah status toko.'))
+        throw new Error(
+          getFriendlyFetchErrorMessage(error, 'Gagal menghubungi server untuk mengubah status toko.'),
+          { cause: error }
+        )
       }
 
       const payload = await response.json().catch(() => ({}))

@@ -18,6 +18,8 @@ Panduan ini cocok untuk codebase di folder ini setelah refactor terakhir.
 3. Paste seluruh isi file [schema.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/schema.sql).
 4. Jalankan query sampai selesai.
 5. Setelah itu jalankan juga [phase1-foundation.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/phase1-foundation.sql).
+6. Jalankan [admin-foundation.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/admin-foundation.sql).
+7. Terakhir, jalankan [production-hardening.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/production-hardening.sql).
 
 Schema itu sudah menyiapkan:
 - tabel `vendors`
@@ -34,6 +36,7 @@ Schema itu sudah menyiapkan:
 - trigger notifikasi order dan pesan
 - policy RLS untuk semua fitur utama
 - realtime publication untuk `vendors`, `chats`, `messages`, `orders`, dan `notifications`
+- checkout atomik, reservasi stok, transisi order tervalidasi, dan presence pedagang yang memiliki masa berlaku
 
 ## 3. Buat storage bucket
 
@@ -48,6 +51,10 @@ Schema itu sudah menyiapkan:
 Folder file akan dibuat otomatis oleh aplikasi dengan pola:
 - `vendors/<user-id>/products/...`
 - `vendors/<user-id>/profiles/...`
+- `vendors/<user-id>/payments/...`
+- `vendors/<user-id>/chat/...`
+
+Upload aplikasi melewati backend agar signature file dapat diverifikasi. Setelah migration hardening dijalankan, pengguna tidak lagi memiliki akses upload langsung ke bucket.
 
 ## 4. Atur Auth
 

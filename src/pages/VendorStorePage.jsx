@@ -36,6 +36,7 @@ import {
   formatVendorServiceRadius,
   getOperatingHoursText,
   getVendorPromoText,
+  isVendorPresenceFresh,
   isVendorPromoActive,
 } from '../lib/vendor'
 import { formatReviewScore, getReviewSummary } from '../lib/reviews'
@@ -47,7 +48,9 @@ function hasManagedStock(product) {
 function getManagedStockNumber(product) {
   if (!hasManagedStock(product)) return null
   const stock = Number(product.stock)
-  return Number.isFinite(stock) ? stock : null
+  const reservedStock = Number(product.reserved_stock || 0)
+  if (!Number.isFinite(stock)) return null
+  return Math.max(0, stock - (Number.isFinite(reservedStock) ? reservedStock : 0))
 }
 
 function getProductStockLabel(product) {
@@ -513,7 +516,6 @@ export default function VendorStorePage() {
         return
       }
 
-      const directChat = await findOrCreateDirectChat(user.id, id)
       const orderPayload = buildOrderInsertPayload({
         vendorId: id,
         vendorName: vendor?.name || 'Pedagang',
@@ -533,62 +535,95 @@ export default function VendorStorePage() {
 
       let createdOrder = null
       let structuredOrderSaved = true
+      let orderCreatedByRpc = false
+      let directChat = null
       const notes = []
 
       try {
-        const { data, error } = await supabase
-          .from('orders')
-          .insert([orderPayload])
-          .select()
-          .single()
+        const { data, error } = await supabase.rpc('create_order_with_items', {
+          target_vendor_id: id,
+          target_payment_method: paymentMethod,
+          target_fulfillment_type: fulfillmentType,
+          target_order_timing: orderTiming,
+          target_requested_fulfillment_at: scheduleTimestamp,
+          target_meeting_point_label: resolvedMeetingPointLabel,
+          target_meeting_point_location: resolvedMeetingPointLocation,
+          target_customer_note: customerNote.trim() || null,
+          target_customer_location: customerLocation,
+          target_items: cartEntries.map((entry) => ({
+            product_id: entry.product.id,
+            quantity: Number(entry.quantity) || 0,
+            note: entry.note || null,
+          })),
+        })
 
         if (error) throw error
-        createdOrder = data
+        createdOrder = Array.isArray(data) ? data[0] : data
+        orderCreatedByRpc = true
       } catch (error) {
         if (!isSchemaCompatibilityError(error)) throw error
-        if (orderTiming === 'preorder') {
-          throw new Error('Database belum memuat field pre-order. Jalankan migration pre-order terlebih dahulu agar titip pesanan bisa dipakai.')
-        }
-        try {
-          const compatibilityPayload = { ...orderPayload }
-          delete compatibilityPayload.customer_location
-          delete compatibilityPayload.vendor_location_snapshot
-          delete compatibilityPayload.order_timing
-          delete compatibilityPayload.requested_fulfillment_at
 
-          const { data, error: compatibilityError } = await supabase
+        try {
+          const { data, error: insertError } = await supabase
             .from('orders')
-            .insert([compatibilityPayload])
+            .insert([orderPayload])
             .select()
             .single()
 
-          if (compatibilityError) throw compatibilityError
+          if (insertError) throw insertError
           createdOrder = data
-          notes.push('Tracking dua titik akan aktif penuh setelah migration tracking terbaru dijalankan.')
+          notes.push('Database belum memakai checkout atomik. Jalankan production-hardening.sql sebelum production.')
         } catch (compatibilityError) {
           if (!isSchemaCompatibilityError(compatibilityError)) throw compatibilityError
 
-          structuredOrderSaved = false
-          const { data, error: fallbackError } = await supabase
-            .from('orders')
-            .insert([{
-              vendor_id: id,
-              vendor_name: vendor?.name || 'Pedagang',
-              buyer_id: user.id,
-              buyer_name: buyerName,
-              items: buildOrderItemsText(cartEntries),
-              status: 'pending',
-            }])
-            .select()
-            .single()
+          if (orderTiming === 'preorder') {
+            throw new Error(
+              'Database belum memuat field pre-order. Jalankan migration terbaru agar titip pesanan bisa dipakai.',
+              { cause: compatibilityError }
+            )
+          }
 
-          if (fallbackError) throw fallbackError
-          createdOrder = data
-          notes.push('Database masih memakai model order lama, jadi detail pembayaran dan titik temu belum tersimpan penuh.')
+          try {
+            const compatibilityPayload = { ...orderPayload }
+            delete compatibilityPayload.customer_location
+            delete compatibilityPayload.vendor_location_snapshot
+            delete compatibilityPayload.order_timing
+            delete compatibilityPayload.requested_fulfillment_at
+
+            const { data, error: legacyError } = await supabase
+              .from('orders')
+              .insert([compatibilityPayload])
+              .select()
+              .single()
+
+            if (legacyError) throw legacyError
+            createdOrder = data
+            notes.push('Tracking dua titik akan aktif penuh setelah migration tracking terbaru dijalankan.')
+          } catch (legacyError) {
+            if (!isSchemaCompatibilityError(legacyError)) throw legacyError
+
+            structuredOrderSaved = false
+            const { data, error: fallbackError } = await supabase
+              .from('orders')
+              .insert([{
+                vendor_id: id,
+                vendor_name: vendor?.name || 'Pedagang',
+                buyer_id: user.id,
+                buyer_name: buyerName,
+                items: buildOrderItemsText(cartEntries),
+                status: 'pending',
+              }])
+              .select()
+              .single()
+
+            if (fallbackError) throw fallbackError
+            createdOrder = data
+            notes.push('Database masih memakai model order lama, jadi detail pembayaran dan titik temu belum tersimpan penuh.')
+          }
         }
       }
 
-      if (createdOrder?.id) {
+      if (createdOrder?.id && !orderCreatedByRpc) {
         try {
           const orderItemsPayload = buildOrderItemRows({
             orderId: createdOrder.id,
@@ -610,6 +645,7 @@ export default function VendorStorePage() {
 
       let successMessage = 'Pesanan berhasil dikirim dan chat dibuka untuk tindak lanjut.'
       try {
+        directChat = await findOrCreateDirectChat(user.id, id)
         await sendChatMessage(directChat.id, user.id, buildOrderChatMessage({
           buyerName,
           entries: cartEntries,
@@ -622,8 +658,8 @@ export default function VendorStorePage() {
           customerNote,
         }))
       } catch (messageError) {
-        console.error('submitOrder.sendChatMessage', messageError)
-        notes.push('Ringkasan otomatis di chat belum terkirim.')
+        console.error('submitOrder.chat', messageError)
+        notes.push('Pesanan tersimpan, tetapi ringkasan otomatis di chat belum terkirim.')
       }
 
       clearCart()
@@ -661,6 +697,8 @@ export default function VendorStorePage() {
     return <div className="p-6 text-sm text-gray-500">Pedagang tidak ditemukan.</div>
   }
 
+  const vendorIsOnline = isVendorPresenceFresh(vendor)
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-transparent">
       <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
@@ -682,9 +720,9 @@ export default function VendorStorePage() {
                 <p className="mt-2 text-sm leading-6 text-slate-600">{vendor.description || 'Pedagang lokal siap melayani Anda.'}</p>
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                   <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    vendor.online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                    vendorIsOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
                   }`}>
-                    {vendor.online ? 'Sedang Online' : 'Sedang Offline'}
+                    {vendorIsOnline ? 'Sedang Online' : 'Sedang Offline'}
                   </span>
                   {reviewSummary.count > 0 && (
                     <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
@@ -1102,9 +1140,9 @@ export default function VendorStorePage() {
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  vendor.online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                  vendorIsOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
                 }`}>
-                  {vendor.online ? 'Sedang Online' : 'Sedang Offline'}
+                  {vendorIsOnline ? 'Sedang Online' : 'Sedang Offline'}
                 </span>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                   {formatVendorCategoryLabel(vendor.category_primary)}

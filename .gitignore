@@ -1,8 +1,8 @@
 node_modules/
 dist/
-.env
-.env.local
-server/.env
+.env*
+!.env.example
+server/.env*
 .DS_Store
 
 # Private proposal/seminar documents

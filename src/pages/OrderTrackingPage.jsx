@@ -211,8 +211,9 @@ export default function OrderTrackingPage() {
       .subscribe()
 
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void loadOrder({ background: true, silent: true })
-    }, 10000)
+    }, 30000)
 
     return () => {
       window.clearInterval(intervalId)
@@ -581,7 +582,10 @@ export default function OrderTrackingPage() {
   const paymentGuidance = getPaymentGuidance(order, isVendorViewer ? 'vendor' : 'customer')
   const paymentActions = isVendorViewer ? getVendorPaymentActions(order) : getBuyerPaymentActions(order)
   const operationalNotice = getOrderOperationalNotice(order, isVendorViewer ? 'vendor' : 'customer')
-  const paymentReferenceDetails = getVendorPaymentMethodDetails(vendor?.payment_details, order.payment_method)
+  const paymentReferenceDetails = getVendorPaymentMethodDetails(
+    vendor?.payment_details || order.vendor_payment_details_snapshot,
+    order.payment_method
+  )
   const canShowReviewComposer = canBuyerReviewOrder(order, user?.id)
   const routeReady = Boolean(vendorCoordinates && customerCoordinates)
   const isPreorder = order.order_timing === 'preorder'

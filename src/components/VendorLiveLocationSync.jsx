@@ -62,7 +62,7 @@ export default function VendorLiveLocationSync() {
       try {
         const { data, error } = await supabase
           .from('vendors')
-          .select('id, online, location')
+          .select('id, online, location, last_seen_at')
           .eq('id', vendorId)
           .maybeSingle()
 
@@ -163,7 +163,7 @@ export default function VendorLiveLocationSync() {
       try {
         const { data, error } = await supabase
           .from('vendors')
-          .update({ location: nextLocation })
+          .update({ location: nextLocation, last_seen_at: new Date().toISOString() })
           .eq('id', vendorId)
           .select('location')
           .maybeSingle()

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { setRememberSessionPreference, supabase } from '../lib/supabase'
 import { useToast } from '../components/ToastProvider'
 
 const REMEMBER_EMAIL_KEY = 'kelilingku:remember-email'
@@ -173,7 +173,7 @@ export default function LoginPage() {
       if (isRegisterMode) {
         if (!validatePasswordConfirmation()) return
 
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -193,21 +193,13 @@ export default function LoginPage() {
           return
         }
 
-        const uid = data?.user?.id
-        if (role === 'vendor' && uid) {
-          try {
-            await supabase.from('vendors').insert([{ id: uid, user_id: uid, name: name || 'Pedagang' }])
-          } catch (insertError) {
-            console.warn('create vendor row failed', insertError)
-          }
-        }
-
         toast.push('Daftar berhasil. Cek email untuk verifikasi jika aktif pada project Anda.', { type: 'success' })
         setMode('login')
         setInlineMsg('Akun berhasil dibuat. Silakan login setelah verifikasi email jika fitur itu aktif.')
         return
       }
 
+      setRememberSessionPreference(rememberMe)
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         toast.push(error.message || 'Gagal login', { type: 'error' })
@@ -368,6 +360,7 @@ export default function LoginPage() {
                   placeholder="Nama Anda atau nama toko"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
+                  autoComplete="name"
                   required
                 />
               </label>
@@ -381,6 +374,7 @@ export default function LoginPage() {
                   placeholder="nama@email.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
                   required
                   type="email"
                 />
@@ -400,6 +394,7 @@ export default function LoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
+                      autoComplete={isLoginMode ? 'current-password' : 'new-password'}
                       required
                     />
                     <button
@@ -421,6 +416,7 @@ export default function LoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(event) => setConfirmPassword(event.target.value)}
+                      autoComplete="new-password"
                       required
                     />
                   </label>

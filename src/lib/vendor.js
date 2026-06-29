@@ -53,6 +53,18 @@ export function createVendorLocationPayload({ lat, lng, accuracy = null }) {
   return createLocationPayload({ lat, lng, accuracy })
 }
 
+export const VENDOR_PRESENCE_MAX_AGE_MS = 2 * 60 * 1000
+
+export function isVendorPresenceFresh(vendor, now = Date.now()) {
+  if (!vendor?.online || !getVendorCoordinates(vendor.location)) return false
+
+  const presenceValue = vendor.last_seen_at || vendor.location?.updated_at
+  const presenceTime = presenceValue ? new Date(presenceValue).getTime() : NaN
+  if (!Number.isFinite(presenceTime)) return false
+
+  return now - presenceTime <= VENDOR_PRESENCE_MAX_AGE_MS
+}
+
 function cleanText(value) {
   return String(value || '').trim()
 }

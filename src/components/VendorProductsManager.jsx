@@ -24,7 +24,10 @@ function getProductStockLabel(product) {
   const stock = getManagedStockNumber(product)
   if (stock === null) return 'Stok fleksibel'
   if (stock <= 0) return 'Stok habis'
-  return `Stok: ${stock}`
+  const reservedStock = Number(product?.reserved_stock || 0)
+  return reservedStock > 0
+    ? `Stok: ${stock} • Dipesan: ${reservedStock}`
+    : `Stok: ${stock}`
 }
 
 function isProductOrderable(product) {
