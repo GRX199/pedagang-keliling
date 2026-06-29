@@ -14,7 +14,7 @@ import {
 import {
   getFriendlyFetchErrorMessage,
   getGeolocationErrorMessage,
-  getServerOrigin,
+  requireServerOrigin,
 } from '../lib/network'
 import { formatReviewScore, getReviewSummary } from '../lib/reviews'
 import { supabase } from '../lib/supabase'
@@ -344,7 +344,6 @@ export default function MapViewPage() {
   const [showDemandHeatmap, setShowDemandHeatmap] = useState(true)
   const [presenceClock, setPresenceClock] = useState(() => Date.now())
 
-  const serverOrigin = getServerOrigin()
   const isAdmin = role === 'admin'
   const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
   const isCustomerViewer = Boolean(user?.id) && !isVendor && !isAdmin
@@ -1241,6 +1240,7 @@ export default function MapViewPage() {
       const accessToken = await getAccessToken()
       if (!accessToken) throw new Error('Sesi login tidak ditemukan')
 
+      const serverOrigin = requireServerOrigin()
       let response
       try {
         response = await fetch(`${serverOrigin}/api/vendor/${myVendorId}/online`, {

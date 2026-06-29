@@ -504,6 +504,7 @@ begin
 
   if not vendor_row.online
      or vendor_row.location is null
+     or vendor_row.last_seen_at is null
      or vendor_row.last_seen_at < now() - interval '2 minutes' then
     raise exception 'Pedagang sedang offline atau lokasinya sudah tidak aktif.';
   end if;

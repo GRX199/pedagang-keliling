@@ -6,11 +6,15 @@ export function getServerOrigin() {
   const configuredOrigin = String(import.meta.env.VITE_SERVER_URL || '').trim()
 
   if (!configuredOrigin) {
-    if (typeof window !== 'undefined' && window.location?.hostname) {
+    if (
+      typeof window !== 'undefined' &&
+      window.location?.hostname &&
+      (import.meta.env.DEV || isLoopbackHost(window.location.hostname))
+    ) {
       return `http://${window.location.hostname}:4000`
     }
 
-    return 'http://localhost:4000'
+    return ''
   }
 
   try {
@@ -31,8 +35,20 @@ export function getServerOrigin() {
   }
 }
 
+export function requireServerOrigin() {
+  const origin = getServerOrigin()
+  if (!origin) {
+    throw new Error('URL backend belum dikonfigurasi. Isi VITE_SERVER_URL di Vercel dengan URL HTTPS backend Render.')
+  }
+
+  return origin
+}
+
 export function getServerConnectionHint() {
   const origin = getServerOrigin()
+  if (!origin) {
+    return 'Isi VITE_SERVER_URL di environment frontend dengan URL HTTPS backend Render, lalu deploy ulang.'
+  }
 
   try {
     const serverUrl = new URL(origin)

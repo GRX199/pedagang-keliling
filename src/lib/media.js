@@ -1,7 +1,5 @@
 import { supabase } from './supabase'
-import { getFriendlyFetchErrorMessage, getServerOrigin } from './network'
-
-const SERVER_ORIGIN = getServerOrigin()
+import { getFriendlyFetchErrorMessage, requireServerOrigin } from './network'
 
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg',
@@ -41,9 +39,10 @@ export async function uploadImageFile({ file, vendorId, folder = 'products' }) {
   formData.append('file', file)
   formData.append('folder', folder)
 
+  const serverOrigin = requireServerOrigin()
   let response
   try {
-    response = await fetch(`${SERVER_ORIGIN}/upload-only`, {
+    response = await fetch(`${serverOrigin}/upload-only`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
