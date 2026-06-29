@@ -1,6 +1,7 @@
 {
   "name": "pedagang-upload-server",
   "version": "1.0.0",
+  "description": "Kelilingku backend API for authenticated media uploads and vendor presence.",
   "private": true,
   "type": "module",
   "scripts": {
