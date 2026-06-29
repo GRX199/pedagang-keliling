@@ -221,7 +221,7 @@ language plpgsql
 set search_path = public
 as $$
 begin
-  if new.participants_normalized is distinct from old.participants_normalized then
+  if new.participants is distinct from old.participants then
     raise exception 'Peserta percakapan tidak dapat diubah.';
   end if;
 

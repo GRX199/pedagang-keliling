@@ -67,7 +67,9 @@ export async function sendChatMessage(chatId, fromUser, text) {
     .update({ last_updated: new Date().toISOString() })
     .eq('id', chatId)
 
-  if (chatError) throw chatError
+  if (chatError) {
+    console.warn('updateChatActivity', chatError)
+  }
 
   return data
 }
