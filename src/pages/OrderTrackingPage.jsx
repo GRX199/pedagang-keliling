@@ -628,18 +628,9 @@ export default function OrderTrackingPage() {
               >
                 Chat
               </button>
-              <button
-                onClick={() => navigate('/dashboard?tab=orders')}
-                className="shrink-0 whitespace-nowrap rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium leading-tight text-white"
-              >
-                Pesanan
-              </button>
             </div>
           </div>
-
-          <div className="mt-2 text-xs text-slate-400 sm:mt-3">
-            {refreshing ? 'Tracking diperbarui di background...' : 'Tracking aktif dan diperbarui di background'}
-          </div>
+          {refreshing ? <div className="mt-2 text-xs text-slate-400">Memperbarui posisi...</div> : null}
         </section>
 
         <section className="grid min-w-0 grid-cols-3 gap-2 sm:gap-4">
@@ -706,11 +697,13 @@ export default function OrderTrackingPage() {
               <div className="mt-4 space-y-3">
                 {orderItems.length > 0 ? (
                   visibleOrderItems.map((item) => (
-                    <div key={item.id} className="min-w-0 rounded-2xl bg-slate-50 p-4">
-                      <div className="break-words font-medium text-slate-900">{item.product_name_snapshot}</div>
-                      <div className="mt-1 text-sm text-slate-500">Jumlah: {item.quantity}</div>
-                      {item.item_note && <div className="mt-1 break-words text-sm text-slate-600">Catatan: {item.item_note}</div>}
-                      <div className="mt-2 text-sm font-medium text-slate-700">
+                    <div key={item.id} className="flex min-w-0 items-start justify-between gap-3 border-b border-slate-100 py-3 last:border-0">
+                      <div className="min-w-0">
+                        <div className="break-words font-medium text-slate-900">{item.product_name_snapshot}</div>
+                        <div className="mt-1 text-sm text-slate-500">{item.quantity} item</div>
+                        {item.item_note && <div className="mt-1 break-words text-sm text-slate-600">{item.item_note}</div>}
+                      </div>
+                      <div className="shrink-0 text-sm font-medium text-slate-700">
                         {formatPriceLabel(item.line_total || item.price_snapshot)}
                       </div>
                     </div>
@@ -753,10 +746,6 @@ export default function OrderTrackingPage() {
                 <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Pedagang</div>
                   <div className="mt-1 break-words font-medium text-slate-900">{order.vendor_name || vendor?.name || 'Pedagang'}</div>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Status</div>
-                  <div className="mt-1 break-words font-medium text-slate-900">{formatOrderStatusLabel(order.status)}</div>
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Pembayaran</div>

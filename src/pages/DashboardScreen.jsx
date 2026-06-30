@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import AdminPanel from '../components/AdminPanel'
 import ChatWorkspace from '../components/ChatWorkspace'
@@ -39,7 +39,6 @@ import {
   formatVendorServiceMode,
   formatVendorServiceRadius,
   createVendorLocationPayload,
-  getDisplayName,
   getOperatingHoursText,
   getVendorLocationLabel,
   getVendorLocationUpdatedAtLabel,
@@ -47,37 +46,6 @@ import {
   isVendorPromoActive,
   normalizeVendorPaymentDetails,
 } from '../lib/vendor'
-
-function TabButton({ id, active, onClick, children }) {
-  return (
-    <button
-      onClick={() => onClick(id)}
-      className={`whitespace-nowrap rounded-2xl px-4 py-3 text-sm font-medium transition ${
-        active ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-function OrdersSummaryCard({ label, value, hint, tone = 'default' }) {
-  const toneClass = tone === 'primary'
-    ? 'bg-slate-900 text-white shadow-sm'
-    : tone === 'success'
-      ? 'bg-emerald-50 text-slate-900 ring-1 ring-emerald-100'
-      : 'bg-slate-50 text-slate-900 ring-1 ring-slate-200'
-
-  const hintClass = tone === 'primary' ? 'text-slate-300' : 'text-slate-500'
-
-  return (
-    <div className={`min-w-0 rounded-2xl p-3 ${toneClass}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-80 sm:text-xs">{label}</div>
-      <div className="mt-1 text-2xl font-semibold leading-none sm:text-3xl">{value}</div>
-      <div className={`mt-1 hidden text-xs leading-5 sm:block ${hintClass}`}>{hint}</div>
-    </div>
-  )
-}
 
 function HistoryFilterButton({ active, onClick, children }) {
   return (
@@ -674,29 +642,16 @@ function OrdersPanel({ currentUser, role }) {
         </div>
       </div>
 
-      <div className="grid min-w-0 grid-cols-3 gap-2">
-        <OrdersSummaryCard
-          label="Aktif"
-          value={activeOrders.length}
-          hint={isVendor ? 'Perlu dipantau atau dilanjutkan statusnya.' : 'Masih berjalan dan siap dilacak.'}
-          tone="primary"
-        />
-        <OrdersSummaryCard
-          label={isVendor ? 'Baru' : 'Pending'}
-          value={pendingOrders.length}
-          hint={isVendor ? 'Segera cek agar pelanggan tidak menunggu lama.' : 'Pedagang belum memberi keputusan akhir.'}
-          tone="default"
-        />
-        <OrdersSummaryCard
-          label={isVendor ? 'Selesai' : 'Ulasan'}
-          value={isVendor ? completedOrders.length : completedReviewSummary.count}
-          hint={isVendor
-            ? 'Order yang sudah selesai ditutup.'
-            : completedReviewSummary.count > 0
-              ? `Rata-rata ulasan Anda ${completedReviewSummary.averageLabel}.`
-              : 'Beri ulasan setelah pesanan selesai.'}
-          tone="success"
-        />
+      <div className="flex gap-2 overflow-x-auto pb-1 text-sm">
+        <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-slate-900 px-3 py-2 font-medium text-white">
+          Aktif <strong>{activeOrders.length}</strong>
+        </div>
+        <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-slate-100 px-3 py-2 font-medium text-slate-700">
+          {isVendor ? 'Baru' : 'Pending'} <strong>{pendingOrders.length}</strong>
+        </div>
+        <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 font-medium text-emerald-700">
+          {isVendor ? 'Selesai' : 'Ulasan'} <strong>{isVendor ? completedOrders.length : completedReviewSummary.count}</strong>
+        </div>
       </div>
 
       {orders.length === 0 ? (
@@ -1534,16 +1489,11 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
 
 export default function DashboardScreen() {
   const { user, role, loading, accountStatus } = useAuth()
-  const toast = useToast()
   const location = useLocation()
   const [activeTab, setActiveTab] = useState('products')
-  const [vendorProfile, setVendorProfile] = useState(null)
 
   const isAdmin = role === 'admin'
   const isVendor = role === 'vendor'
-  const handleVendorProfileSaved = useCallback((profile) => {
-    setVendorProfile(profile)
-  }, [])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -1564,101 +1514,13 @@ export default function DashboardScreen() {
     }
   }, [isAdmin, isVendor, location.search])
 
-  useEffect(() => {
-    if (!user || !isVendor) {
-      setVendorProfile(null)
-      return undefined
-    }
-
-    let active = true
-
-    async function loadVendorProfile() {
-      try {
-        const { data, error } = await supabase.from('vendors').select('*').eq('id', user.id).maybeSingle()
-        if (error) throw error
-        if (active) setVendorProfile(data || null)
-      } catch (error) {
-        console.error('loadVendorProfile', error)
-        if (active) toast.push(error.message || 'Gagal memuat profil toko', { type: 'error' })
-      }
-    }
-
-    loadVendorProfile()
-
-    return () => {
-      active = false
-    }
-  }, [isVendor, toast, user])
-
   if (loading) {
     return <div className="p-6 text-sm text-gray-500">Memuat dashboard...</div>
   }
 
-  const displayName = isAdmin
-    ? getDisplayName(user?.user_metadata?.full_name || user?.email, 'Admin')
-    : isVendor
-    ? getDisplayName(vendorProfile?.name || user?.user_metadata?.full_name || user?.email, 'Pedagang')
-    : getDisplayName(user?.user_metadata?.full_name || user?.email, 'Pelanggan')
-
-  const avatarUrl = isVendor
-    ? (vendorProfile?.photo_url || user?.user_metadata?.avatar_url)
-    : user?.user_metadata?.avatar_url
-  const roleLabel = isAdmin ? 'Admin' : isVendor ? 'Pedagang' : 'Pelanggan'
-
   return (
     <div className="min-h-screen bg-transparent">
-      <div className="mx-auto max-w-6xl overflow-x-hidden px-3 py-5 sm:px-4 sm:py-6">
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="hidden space-y-4 lg:block lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80">
-              <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xl">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="avatar" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="font-semibold text-slate-500">{displayName[0]}</div>
-                  )}
-                </div>
-
-                <div>
-                  <div className="font-semibold text-slate-900">{displayName}</div>
-                  <div className="text-xs text-slate-500">{user?.email}</div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center gap-2">
-                <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  isAdmin
-                    ? 'bg-sky-50 text-sky-700'
-                    : isVendor
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-slate-100 text-slate-700'
-                }`}>
-                  {roleLabel}
-                </span>
-                {accountStatus !== 'active' ? (
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    accountStatus === 'blocked'
-                      ? 'bg-rose-50 text-rose-700'
-                      : 'bg-amber-50 text-amber-700'
-                  }`}>
-                    {accountStatus === 'blocked' ? 'Akun diblokir' : 'Akun ditangguhkan'}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            <nav className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {isAdmin && <TabButton id="admin" active={activeTab === 'admin'} onClick={setActiveTab}>Admin</TabButton>}
-                {isVendor && <TabButton id="products" active={activeTab === 'products'} onClick={setActiveTab}>Produk</TabButton>}
-                {!isAdmin && <TabButton id="chats" active={activeTab === 'chats'} onClick={setActiveTab}>Chat</TabButton>}
-                {!isAdmin && <TabButton id="orders" active={activeTab === 'orders'} onClick={setActiveTab}>Pesanan</TabButton>}
-                <TabButton id="profile" active={activeTab === 'profile'} onClick={setActiveTab}>Profil</TabButton>
-              </div>
-            </nav>
-          </aside>
-
+      <div className="mx-auto max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6">
           <main className="min-w-0 max-w-full space-y-4">
             {accountStatus !== 'active' ? (
               <div className={`rounded-[28px] p-4 text-sm shadow-sm ring-1 ${
@@ -1677,10 +1539,9 @@ export default function DashboardScreen() {
             {activeTab === 'chats' && !isAdmin && <ChatWorkspace embedded />}
             {activeTab === 'orders' && !isAdmin && <OrdersPanel currentUser={user} role={role} />}
             {activeTab === 'profile' && (
-              <ProfilePanel currentUser={user} role={role} onVendorProfileSaved={handleVendorProfileSaved} />
+              <ProfilePanel currentUser={user} role={role} />
             )}
           </main>
-        </div>
       </div>
     </div>
   )

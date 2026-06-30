@@ -188,6 +188,27 @@ function TopNav() {
     )
     : []
 
+  const mobileNavItems = isVendor
+    ? navItems.filter((item) => item.label !== 'Profil')
+    : navItems
+
+  function NavIcon({ label }) {
+    const paths = {
+      Peta: <><path d="M12 21s6-4.35 6-11a6 6 0 1 0-12 0c0 6.65 6 11 6 11Z" /><circle cx="12" cy="10" r="2.2" /></>,
+      Pesanan: <><path d="M7 4h10a2 2 0 0 1 2 2v14H5V6a2 2 0 0 1 2-2Z" /><path d="M9 2h6v4H9zM8 11h8M8 15h5" /></>,
+      Chat: <><path d="M21 12a8 8 0 0 1-9 7.94A8.8 8.8 0 0 1 8 21l1.05-3.15A8 8 0 1 1 21 12Z" /><path d="M8 12h.01M12 12h.01M16 12h.01" /></>,
+      Produk: <><path d="m4 7 8-4 8 4-8 4-8-4Z" /><path d="m4 7 8 4 8-4v10l-8 4-8-4V7ZM12 11v10" /></>,
+      Profil: <><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></>,
+      Admin: <><path d="M12 3 4 7v5c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V7l-8-4Z" /><path d="m9 12 2 2 4-4" /></>,
+    }
+
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        {paths[label] || paths.Profil}
+      </svg>
+    )
+  }
+
   function renderDesktopNavItem(item) {
     return (
       <NavLink
@@ -215,50 +236,71 @@ function TopNav() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-3 py-3 sm:px-4">
+      <header className="sticky top-0 z-[1300] border-b border-slate-200/80 bg-white/95 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-3 py-2 sm:px-4">
           <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
             <div className="min-w-0 flex items-center gap-4">
               <Link to={user ? (isAdmin ? '/dashboard?tab=admin' : '/map') : '/'} className="inline-flex min-w-0 items-center gap-3">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white shadow-sm">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white shadow-sm">
                   K
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-lg font-bold tracking-tight text-slate-900">Kelilingku</span>
-                  <span className="hidden text-xs text-slate-500 sm:block">Belanja sekitar, langsung terhubung</span>
+                  <span className="block text-base font-bold tracking-tight text-slate-900 sm:text-lg">Kelilingku</span>
+                  <span className="hidden text-xs text-slate-500 lg:block">Belanja sekitar, langsung terhubung</span>
                 </span>
               </Link>
 
               {user && (
-                <nav className="hidden md:flex gap-2">
+                <nav className="hidden gap-2 lg:flex">
                   {navItems.map((item) => renderDesktopNavItem(item))}
                 </nav>
               )}
             </div>
 
-            <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+            <div className="flex min-w-0 shrink-0 items-center gap-2">
               {user ? (
-                <>
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="avatar" className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-slate-100" />
-                  ) : (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
-                      {(user.user_metadata?.full_name || user.email || 'U')[0]}
+                <details className="account-menu relative">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-1 transition hover:bg-slate-50 sm:pr-3">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="avatar" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                    ) : (
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
+                        {(user.user_metadata?.full_name || user.email || 'U')[0]}
+                      </span>
+                    )}
+                    <span className="hidden min-w-0 text-left sm:block">
+                      <span className="block max-w-36 truncate text-sm font-medium text-slate-800">
+                        {user.user_metadata?.full_name || user.email}
+                      </span>
+                    </span>
+                    <svg aria-hidden="true" viewBox="0 0 20 20" className="hidden h-4 w-4 text-slate-400 sm:block" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.1 1.02l-4.25 4.5a.75.75 0 0 1-1.1 0l-4.25-4.5a.75.75 0 0 1 .02-1.04Z" clipRule="evenodd" />
+                    </svg>
+                  </summary>
+                  <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
+                    <div className="border-b border-slate-100 px-3 py-2">
+                      <div className="truncate text-sm font-medium text-slate-900">{user.user_metadata?.full_name || user.email}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">{accountLabel}</div>
                     </div>
-                  )}
-                  <div className="hidden text-sm sm:block">
-                    <div className="max-w-[220px] truncate font-medium text-slate-900">
-                      {user.user_metadata?.full_name || user.email}
-                    </div>
-                    <div className="text-xs text-slate-500">{accountLabel}</div>
+                    <Link
+                      to="/dashboard?tab=profile"
+                      className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      <NavIcon label="Profil" />
+                      Profil & pengaturan
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 17l5-5-5-5M15 12H3M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+                      </svg>
+                      Keluar
+                    </button>
                   </div>
-                  <button
-                    onClick={handleLogout}
-                    className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
-                  >
-                    Keluar
-                  </button>
-                </>
+                </details>
               ) : (
                 <div className="flex items-center gap-2">
                   <a
@@ -279,34 +321,32 @@ function TopNav() {
       </header>
 
       {user && (
-        <nav className="fixed inset-x-2 bottom-3 z-[1200] md:hidden">
+        <nav className="fixed inset-x-3 bottom-3 z-[1200] lg:hidden">
           <div
-            className="grid rounded-[24px] border border-slate-200/80 bg-white/95 p-1.5 shadow-2xl shadow-slate-900/10 backdrop-blur sm:inset-x-3 sm:p-2"
-            style={{ gridTemplateColumns: `repeat(${navItems.length || 1}, minmax(0, 1fr))` }}
+            className="grid rounded-[22px] border border-slate-200/80 bg-white/95 p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur"
+            style={{ gridTemplateColumns: `repeat(${mobileNavItems.length || 1}, minmax(0, 1fr))` }}
           >
-            {navItems.map((item) => (
+            {mobileNavItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 aria-label={item.label}
-                className={`min-w-0 rounded-[16px] px-1 py-2 text-center text-[10px] font-medium transition sm:rounded-[18px] sm:px-2 sm:py-2.5 sm:text-[11px] ${
+                className={`relative min-w-0 rounded-[16px] px-1 py-2 text-center text-[11px] font-medium transition ${
                   item.active
                     ? 'bg-slate-900 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <span className="flex flex-col items-center gap-1">
-                  <span className={`h-1.5 w-1.5 rounded-full ${item.active ? 'bg-white' : 'bg-slate-300'}`} />
+                  <NavIcon label={item.label} />
                   <span className="max-w-full truncate">{item.label}</span>
                   {item.count > 0 ? (
-                    <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    <span className={`absolute right-[22%] top-1 inline-flex min-w-4 items-center justify-center rounded-full px-1 py-0.5 text-[9px] font-semibold ${
                       item.active ? 'bg-white/15 text-white' : 'bg-rose-500 text-white'
                     }`}>
                       {item.count}
                     </span>
-                  ) : (
-                    <span className="h-[18px]" />
-                  )}
+                  ) : null}
                 </span>
               </NavLink>
             ))}
@@ -353,7 +393,7 @@ export default function App() {
       <TopNav />
       {user && role === 'vendor' ? <VendorLiveLocationSync /> : null}
       <PwaInstallPrompt role={role} />
-      <main className={`min-h-[calc(100vh-73px)] ${user ? 'pb-28 md:pb-0' : ''}`}>
+      <main className={`min-h-[calc(100vh-73px)] ${user ? 'pb-28 lg:pb-0' : ''}`}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<RootRedirect />} />

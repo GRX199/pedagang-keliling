@@ -2,10 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { findOrCreateDirectChat, sendChatMessage } from '../lib/conversations'
 import {
-  formatFulfillmentTypeLabel,
   formatOrderStatusLabel,
   formatPaymentMethodLabel,
-  formatPaymentStatusLabel,
   formatPriceLabel,
   isActiveOrderStatus,
 } from '../lib/orders'
@@ -91,103 +89,36 @@ function shouldShowPaymentProofShortcut(order, currentUser) {
   return ['unpaid', 'failed', null, undefined].includes(order.payment_status)
 }
 
-function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onOpenOrders, onTrackOrder }) {
+function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onTrackOrder }) {
   if (!order) return null
 
   const counterpartName = order.vendor_id === currentUser?.id
     ? (order.buyer_name || partnerLabel || 'Pelanggan')
     : (order.vendor_name || partnerLabel || 'Pedagang')
 
-  const isActive = isActiveOrderStatus(order.status)
-
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-[18px] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-3 text-white shadow-sm sm:rounded-[24px] sm:p-4">
-      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-[18px] bg-slate-900 p-3 text-white shadow-sm">
+      <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0 max-w-2xl">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300 sm:text-xs">Order</div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 sm:mt-1.5">
-            <div className="break-words text-sm font-semibold tracking-tight sm:text-lg">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="truncate text-sm font-semibold tracking-tight sm:text-base">
               Pesanan #{String(order.id).slice(0, 8)}
             </div>
-            <span className="max-w-full rounded-full bg-white/10 px-3 py-1 text-xs font-medium leading-tight text-slate-100 ring-1 ring-white/10">
+            <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-slate-100">
               {formatOrderStatusLabel(order.status)}
             </span>
           </div>
-          <div className="mt-1 break-words text-xs text-slate-200 sm:text-sm">
-            {counterpartName}
-            {relatedCount > 1 ? ` • ${relatedCount} transaksi terkait` : ''}
-          </div>
-          {isActive && <div className="mt-1 hidden text-xs text-emerald-100 sm:block">Order aktif</div>}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <button
-            onClick={onTrackOrder}
-            className="min-w-0 rounded-full bg-white px-4 py-2.5 text-sm font-medium leading-tight text-slate-900 transition hover:bg-slate-100"
-          >
-            Lacak
-          </button>
-          <button
-            onClick={onOpenOrders}
-            className="min-w-0 whitespace-normal rounded-full border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-medium leading-tight text-white transition hover:bg-white/15"
-          >
-            Pesanan
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-2 rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200 md:hidden">
-        <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1">
-          <span>{formatPaymentMethodLabel(order.payment_method)}</span>
-          <span>{formatPaymentStatusLabel(order.payment_status)}</span>
-          <span>{formatFulfillmentTypeLabel(order.fulfillment_type)}</span>
-        </div>
-        <div className="mt-1 line-clamp-1 break-words leading-5 text-slate-300">
-          {Number(order.total_amount || 0) > 0
-            ? `${formatPriceLabel(order.total_amount)} • `
-            : ''}
-          {order.customer_note || order.meeting_point_label || 'Gunakan chat ini untuk konfirmasi stok, waktu, atau titik temu.'}
-        </div>
-      </div>
-
-      <div className="mt-4 hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
-          <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Pembayaran</div>
-          <div className="mt-1 text-sm font-medium text-white">
-            {formatPaymentMethodLabel(order.payment_method)}
-          </div>
-          <div className="mt-1 text-xs text-slate-300">{formatPaymentStatusLabel(order.payment_status)}</div>
-        </div>
-
-        <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
-          <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Serah Terima</div>
-          <div className="mt-1 text-sm font-medium text-white">
-            {formatFulfillmentTypeLabel(order.fulfillment_type)}
-          </div>
-          <div className="mt-1 text-xs text-slate-300">
-            {order.meeting_point_label || 'Akan dikonfirmasi di chat'}
+          <div className="mt-1 truncate text-xs text-slate-300">
+            {[counterpartName, formatPaymentMethodLabel(order.payment_method), Number(order.total_amount || 0) > 0 ? formatPriceLabel(order.total_amount) : null, relatedCount > 1 ? `${relatedCount} transaksi` : null].filter(Boolean).join(' • ')}
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
-          <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Total</div>
-          <div className="mt-1 text-sm font-medium text-white">
-            {Number(order.total_amount || 0) > 0 ? formatPriceLabel(order.total_amount) : 'Menyesuaikan harga produk'}
-          </div>
-          <div className="mt-1 text-xs text-slate-300">
-            {order.created_at ? new Date(order.created_at).toLocaleString('id-ID') : 'Baru dibuat'}
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
-          <div className="text-xs uppercase tracking-[0.16em] text-slate-300">Catatan</div>
-          <div className="mt-1 text-sm font-medium text-white">
-            {order.customer_note ? 'Ada catatan pelanggan' : 'Tanpa catatan khusus'}
-          </div>
-          <div className="mt-1 text-xs text-slate-300">
-            {order.customer_note || 'Gunakan chat ini untuk konfirmasi stok, waktu, atau titik temu.'}
-          </div>
-        </div>
+        <button
+          onClick={onTrackOrder}
+          className="shrink-0 rounded-xl bg-white px-3 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
+        >
+          Lacak
+        </button>
       </div>
     </div>
   )
@@ -899,7 +830,6 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
                   partnerLabel={selectedPartnerLabel}
                   relatedCount={relatedOrders.length}
                   onTrackOrder={() => navigate(`/orders/${featuredOrder.id}`)}
-                  onOpenOrders={() => navigate('/dashboard?tab=orders')}
                 />
               ) : null}
 

@@ -354,19 +354,10 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-          <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
-            <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Total</div>
-            <div className="mt-1 text-xl font-semibold text-slate-900">{products.length}</div>
-          </div>
-          <div className="rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-100">
-            <div className="text-xs uppercase tracking-[0.12em] text-emerald-700">Aktif</div>
-            <div className="mt-1 text-xl font-semibold text-slate-900">{availableProductCount}</div>
-          </div>
-          <div className="rounded-2xl bg-rose-50 p-3 ring-1 ring-rose-100">
-            <div className="text-xs uppercase tracking-[0.12em] text-rose-700">Habis</div>
-            <div className="mt-1 text-xl font-semibold text-slate-900">{unavailableProductCount}</div>
-          </div>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-sm">
+          <span className="shrink-0 rounded-full bg-slate-100 px-3 py-2 font-medium text-slate-700">Total <strong>{products.length}</strong></span>
+          <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-2 font-medium text-emerald-700">Aktif <strong>{availableProductCount}</strong></span>
+          <span className="shrink-0 rounded-full bg-rose-50 px-3 py-2 font-medium text-rose-700">Habis <strong>{unavailableProductCount}</strong></span>
         </div>
 
         {showCreateForm && (
@@ -470,18 +461,18 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
               const orderable = isProductOrderable(product)
 
               return (
-                <div key={product.id} className="min-w-0 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm sm:rounded-[24px]">
+                <div key={product.id} className="flex min-w-0 gap-3 overflow-hidden rounded-[18px] border border-slate-200 bg-white p-3 sm:block sm:rounded-[24px] sm:p-0">
                   {product.image_url ? (
-                    <img src={product.image_url} alt={product.name} className="h-24 w-full object-cover sm:h-44" />
+                    <img src={product.image_url} alt={product.name} className="h-20 w-20 shrink-0 rounded-xl object-cover sm:h-44 sm:w-full sm:rounded-none" />
                   ) : (
-                    <div className="flex h-24 items-center justify-center bg-slate-100 text-sm text-slate-400 sm:h-44">
-                      Belum ada gambar
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-center text-xs text-slate-400 sm:h-44 sm:w-full sm:rounded-none sm:text-sm">
+                      Tanpa foto
                     </div>
                   )}
 
-                  <div className="space-y-2 p-3 sm:p-4">
+                  <div className="min-w-0 flex-1 space-y-2 sm:p-4">
                     <div className="break-words font-semibold text-slate-900">{product.name}</div>
-                    <div className="line-clamp-1 break-words text-sm leading-6 text-slate-600 sm:line-clamp-2">{product.description || 'Tanpa deskripsi'}</div>
+                    <div className="hidden break-words text-sm leading-6 text-slate-600 sm:line-clamp-2">{product.description || 'Tanpa deskripsi'}</div>
                     <div className="text-sm font-medium text-slate-900">{formatPrice(product.price)}</div>
                     <div className="flex min-w-0 flex-wrap gap-2 text-xs">
                       <span className={`max-w-full break-words rounded-full px-3 py-1 font-medium leading-tight ${
@@ -510,7 +501,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
                         type="button"
                         onClick={() => void toggleProductSoldOut(product)}
                         disabled={availabilityId === product.id}
-                        className={`col-span-2 rounded-2xl px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        className={`col-span-2 rounded-xl px-2 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm ${
                           orderable
                             ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
                             : 'bg-emerald-600 text-white hover:bg-emerald-700'
@@ -524,14 +515,14 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
                       </button>
                       <button
                         onClick={() => openEditModal(product)}
-                        className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
+                        className="rounded-xl border border-slate-200 px-2 py-2 text-xs font-medium text-slate-700 sm:text-sm"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => deleteProduct(product.id)}
                         disabled={deletingId === product.id}
-                        className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 disabled:opacity-60"
+                        className="rounded-xl border border-red-200 bg-red-50 px-2 py-2 text-xs font-medium text-red-600 disabled:opacity-60 sm:text-sm"
                       >
                         {deletingId === product.id ? 'Menghapus...' : 'Hapus'}
                       </button>
