@@ -5,6 +5,9 @@ const APP_SHELL = [
   '/icons/kelilingku-icon.svg',
   '/icons/kelilingku-icon-192.svg',
   '/icons/kelilingku-icon-512.svg',
+  '/icons/kelilingku-icon-192.png',
+  '/icons/kelilingku-icon-512.png',
+  '/icons/apple-touch-icon.png',
 ]
 
 self.addEventListener('install', (event) => {
