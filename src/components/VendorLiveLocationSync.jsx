@@ -193,17 +193,33 @@ export default function VendorLiveLocationSync() {
       toast.push(getGeolocationErrorMessage(error), { type: 'error' })
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        void syncPosition(position)
-      },
-      handlePositionError,
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 10000,
+    const geolocationOptions = {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 10000,
+    }
+
+    function requestCurrentPositionSync() {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          void syncPosition(position)
+        },
+        handlePositionError,
+        geolocationOptions
+      )
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        requestCurrentPositionSync()
       }
-    )
+    }
+
+    requestCurrentPositionSync()
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+    }
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
@@ -218,6 +234,9 @@ export default function VendorLiveLocationSync() {
     )
 
     return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current)
       }

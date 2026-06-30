@@ -22,12 +22,15 @@ import { buildVendorTerritoryInsights } from '../lib/territory'
 import {
   createVendorLocationPayload,
   formatVendorCategoryLabel,
+  formatVendorPresenceAge,
   formatVendorPromoExpiry,
+  getVendorPresenceTone,
   getVendorCoordinates,
   getVendorLocationUpdatedAtLabel,
   getVendorPromoText,
   isVendorPresenceFresh,
   isVendorPromoActive,
+  VENDOR_PRESENCE_MAX_AGE_MS,
 } from '../lib/vendor'
 
 const DEFAULT_CENTER = [-2.5489, 118.0149]
@@ -198,6 +201,17 @@ function getStoreLocationStatus(location, { owner = false } = {}) {
   return owner
     ? 'Lokasi toko sudah tersinkron dan siap tampil ke pelanggan saat toko online.'
     : 'Lokasi toko aktif di peta dan siap dipakai untuk estimasi jarak.'
+}
+
+function getPresenceBadgeClass(tone) {
+  switch (tone) {
+    case 'fresh':
+      return 'bg-emerald-100 text-emerald-700'
+    case 'aging':
+      return 'bg-amber-100 text-amber-800'
+    default:
+      return 'bg-slate-100 text-slate-600'
+  }
 }
 
 function createActionButton(label, colors, onClick) {
@@ -1279,7 +1293,11 @@ export default function MapViewPage() {
 
   const myVendorRow = vendors.find((vendor) => vendor.id === myVendorId)
   const toggleLabel = myVendorRow?.online ? 'Jadikan Offline' : 'Jadikan Online'
-  const myVendorLocation = myVendorRow?.location
+  const presenceTimeoutMinutes = Math.max(1, Math.round(VENDOR_PRESENCE_MAX_AGE_MS / 60000))
+  const myVendorPresenceLabel = myVendorRow?.online
+    ? formatVendorPresenceAge(myVendorRow, presenceClock)
+    : 'Offline'
+  const myVendorPresenceTone = getVendorPresenceTone(myVendorRow, presenceClock)
   const filteredVendorCount = filteredVendors.length
   const onlineVendorCount = onlineVendors.length
   const favoriteVendorCount = favoriteVendorIds.length
@@ -1288,6 +1306,12 @@ export default function MapViewPage() {
   const selectedVendorIsMine = isVendor && selectedVendor?.id === myVendorId
   const selectedVendorIsFavorite = selectedVendor ? favoriteVendorIdSet.has(selectedVendor.id) : false
   const selectedVendorHasPromo = selectedVendor ? isVendorPromoActive(selectedVendor) : false
+  const selectedVendorPresenceLabel = selectedVendor
+    ? formatVendorPresenceAge(selectedVendor, presenceClock)
+    : ''
+  const selectedVendorPresenceTone = selectedVendor
+    ? getVendorPresenceTone(selectedVendor, presenceClock)
+    : 'stale'
   const selectedCategoryLabel = categoryOptions.find((option) => option.value === selectedCategory)?.label || 'Semua kategori'
   const selectedRatingFilterLabel = RATING_FILTER_OPTIONS.find((option) => option.value === selectedRatingFilter)?.label || 'Semua rating'
   const emptyVendorStateMessage = onlyFavoriteVendors && onlyPromoVendors
@@ -1330,6 +1354,11 @@ export default function MapViewPage() {
                   }`}>
                     {myVendorRow?.online ? 'Online' : 'Offline'}
                   </span>
+                  {myVendorRow?.online ? (
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${getPresenceBadgeClass(myVendorPresenceTone)}`}>
+                      {myVendorPresenceLabel}
+                    </span>
+                  ) : null}
                   {demandInsights.hotspotCount > 0 ? (
                     <span className="rounded-full bg-amber-400 px-3 py-1 text-xs font-medium text-amber-950">
                       {demandInsights.hotspotCount} area ramai
@@ -1338,7 +1367,7 @@ export default function MapViewPage() {
                 </div>
                 <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-300">
                   {myVendorRow?.online
-                    ? `Toko tampil ke pelanggan. Sinkron terakhir ${getVendorLocationUpdatedAtLabel(myVendorLocation)}.`
+                    ? `Toko tampil saat lokasi masih fresh. Jika app tidur terlalu lama, toko otomatis disembunyikan sekitar ${presenceTimeoutMinutes} menit demi akurasi.`
                     : 'Aktifkan online agar toko dan lokasi Anda muncul di peta pelanggan.'}
                 </p>
               </div>
@@ -1559,6 +1588,8 @@ export default function MapViewPage() {
                   const isOwnVendor = isVendor && vendor.id === myVendorId
                   const isFavorite = favoriteVendorIdSet.has(vendor.id)
                   const hasPromo = isVendorPromoActive(vendor)
+                  const vendorPresenceTone = getVendorPresenceTone(vendor, presenceClock)
+                  const vendorPresenceLabel = formatVendorPresenceAge(vendor, presenceClock)
 
                   return (
                     <div
@@ -1594,6 +1625,9 @@ export default function MapViewPage() {
                             <div className="truncate text-base font-semibold text-slate-900">{vendor.name}</div>
                             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
                               Online
+                            </span>
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getPresenceBadgeClass(vendorPresenceTone)}`}>
+                              {vendorPresenceLabel}
                             </span>
                             {getVendorCategory(vendor) ? (
                               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
@@ -1704,6 +1738,11 @@ export default function MapViewPage() {
                       <div className="text-sm text-slate-500">
                         {selectedVendor.online ? 'Sedang online' : 'Sedang offline'}
                       </div>
+                      {selectedVendor.online ? (
+                        <div className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getPresenceBadgeClass(selectedVendorPresenceTone)}`}>
+                          {selectedVendorPresenceLabel}
+                        </div>
+                      ) : null}
                       <div className="mt-1 text-xs text-slate-400">
                         {formatDistanceLabel(selectedVendorDistance)}
                       </div>
@@ -1881,6 +1920,11 @@ export default function MapViewPage() {
                     }`}>
                       {selectedVendor.online ? 'Online' : 'Offline'}
                     </span>
+                    {selectedVendor.online ? (
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getPresenceBadgeClass(selectedVendorPresenceTone)}`}>
+                        {selectedVendorPresenceLabel}
+                      </span>
+                    ) : null}
                     {getVendorCategory(selectedVendor) ? (
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
                         {formatVendorCategoryLabel(getVendorCategory(selectedVendor))}

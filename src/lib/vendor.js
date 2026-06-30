@@ -55,14 +55,46 @@ export function createVendorLocationPayload({ lat, lng, accuracy = null }) {
 
 export const VENDOR_PRESENCE_MAX_AGE_MS = 2 * 60 * 1000
 
+export function getVendorPresenceTime(vendor) {
+  const presenceValue = vendor?.last_seen_at || vendor?.location?.updated_at
+  const presenceTime = presenceValue ? new Date(presenceValue).getTime() : NaN
+  return Number.isFinite(presenceTime) ? presenceTime : null
+}
+
 export function isVendorPresenceFresh(vendor, now = Date.now()) {
   if (!vendor?.online || !getVendorCoordinates(vendor.location)) return false
 
-  const presenceValue = vendor.last_seen_at || vendor.location?.updated_at
-  const presenceTime = presenceValue ? new Date(presenceValue).getTime() : NaN
-  if (!Number.isFinite(presenceTime)) return false
+  const presenceTime = getVendorPresenceTime(vendor)
+  if (!presenceTime) return false
 
   return now - presenceTime <= VENDOR_PRESENCE_MAX_AGE_MS
+}
+
+export function formatVendorPresenceAge(vendor, now = Date.now()) {
+  if (!vendor?.online) return 'Offline'
+
+  const presenceTime = getVendorPresenceTime(vendor)
+  if (!presenceTime) return 'Belum ada update lokasi'
+
+  const ageMs = Math.max(0, now - presenceTime)
+  if (ageMs < 30000) return 'Live sekarang'
+  if (ageMs < 60000) return 'Update <1 menit lalu'
+
+  const minutes = Math.floor(ageMs / 60000)
+  if (minutes < 60) return `Update ${minutes} menit lalu`
+
+  const hours = Math.floor(minutes / 60)
+  return `Update ${hours} jam lalu`
+}
+
+export function getVendorPresenceTone(vendor, now = Date.now()) {
+  if (!isVendorPresenceFresh(vendor, now)) return 'stale'
+
+  const presenceTime = getVendorPresenceTime(vendor)
+  if (!presenceTime) return 'stale'
+
+  const ageMs = Math.max(0, now - presenceTime)
+  return ageMs < 60000 ? 'fresh' : 'aging'
 }
 
 function cleanText(value) {
