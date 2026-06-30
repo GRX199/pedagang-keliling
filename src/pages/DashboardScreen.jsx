@@ -402,12 +402,18 @@ function OrdersPanel({ currentUser, role }) {
     const primaryActionLabel = isHistoryCard ? 'Buka' : 'Lacak'
     const isPreorder = order.order_timing === 'preorder'
     const totalAmount = Number(order.total_amount || 0)
+    const hasFollowUpActions = isVendor
+      ? vendorStatusActions.length > 0 || vendorPaymentActions.length > 0
+      : buyerPaymentActions.length > 0 || order.status === 'pending'
     const detailsButtonLabel = isExpanded
-      ? 'Tutup detail'
+      ? 'Tutup'
       : !isVendor && order.status === 'completed' && !order.review
-        ? 'Beri ulasan'
-        : 'Detail'
-    const actionButtonBase = 'shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-medium leading-tight transition'
+        ? 'Ulasan'
+        : hasFollowUpActions
+          ? 'Aksi'
+          : 'Detail'
+    const actionButtonBase = 'rounded-full px-4 py-2.5 text-center text-sm font-medium leading-tight transition'
+    const detailActionButtonBase = 'w-full rounded-xl px-3 py-2 text-center text-sm font-medium leading-tight transition sm:w-auto'
 
     return (
       <div
@@ -476,10 +482,10 @@ function OrdersPanel({ currentUser, role }) {
             </div>
           )}
 
-          <div className="flex min-w-0 gap-2 overflow-x-auto pb-1">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <button
               onClick={() => navigate(`/orders/${order.id}`)}
-              className={`${actionButtonBase} ${
+              className={`${actionButtonBase} w-full sm:w-auto ${
                 isHighlighted
                   ? 'bg-slate-900 text-white hover:bg-slate-800'
                   : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -488,75 +494,78 @@ function OrdersPanel({ currentUser, role }) {
               {primaryActionLabel}
             </button>
             <button
-              onClick={() => navigate(`/chat/${isVendor ? order.buyer_id : order.vendor_id}?order=${order.id}`)}
-              className={`${actionButtonBase} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
-            >
-              Chat
-            </button>
-            <button
               type="button"
               onClick={() => toggleOrderDetails(order.id)}
-              className={`${actionButtonBase} border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100`}
+              className={`${actionButtonBase} w-full border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 sm:w-auto`}
             >
               {detailsButtonLabel}
             </button>
-
-            {isVendor && vendorStatusActions.map((action) => (
-              <button
-                key={action.value}
-                disabled={action.disabled}
-                onClick={() => updateStatus(order, action.value)}
-                title={action.disabledReason || action.label}
-                className={`${actionButtonBase} ${
-                  action.disabled
-                    ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700 opacity-80'
-                    : action.tone === 'danger'
-                      ? 'border border-red-200 bg-red-50 text-red-600'
-                      : action.tone === 'success'
-                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                        : 'bg-slate-900 text-white hover:bg-slate-800'
-                }`}
-              >
-                {action.label}
-              </button>
-            ))}
-
-            {vendorPaymentActions.map((action) => (
-              <button
-                key={action.value}
-                onClick={() => updatePaymentStatus(order.id, action.value)}
-                className={`${actionButtonBase} ${
-                  action.tone === 'danger'
-                    ? 'border border-red-200 bg-red-50 text-red-600'
-                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                }`}
-              >
-                {action.label}
-              </button>
-            ))}
-
-            {!isVendor && order.status === 'pending' && (
-              <button
-                onClick={() => updateStatus(order, 'cancelled')}
-                className={`${actionButtonBase} border border-red-200 bg-red-50 text-red-600 hover:bg-red-100`}
-              >
-                Batalkan
-              </button>
-            )}
-
-            {buyerPaymentActions.map((action) => (
-              <button
-                key={action.value}
-                onClick={() => updatePaymentStatus(order.id, action.value)}
-                className={`${actionButtonBase} bg-slate-900 text-white hover:bg-slate-800`}
-              >
-                {action.label}
-              </button>
-            ))}
           </div>
 
           {isExpanded && (
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <button
+                  onClick={() => navigate(`/chat/${isVendor ? order.buyer_id : order.vendor_id}?order=${order.id}`)}
+                  className={`${detailActionButtonBase} border border-slate-200 bg-white text-slate-700 hover:bg-slate-100`}
+                >
+                  Chat
+                </button>
+
+                {isVendor && vendorStatusActions.map((action) => (
+                  <button
+                    key={action.value}
+                    disabled={action.disabled}
+                    onClick={() => updateStatus(order, action.value)}
+                    title={action.disabledReason || action.label}
+                    className={`${detailActionButtonBase} ${
+                      action.disabled
+                        ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700 opacity-80'
+                        : action.tone === 'danger'
+                          ? 'border border-red-200 bg-red-50 text-red-600'
+                          : action.tone === 'success'
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            : 'bg-slate-900 text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+
+                {vendorPaymentActions.map((action) => (
+                  <button
+                    key={action.value}
+                    onClick={() => updatePaymentStatus(order.id, action.value)}
+                    className={`${detailActionButtonBase} ${
+                      action.tone === 'danger'
+                        ? 'border border-red-200 bg-red-50 text-red-600'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    }`}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+
+                {!isVendor && order.status === 'pending' && (
+                  <button
+                    onClick={() => updateStatus(order, 'cancelled')}
+                    className={`${detailActionButtonBase} border border-red-200 bg-red-50 text-red-600 hover:bg-red-100`}
+                  >
+                    Batalkan
+                  </button>
+                )}
+
+                {buyerPaymentActions.map((action) => (
+                  <button
+                    key={action.value}
+                    onClick={() => updatePaymentStatus(order.id, action.value)}
+                    className={`${detailActionButtonBase} bg-slate-900 text-white hover:bg-slate-800`}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+
               {historyLabel && <div className="break-words font-medium text-slate-700">{historyLabel}</div>}
               {paymentGuidance && <div className="break-words">Pembayaran: {paymentGuidance}</div>}
               {operationalNotice && (
@@ -1046,203 +1055,214 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
   const ewalletPaymentDetails = getVendorPaymentMethodDetails(profile.payment_details, 'ewallet')
   const hasActivePromo = isVendorPromoActive(profile)
   const promoText = getVendorPromoText(profile)
+  const readyPaymentCount = vendorPaymentSummary.filter((entry) => entry.ready).length
+  const readyPaymentLabel = readyPaymentCount > 0 ? `${readyPaymentCount} metode siap` : 'Belum diatur'
 
   return (
-    <div className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
-      <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-slate-100">
-          {profile.photo_url ? (
-            <img src={profile.photo_url} alt="avatar" className="h-full w-full object-cover" />
-          ) : (
-            <div className="text-xl font-semibold text-slate-500">{(profile.name || 'U')[0]}</div>
-          )}
+    <div className="min-w-0 rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 sm:h-16 sm:w-16">
+            {profile.photo_url ? (
+              <img src={profile.photo_url} alt="avatar" className="h-full w-full object-cover" />
+            ) : (
+              <div className="text-xl font-semibold text-slate-500">{(profile.name || 'U')[0]}</div>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <div className="truncate font-semibold text-slate-900">{profile.name || profile.email}</div>
+            <div className="text-sm text-slate-500">{role === 'vendor' ? 'Pedagang' : 'Pelanggan'}</div>
+          </div>
         </div>
 
-        <div>
-          <div className="font-semibold text-slate-900">{profile.name || profile.email}</div>
-          <div className="text-sm text-slate-500">{role === 'vendor' ? 'Pedagang' : 'Pelanggan'}</div>
-        </div>
+        {!editing ? (
+          <button
+            onClick={() => {
+              setShowPaymentPreview(false)
+              setShowVendorPromoEditor(false)
+              setShowVendorPaymentEditor(false)
+              setEditing(true)
+            }}
+            className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Edit
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-4">
         {!editing ? (
           <>
-            <div className="rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-600 sm:p-4">
-              <span className="line-clamp-3 block">{profile.description || 'Belum ada deskripsi profil.'}</span>
+            <div className="rounded-2xl bg-slate-50 px-3 py-2.5 text-sm leading-6 text-slate-600 sm:px-4">
+              <span className="line-clamp-3 block">
+                {role === 'vendor'
+                  ? profile.description || 'Tambahkan deskripsi singkat agar pelanggan lebih percaya.'
+                  : 'Kelola nama dan foto akun Anda dari tombol edit.'}
+              </span>
             </div>
 
             {role === 'vendor' && (
-              <div className="mt-4 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-3 ring-1 ring-emerald-100 sm:p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">Lokasi Toko</div>
-                    <div className="mt-1 text-sm text-slate-600">{getVendorLocationLabel(profile.location)}</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      Sinkron terakhir: {getVendorLocationUpdatedAtLabel(profile.location)}
+              <div className="mt-3 space-y-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900">Ringkasan toko</div>
+                      <div className="mt-1 truncate text-sm text-slate-500">
+                        {getVendorLocationLabel(profile.location)}
+                      </div>
                     </div>
+                    <button
+                      onClick={saveCurrentLocation}
+                      disabled={savingLocation}
+                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-70"
+                    >
+                      {savingLocation ? 'Memperbarui...' : 'Update Lokasi'}
+                    </button>
                   </div>
-                  <button
-                    onClick={saveCurrentLocation}
-                    disabled={savingLocation}
-                    className="rounded-full border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-70"
-                  >
-                    {savingLocation ? 'Memperbarui...' : 'Update Lokasi'}
-                  </button>
-                </div>
 
-                <div className="mt-3 grid gap-2 sm:hidden">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                       {profile.is_verified ? 'Terverifikasi' : 'Belum diverifikasi'}
                     </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                       {formatVendorCategoryLabel(profile.category_primary)}
                     </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                       {formatVendorServiceRadius(profile.service_radius_km)}
                     </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-white">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                       {formatVendorServiceMode(profile.service_mode)}
                     </span>
                   </div>
-                </div>
 
-                <div className="mt-4 hidden gap-3 sm:grid sm:grid-cols-2">
-                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
-                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Verifikasi</div>
-                    <div className="mt-1 font-medium text-slate-900">{profile.is_verified ? 'Terverifikasi' : 'Belum diverifikasi'}</div>
-                  </div>
-                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
-                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Kategori Utama</div>
-                    <div className="mt-1 font-medium text-slate-900">{formatVendorCategoryLabel(profile.category_primary)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
-                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Area Layanan</div>
-                    <div className="mt-1 font-medium text-slate-900">{formatVendorServiceRadius(profile.service_radius_km)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
-                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Metode Layanan</div>
-                    <div className="mt-1 font-medium text-slate-900">{formatVendorServiceMode(profile.service_mode)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-white">
-                    <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Jam Operasional</div>
-                    <div className="mt-1 text-sm leading-6 text-slate-700">{getOperatingHoursText(profile.operating_hours)}</div>
+                  <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+                    <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <div className="text-xs text-slate-400">Jam</div>
+                      <div className="mt-0.5 line-clamp-1 font-medium text-slate-800">{getOperatingHoursText(profile.operating_hours)}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <div className="text-xs text-slate-400">Pembayaran</div>
+                      <div className="mt-0.5 font-medium text-slate-800">{readyPaymentLabel}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <div className="text-xs text-slate-400">Sinkron</div>
+                      <div className="mt-0.5 line-clamp-1 font-medium text-slate-800">{getVendorLocationUpdatedAtLabel(profile.location)}</div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
-                  <div className="text-sm font-semibold text-slate-900">Promo Ringan</div>
-                  {hasActivePromo ? (
-                    <>
-                      <div className="mt-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-                        {promoText}
-                      </div>
-                      <div className="mt-2 text-xs text-slate-500">
-                        Aktif sampai {formatVendorPromoExpiry(profile)}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="mt-2 text-sm text-slate-500">Belum ada promo aktif.</div>
-                  )}
-                </div>
-
-                <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-white">
-                  <div className="text-sm font-semibold text-slate-900">Pembayaran Non-Tunai</div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {vendorPaymentSummary.map((entry) => (
-                      <span
-                        key={entry.method}
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${
-                          entry.ready
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}
-                      >
-                        {entry.label} {entry.ready ? 'siap' : 'belum diatur'}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-slate-900">Promo</div>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${hasActivePromo ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {hasActivePromo ? 'Aktif' : 'Kosong'}
                       </span>
-                    ))}
+                    </div>
+                    {hasActivePromo ? (
+                      <>
+                        <div className="mt-2 line-clamp-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                          {promoText}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          Sampai {formatVendorPromoExpiry(profile)}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="mt-2 text-sm text-slate-500">Belum ada promo aktif.</div>
+                    )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowPaymentPreview((current) => !current)}
-                    className="mt-4 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:hidden"
-                  >
-                    {showPaymentPreview ? 'Tutup detail' : 'Detail'}
-                  </button>
-
-                  <div className={`mt-4 ${showPaymentPreview ? 'grid' : 'hidden'} gap-3 sm:grid md:grid-cols-3`}>
-                    <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200/70">
-                      <div className="text-xs uppercase tracking-[0.16em] text-slate-400">QRIS</div>
-                      {qrisPaymentDetails.ready ? (
-                        <div className="mt-3 space-y-3">
-                          <img
-                            src={qrisPaymentDetails.imageUrl}
-                            alt="QRIS toko"
-                            className="h-40 w-full rounded-2xl border border-slate-200 bg-white object-contain p-2"
-                          />
-                        </div>
-                      ) : (
-                        <div className="mt-2 text-sm text-slate-500">Belum ada foto QRIS.</div>
-                      )}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-slate-900">Pembayaran</div>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                        {readyPaymentLabel}
+                      </span>
                     </div>
 
-                    <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200/70">
-                      <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Transfer Bank</div>
-                      {bankPaymentDetails.ready ? (
-                        <div className="mt-3 space-y-2 text-sm text-slate-600">
-                          {bankPaymentDetails.rows.map((row) => (
-                            <div key={row.label}>
-                              <div className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</div>
-                              <div className="mt-1 font-medium text-slate-900">{row.value}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="mt-2 text-sm text-slate-500">Belum ada rekening bank yang ditampilkan.</div>
-                      )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {vendorPaymentSummary.map((entry) => (
+                        <span
+                          key={entry.method}
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                            entry.ready
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {entry.label}
+                        </span>
+                      ))}
                     </div>
 
-                    <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200/70">
-                      <div className="text-xs uppercase tracking-[0.16em] text-slate-400">E-Wallet</div>
-                      {ewalletPaymentDetails.ready ? (
-                        <div className="mt-3 space-y-2 text-sm text-slate-600">
-                          {ewalletPaymentDetails.rows.map((row) => (
-                            <div key={row.label}>
-                              <div className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</div>
-                              <div className="mt-1 font-medium text-slate-900">{row.value}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="mt-2 text-sm text-slate-500">Belum ada nomor e-wallet yang ditampilkan.</div>
-                      )}
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentPreview((current) => !current)}
+                      className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      {showPaymentPreview ? 'Tutup detail' : 'Detail pembayaran'}
+                    </button>
+
+                    <div className={`${showPaymentPreview ? 'grid' : 'hidden'} mt-3 gap-3 md:col-span-2 lg:grid-cols-3`}>
+                      <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200/70">
+                        <div className="text-xs uppercase tracking-[0.16em] text-slate-400">QRIS</div>
+                        {qrisPaymentDetails.ready ? (
+                          <div className="mt-3 space-y-3">
+                            <img
+                              src={qrisPaymentDetails.imageUrl}
+                              alt="QRIS toko"
+                              className="h-40 w-full rounded-2xl border border-slate-200 bg-white object-contain p-2"
+                            />
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-sm text-slate-500">Belum ada foto QRIS.</div>
+                        )}
+                      </div>
+
+                      <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200/70">
+                        <div className="text-xs uppercase tracking-[0.16em] text-slate-400">Transfer Bank</div>
+                        {bankPaymentDetails.ready ? (
+                          <div className="mt-3 space-y-2 text-sm text-slate-600">
+                            {bankPaymentDetails.rows.map((row) => (
+                              <div key={row.label}>
+                                <div className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</div>
+                                <div className="mt-1 font-medium text-slate-900">{row.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-sm text-slate-500">Belum ada rekening bank.</div>
+                        )}
+                      </div>
+
+                      <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200/70">
+                        <div className="text-xs uppercase tracking-[0.16em] text-slate-400">E-Wallet</div>
+                        {ewalletPaymentDetails.ready ? (
+                          <div className="mt-3 space-y-2 text-sm text-slate-600">
+                            {ewalletPaymentDetails.rows.map((row) => (
+                              <div key={row.label}>
+                                <div className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</div>
+                                <div className="mt-1 font-medium text-slate-900">{row.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-sm text-slate-500">Belum ada nomor e-wallet.</div>
+                        )}
+                      </div>
                     </div>
+
+                    {vendorPaymentDetails.payment_notes && (
+                      <div className={`${showPaymentPreview ? 'block' : 'hidden'} mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600`}>
+                        Catatan pembayaran: {vendorPaymentDetails.payment_notes}
+                      </div>
+                    )}
                   </div>
-
-                  {vendorPaymentDetails.payment_notes && (
-                    <div className={`${showPaymentPreview ? 'block' : 'hidden'} mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:block`}>
-                      Catatan pembayaran: {vendorPaymentDetails.payment_notes}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
-
-            <div className="mt-4">
-              <button
-                onClick={() => {
-                  setShowPaymentPreview(false)
-                  setShowVendorPromoEditor(false)
-                  setShowVendorPaymentEditor(false)
-                  setEditing(true)
-                }}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                Edit Profil
-              </button>
-            </div>
           </>
         ) : (
           <div className="space-y-3">

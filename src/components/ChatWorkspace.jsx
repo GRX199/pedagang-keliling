@@ -95,6 +95,7 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onTr
   const counterpartName = order.vendor_id === currentUser?.id
     ? (order.buyer_name || partnerLabel || 'Pelanggan')
     : (order.vendor_name || partnerLabel || 'Pedagang')
+  const canTrackOrder = isActiveOrderStatus(order.status)
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-[18px] bg-slate-900 p-3 text-white shadow-sm">
@@ -113,12 +114,14 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onTr
           </div>
         </div>
 
-        <button
-          onClick={onTrackOrder}
-          className="shrink-0 rounded-xl bg-white px-3 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
-        >
-          Lacak
-        </button>
+        {canTrackOrder ? (
+          <button
+            onClick={onTrackOrder}
+            className="shrink-0 rounded-xl bg-white px-3 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
+          >
+            Lacak
+          </button>
+        ) : null}
       </div>
     </div>
   )

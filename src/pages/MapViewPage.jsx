@@ -1367,7 +1367,7 @@ export default function MapViewPage() {
   }
   return (
     <div className="min-h-screen bg-transparent">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:py-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-3 py-4 sm:px-4 sm:py-6">
         {isVendor ? (
           <section className="order-1 rounded-[22px] bg-slate-950 p-3 text-white shadow-sm ring-1 ring-slate-800 sm:p-4">
             <div className="flex items-center justify-between gap-3">
@@ -1553,13 +1553,13 @@ export default function MapViewPage() {
           )}
         </section>
 
-        <section className={`${isVendor ? 'order-4' : 'order-3'} grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_380px]`}>
-          <div className="rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Pedagang online sekarang</h2>
+        <section className={`${isVendor ? 'order-4' : 'order-3'} grid min-w-0 max-w-full gap-4 xl:grid-cols-[minmax(0,1.35fr)_380px]`}>
+          <div className="min-w-0 max-w-full overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:p-4">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-semibold text-slate-900 sm:text-lg">Pedagang online</h2>
               </div>
-              <div className="text-xs font-medium text-slate-500">{onlineListVendors.length} toko</div>
+              <div className="shrink-0 text-xs font-medium text-slate-500">{onlineListVendors.length} toko</div>
             </div>
 
             <div className="mt-4 space-y-3">
@@ -1588,14 +1588,14 @@ export default function MapViewPage() {
                           focusVendor(vendor)
                         }
                       }}
-                      className={`cursor-pointer rounded-[18px] border p-3 transition ${
+                      className={`min-w-0 max-w-full cursor-pointer overflow-hidden rounded-[18px] border p-3 transition ${
                         active
                           ? 'border-slate-900 bg-slate-50 shadow-sm'
                           : 'border-slate-200 bg-white hover:border-slate-300'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:h-12 sm:w-12">
                           {vendor.photo_url ? (
                             <img src={vendor.photo_url} alt={vendor.name} className="h-full w-full object-cover" />
                           ) : (
@@ -1605,7 +1605,7 @@ export default function MapViewPage() {
                           )}
                         </div>
 
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 overflow-hidden">
                           <div className="flex min-w-0 items-center gap-2">
                             <div className="truncate text-base font-semibold text-slate-900">{vendor.name}</div>
                             <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" title="Online" />
@@ -1627,7 +1627,7 @@ export default function MapViewPage() {
                         </div>
                       </div>
 
-                      <div className="mt-3 flex gap-2">
+                      <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                         {isOwnVendor ? (
                           <>
                             <button
@@ -1638,7 +1638,7 @@ export default function MapViewPage() {
                             </button>
                             <button
                               onClick={() => navigate('/dashboard?tab=products')}
-                              className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                              className="col-span-2 rounded-xl bg-emerald-600 px-3 py-2 text-center text-sm font-medium text-white transition hover:bg-emerald-700 sm:col-span-1"
                             >
                               Kelola Produk
                             </button>
@@ -1653,15 +1653,16 @@ export default function MapViewPage() {
                             </button>
                             <button
                               onClick={() => navigate(`/chat/${vendor.id}`)}
-                              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                              className="min-w-0 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                             >
                               Chat
                             </button>
                             <button
                               onClick={() => navigate(`/vendor/${vendor.id}#order-summary`)}
-                              className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                              className="min-w-0 truncate rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
                             >
-                              Pesan Sekarang
+                              <span className="sm:hidden">Pesan</span>
+                              <span className="hidden sm:inline">Pesan Sekarang</span>
                             </button>
                           </>
                         )}
