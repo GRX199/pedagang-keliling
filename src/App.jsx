@@ -35,7 +35,7 @@ function Protected({ children }) {
       </div>
     )
   }
-  if (role !== 'admin' && accountStatus !== 'active') {
+  if (accountStatus !== 'active') {
     return (
       <div className="mx-auto max-w-lg p-6 text-center">
         <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6">

@@ -4,6 +4,13 @@ alter table public.profiles
   add column if not exists account_status text not null default 'active';
 
 alter table public.profiles
+  drop constraint if exists profiles_role_check;
+
+alter table public.profiles
+  add constraint profiles_role_check
+  check (role in ('customer', 'vendor', 'admin'));
+
+alter table public.profiles
   drop constraint if exists profiles_account_status_check;
 
 alter table public.profiles
@@ -22,6 +29,7 @@ as $$
     from public.profiles
     where id = auth.uid()
       and role = 'admin'
+      and account_status = 'active'
   );
 $$;
 
@@ -75,4 +83,3 @@ create index if not exists profiles_account_status_idx
 
 create index if not exists admin_actions_target_created_idx
   on public.admin_actions (target_user_id, created_at desc);
-

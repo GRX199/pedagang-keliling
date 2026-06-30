@@ -43,7 +43,7 @@ create table if not exists public.profiles (
   role text not null default 'customer',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint profiles_role_check check (role in ('customer', 'vendor'))
+  constraint profiles_role_check check (role in ('customer', 'vendor', 'admin'))
 );
 
 create table if not exists public.products (

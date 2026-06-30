@@ -1636,7 +1636,7 @@ export default function DashboardScreen() {
                 }`}>
                   {roleLabel}
                 </span>
-                {accountStatus !== 'active' && !isAdmin ? (
+                {accountStatus !== 'active' ? (
                   <span className={`rounded-full px-3 py-1 text-xs font-medium ${
                     accountStatus === 'blocked'
                       ? 'bg-rose-50 text-rose-700'
@@ -1660,7 +1660,7 @@ export default function DashboardScreen() {
           </aside>
 
           <main className="min-w-0 max-w-full space-y-4">
-            {accountStatus !== 'active' && !isAdmin ? (
+            {accountStatus !== 'active' ? (
               <div className={`rounded-[28px] p-4 text-sm shadow-sm ring-1 ${
                 accountStatus === 'blocked'
                   ? 'bg-rose-50 text-rose-700 ring-rose-100'

@@ -7,6 +7,13 @@ alter table public.profiles
   add column if not exists account_status text not null default 'active';
 
 alter table public.profiles
+  drop constraint if exists profiles_role_check;
+
+alter table public.profiles
+  add constraint profiles_role_check
+  check (role in ('customer', 'vendor', 'admin'));
+
+alter table public.profiles
   drop constraint if exists profiles_account_status_check;
 
 alter table public.profiles
@@ -25,6 +32,7 @@ as $$
     from public.profiles
     where id = auth.uid()
       and role = 'admin'
+      and account_status = 'active'
   );
 $$;
 
@@ -204,11 +212,51 @@ using (
 
 drop policy if exists "profiles_public_read" on public.profiles;
 drop policy if exists "profiles_authenticated_read" on public.profiles;
+create or replace function public.can_read_profile(target_profile_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    auth.uid() = target_profile_id
+    or public.is_admin()
+    or exists (
+      select 1
+      from public.chats
+      where auth.uid() = any(chats.participants)
+        and target_profile_id = any(chats.participants)
+    )
+    or exists (
+      select 1
+      from public.orders
+      where (
+        orders.buyer_id = auth.uid()
+        and orders.vendor_id = target_profile_id
+      ) or (
+        orders.vendor_id = auth.uid()
+        and orders.buyer_id = target_profile_id
+      )
+    )
+    or exists (
+      select 1
+      from public.vendors
+      where vendors.id = target_profile_id
+        and vendors.online = true
+        and vendors.location is not null
+        and vendors.last_seen_at >= now() - interval '2 minutes'
+    );
+$$;
+
+revoke all on function public.can_read_profile(uuid) from public, anon;
+grant execute on function public.can_read_profile(uuid) to authenticated;
+
 create policy "profiles_authenticated_read"
 on public.profiles
 for select
 to authenticated
-using (true);
+using (public.can_read_profile(id));
 
 drop policy if exists "storage_data_insert_own_folder" on storage.objects;
 drop policy if exists "storage_data_update_own_folder" on storage.objects;
