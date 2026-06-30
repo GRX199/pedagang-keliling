@@ -141,7 +141,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
   }, [pathname, role, search])
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !role) {
       chatIdsRef.current = new Set()
       knownMessageIdsRef.current = new Set()
       knownOrderEventKeysRef.current = new Set()

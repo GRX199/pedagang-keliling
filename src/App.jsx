@@ -77,7 +77,7 @@ function TopNav() {
   })
 
   const isAdmin = role === 'admin'
-  const isVendor = !isAdmin && (role === 'vendor' || user?.user_metadata?.is_vendor === true)
+  const isVendor = !isAdmin && role === 'vendor'
   const accountLabel = isAdmin ? 'Admin aktif' : isVendor ? 'Pedagang aktif' : 'Pelanggan aktif'
   const currentTab = new URLSearchParams(location.search).get('tab')
   const effectiveTab = currentTab || (isAdmin ? 'admin' : isVendor ? 'products' : 'orders')
@@ -300,12 +300,12 @@ function RouteFallback() {
 }
 
 export default function App() {
-  const { user } = useAuth()
+  const { user, role } = useAuth()
 
   return (
     <>
       <TopNav />
-      <VendorLiveLocationSync />
+      {user && role === 'vendor' ? <VendorLiveLocationSync /> : null}
       <main className={`min-h-[calc(100vh-73px)] ${user ? 'pb-28 md:pb-0' : ''}`}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>

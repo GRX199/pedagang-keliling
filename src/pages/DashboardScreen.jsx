@@ -1540,7 +1540,7 @@ export default function DashboardScreen() {
   const [vendorProfile, setVendorProfile] = useState(null)
 
   const isAdmin = role === 'admin'
-  const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
+  const isVendor = role === 'vendor'
   const handleVendorProfileSaved = useCallback((profile) => {
     setVendorProfile(profile)
   }, [])

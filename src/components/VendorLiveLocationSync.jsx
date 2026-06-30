@@ -37,7 +37,7 @@ function shouldSyncLocation(previousCoordinates, nextCoordinates, lastSyncedAt) 
 export default function VendorLiveLocationSync() {
   const { user, role } = useAuth()
   const toast = useToast()
-  const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
+  const isVendor = role === 'vendor'
   const vendorId = user?.id
 
   const [vendorOnline, setVendorOnline] = useState(false)

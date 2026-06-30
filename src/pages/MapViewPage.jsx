@@ -345,7 +345,7 @@ export default function MapViewPage() {
   const [presenceClock, setPresenceClock] = useState(() => Date.now())
 
   const isAdmin = role === 'admin'
-  const isVendor = role === 'vendor' || user?.user_metadata?.is_vendor === true
+  const isVendor = role === 'vendor'
   const isCustomerViewer = Boolean(user?.id) && !isVendor && !isAdmin
   const myVendorId = user?.id
   const clusterEnabled = true
