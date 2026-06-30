@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Kelilingku">
+  <defs>
+    <linearGradient id="bg" x1="64" y1="448" x2="448" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.55" stop-color="#14532d"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#020617" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+  <circle cx="384" cy="130" r="54" fill="#fde68a" opacity="0.95"/>
+  <path d="M110 338c30-70 88-111 157-111 72 0 125 43 151 111" fill="none" stroke="#ecfccb" stroke-width="28" stroke-linecap="round"/>
+  <path d="M155 333h207c21 0 38 17 38 38v26H117v-26c0-21 17-38 38-38Z" fill="#f8fafc" filter="url(#shadow)"/>
+  <path d="M153 333h64l29-79h64l29 79h64" fill="none" stroke="#0f172a" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="177" cy="401" r="31" fill="#0f172a"/>
+  <circle cx="342" cy="401" r="31" fill="#0f172a"/>
+  <circle cx="177" cy="401" r="12" fill="#f8fafc"/>
+  <circle cx="342" cy="401" r="12" fill="#f8fafc"/>
+  <path d="M242 145h56l-44 66h55l-83 112 31-82h-55l40-96Z" fill="#fefce8"/>
+</svg>

@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import VendorLiveLocationSync from './components/VendorLiveLocationSync'
+import PwaInstallPrompt from './components/PwaInstallPrompt'
 import { useToast } from './components/ToastProvider'
 import { useAuth } from './lib/auth'
 import { getFriendlyFetchErrorMessage, requireServerOrigin } from './lib/network'
@@ -351,6 +352,7 @@ export default function App() {
     <>
       <TopNav />
       {user && role === 'vendor' ? <VendorLiveLocationSync /> : null}
+      <PwaInstallPrompt role={role} />
       <main className={`min-h-[calc(100vh-73px)] ${user ? 'pb-28 md:pb-0' : ''}`}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>

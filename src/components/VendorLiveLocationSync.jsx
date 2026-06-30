@@ -46,6 +46,7 @@ export default function VendorLiveLocationSync() {
   const lastSyncedAtRef = useRef(0)
   const lastErrorKeyRef = useRef('')
   const announcedOnlineRef = useRef(false)
+  const wakeLockRef = useRef(null)
 
   useEffect(() => {
     if (!isVendor || !vendorId) {
@@ -223,6 +224,76 @@ export default function VendorLiveLocationSync() {
       watchIdRef.current = null
     }
   }, [isVendor, toast, vendorId, vendorOnline])
+
+  useEffect(() => {
+    if (!isVendor || !vendorOnline) {
+      const currentWakeLock = wakeLockRef.current
+      wakeLockRef.current = null
+      if (currentWakeLock && !currentWakeLock.released) {
+        void currentWakeLock.release().catch((error) => {
+          console.warn('releaseVendorWakeLock', error)
+        })
+      }
+      return undefined
+    }
+
+    if (
+      typeof document === 'undefined' ||
+      typeof navigator === 'undefined' ||
+      !('wakeLock' in navigator)
+    ) {
+      return undefined
+    }
+
+    let cancelled = false
+
+    async function requestWakeLock() {
+      if (cancelled || document.visibilityState !== 'visible' || wakeLockRef.current) return
+
+      try {
+        const wakeLock = await navigator.wakeLock.request('screen')
+        if (cancelled) {
+          await wakeLock.release().catch((error) => {
+            console.warn('releaseCancelledVendorWakeLock', error)
+          })
+          return
+        }
+
+        wakeLockRef.current = wakeLock
+        wakeLock.addEventListener('release', () => {
+          if (wakeLockRef.current === wakeLock) {
+            wakeLockRef.current = null
+          }
+        })
+      } catch (error) {
+        console.warn('requestVendorWakeLock', error)
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        void requestWakeLock()
+      } else {
+        wakeLockRef.current = null
+      }
+    }
+
+    void requestWakeLock()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+
+      const currentWakeLock = wakeLockRef.current
+      wakeLockRef.current = null
+      if (currentWakeLock && !currentWakeLock.released) {
+        void currentWakeLock.release().catch((error) => {
+          console.warn('releaseVendorWakeLockCleanup', error)
+        })
+      }
+    }
+  }, [isVendor, vendorOnline])
 
   return null
 }

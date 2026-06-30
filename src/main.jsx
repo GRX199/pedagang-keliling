@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './styles/index.css'
 import { AuthProvider } from './lib/auth'
+import { registerServiceWorker } from './lib/pwa'
 import { ToastProvider } from './components/ToastProvider'
 import AppErrorBoundary from './components/AppErrorBoundary'
 import 'leaflet/dist/leaflet.css'
@@ -23,3 +24,5 @@ createRoot(document.getElementById('root')).render(
     </AppErrorBoundary>
   </React.StrictMode>
 )
+
+registerServiceWorker()
