@@ -119,7 +119,7 @@ export default function VendorLiveLocationSync() {
   }, [isVendor, vendorId])
 
   useEffect(() => {
-    if (!vendorOnline) {
+    if (!isVendor || !vendorId || !vendorOnline) {
       announcedOnlineRef.current = false
       if (watchIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current)
@@ -142,6 +142,8 @@ export default function VendorLiveLocationSync() {
     }
 
     async function syncPosition(position) {
+      if (!vendorId) return
+
       const nextCoordinates = {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
@@ -220,7 +222,7 @@ export default function VendorLiveLocationSync() {
       }
       watchIdRef.current = null
     }
-  }, [toast, vendorId, vendorOnline])
+  }, [isVendor, toast, vendorId, vendorOnline])
 
   return null
 }
