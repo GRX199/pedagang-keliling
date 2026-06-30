@@ -10,6 +10,7 @@ import {
   formatFulfillmentTypeLabel,
   formatOrderTimingLabel,
   getBuyerPaymentActions,
+  getNextVendorStatusActions,
   getPaymentGuidance,
   formatOrderStatusLabel,
   isSchemaCompatibilityError,
@@ -127,6 +128,7 @@ export default function OrderTrackingPage() {
   const [routeNotice, setRouteNotice] = useState('')
   const [showOrderItems, setShowOrderItems] = useState(false)
   const [showPaymentDetail, setShowPaymentDetail] = useState(false)
+  const [busyAction, setBusyAction] = useState('')
 
   const mapRef = useRef(null)
   const containerRef = useRef(null)
@@ -185,6 +187,8 @@ export default function OrderTrackingPage() {
   async function updatePaymentStatus(paymentStatus) {
     if (!order?.id) return
 
+    const actionKey = `payment:${paymentStatus}`
+    setBusyAction(actionKey)
     try {
       const { error } = await supabase
         .from('orders')
@@ -197,6 +201,124 @@ export default function OrderTrackingPage() {
     } catch (error) {
       console.error('updateTrackingPaymentStatus', error)
       toast.push(error.message || 'Gagal memperbarui status pembayaran', { type: 'error' })
+    } finally {
+      setBusyAction('')
+    }
+  }
+
+  async function decrementProductStockForOrder(orderWithItems) {
+    const itemRows = Array.isArray(orderWithItems?.order_items) ? orderWithItems.order_items : []
+    const quantityByProductId = itemRows.reduce((accumulator, item) => {
+      if (!item?.product_id) return accumulator
+      const quantity = Number(item.quantity) || 0
+      if (quantity <= 0) return accumulator
+      accumulator[item.product_id] = (accumulator[item.product_id] || 0) + quantity
+      return accumulator
+    }, {})
+    const productIds = Object.keys(quantityByProductId)
+    if (productIds.length === 0) return false
+
+    const { data: productsData, error: productsError } = await supabase
+      .from('products')
+      .select('id, vendor_id, stock, is_available')
+      .eq('vendor_id', orderWithItems.vendor_id)
+      .in('id', productIds)
+
+    if (productsError) throw productsError
+
+    const stockUpdates = (productsData || [])
+      .map((product) => {
+        if (product.stock === null || typeof product.stock === 'undefined' || product.stock === '') return null
+        const currentStock = Number(product.stock)
+        if (!Number.isFinite(currentStock)) return null
+
+        const nextStock = Math.max(0, currentStock - (quantityByProductId[product.id] || 0))
+        return {
+          productId: product.id,
+          payload: {
+            stock: nextStock,
+            is_available: nextStock > 0 ? product.is_available !== false : false,
+          },
+        }
+      })
+      .filter(Boolean)
+
+    for (const update of stockUpdates) {
+      const { error } = await supabase
+        .from('products')
+        .update(update.payload)
+        .eq('id', update.productId)
+        .eq('vendor_id', orderWithItems.vendor_id)
+
+      if (error) throw error
+    }
+
+    return stockUpdates.length > 0
+  }
+
+  async function completeOrderWithStockSync(orderWithItems) {
+    if (!orderWithItems?.id) return false
+
+    try {
+      const { error } = await supabase.rpc('complete_order_and_decrement_stock', {
+        target_order_id: orderWithItems.id,
+      })
+
+      if (error) throw error
+      return true
+    } catch (rpcError) {
+      if (!isSchemaCompatibilityError(rpcError)) throw rpcError
+      console.info('complete_order_and_decrement_stock belum tersedia, memakai fallback client.', rpcError)
+    }
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'completed' })
+      .eq('id', orderWithItems.id)
+      .neq('status', 'completed')
+
+    if (error) throw error
+
+    return decrementProductStockForOrder(orderWithItems)
+  }
+
+  async function updateOrderStatus(nextStatus) {
+    if (!order?.id || !isVendorViewer) return
+
+    const orderWithItems = { ...order, order_items: orderItems }
+    const actionKey = `status:${nextStatus}`
+    setBusyAction(actionKey)
+
+    try {
+      let stockSynced = false
+
+      if (nextStatus === 'completed' && order.status !== 'completed') {
+        stockSynced = await completeOrderWithStockSync(orderWithItems)
+      } else {
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: nextStatus })
+          .eq('id', order.id)
+
+        if (error) throw error
+      }
+
+      toast.push(
+        nextStatus === 'completed' && stockSynced
+          ? 'Pesanan selesai dan stok produk disesuaikan'
+          : 'Status pesanan diperbarui',
+        { type: 'success' }
+      )
+      void loadOrder({ background: true, silent: true })
+    } catch (error) {
+      console.error('updateTrackingOrderStatus', error)
+      if (isSchemaCompatibilityError(error)) {
+        toast.push('Database belum memakai workflow status terbaru. Jalankan migration foundation terlebih dahulu.', { type: 'error' })
+        return
+      }
+      toast.push(error.message || 'Gagal mengubah status pesanan', { type: 'error' })
+    } finally {
+      setBusyAction('')
     }
   }
 
@@ -581,6 +703,9 @@ export default function OrderTrackingPage() {
   const isVendorViewer = user?.id === order.vendor_id
   const paymentGuidance = getPaymentGuidance(order, isVendorViewer ? 'vendor' : 'customer')
   const paymentActions = isVendorViewer ? getVendorPaymentActions(order) : getBuyerPaymentActions(order)
+  const vendorStatusActions = isVendorViewer ? getNextVendorStatusActions(order) : []
+  const headerPaymentActions = isVendorViewer ? [] : paymentActions
+  const hasVendorTrackingActions = isVendorViewer && (vendorStatusActions.length > 0 || paymentActions.length > 0)
   const operationalNotice = getOrderOperationalNotice(order, isVendorViewer ? 'vendor' : 'customer')
   const paymentReferenceDetails = getVendorPaymentMethodDetails(
     vendor?.payment_details || order.vendor_payment_details_snapshot,
@@ -607,19 +732,20 @@ export default function OrderTrackingPage() {
             </div>
 
             <div className="flex w-full gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
-              {paymentActions.map((action) => (
+              {headerPaymentActions.map((action) => (
                 <button
                   key={action.value}
                   onClick={() => updatePaymentStatus(action.value)}
+                  disabled={busyAction === `payment:${action.value}`}
                   className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-medium leading-tight ${
                     action.tone === 'danger'
                       ? 'border border-red-200 bg-red-50 text-red-600'
                       : action.tone === 'success'
                         ? 'bg-emerald-600 text-white'
                         : 'bg-slate-900 text-white'
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-70`}
                 >
-                  {action.label}
+                  {busyAction === `payment:${action.value}` ? 'Menyimpan...' : action.label}
                 </button>
               ))}
               <button
@@ -632,6 +758,67 @@ export default function OrderTrackingPage() {
           </div>
           {refreshing ? <div className="mt-2 text-xs text-slate-400">Memperbarui posisi...</div> : null}
         </section>
+
+        {hasVendorTrackingActions ? (
+          <section className="min-w-0 rounded-[22px] bg-slate-950 p-3 text-white shadow-sm ring-1 ring-slate-800 sm:rounded-[28px] sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold">Aksi pedagang</h2>
+                <p className="mt-1 text-sm text-slate-300">
+                  Ubah progres pesanan dari halaman tracking ini.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-slate-200">
+                {formatOrderStatusLabel(order.status)}
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              {vendorStatusActions.map((action) => (
+                <button
+                  key={action.value}
+                  type="button"
+                  disabled={action.disabled || busyAction === `status:${action.value}`}
+                  onClick={() => updateOrderStatus(action.value)}
+                  title={action.disabledReason || action.label}
+                  className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                    action.disabled
+                      ? 'border border-amber-300/30 bg-amber-300/10 text-amber-100'
+                      : action.tone === 'danger'
+                        ? 'border border-red-300/30 bg-red-400/10 text-red-100 hover:bg-red-400/20'
+                        : action.tone === 'success'
+                          ? 'bg-emerald-400 text-emerald-950 hover:bg-emerald-300'
+                          : 'bg-white text-slate-950 hover:bg-slate-100'
+                  }`}
+                >
+                  {busyAction === `status:${action.value}` ? 'Menyimpan...' : action.label}
+                </button>
+              ))}
+
+              {paymentActions.map((action) => (
+                <button
+                  key={action.value}
+                  type="button"
+                  onClick={() => updatePaymentStatus(action.value)}
+                  disabled={busyAction === `payment:${action.value}`}
+                  className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                    action.tone === 'danger'
+                      ? 'border border-red-300/30 bg-red-400/10 text-red-100 hover:bg-red-400/20'
+                      : 'bg-emerald-400 text-emerald-950 hover:bg-emerald-300'
+                  }`}
+                >
+                  {busyAction === `payment:${action.value}` ? 'Menyimpan...' : action.label}
+                </button>
+              ))}
+            </div>
+
+            {vendorStatusActions.some((action) => action.disabled && action.disabledReason) ? (
+              <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+                {vendorStatusActions.find((action) => action.disabled && action.disabledReason)?.disabledReason}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <section className="grid min-w-0 grid-cols-3 gap-2 sm:gap-4">
           <div className="min-w-0 rounded-[18px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[24px] sm:p-4">
