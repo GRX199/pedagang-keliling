@@ -1,5 +1,5 @@
 // src/lib/auth.jsx
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { syncCurrentProfile } from './profiles'
 import { supabase } from './supabase'
 
@@ -18,6 +18,7 @@ export function AuthProvider({ children }){
   const [accountStatus, setAccountStatus] = useState('active')
   const [authError, setAuthError] = useState('')
   const [loading, setLoading] = useState(true)
+  const syncRequestIdRef = useRef(0)
 
   const determineAuthMeta = useCallback(async (uid) => {
     if (!uid) {
@@ -77,26 +78,35 @@ export function AuthProvider({ children }){
   }, [])
 
   const syncAuthState = useCallback(async (sessionUser) => {
+    const requestId = syncRequestIdRef.current + 1
+    syncRequestIdRef.current = requestId
+    setLoading(true)
     setUser(sessionUser)
     if (!sessionUser) {
       setRole(null)
       setAccountStatus('active')
       setAuthError('')
-      setLoading(false)
+      if (syncRequestIdRef.current === requestId) setLoading(false)
       return
     }
 
+    setRole(null)
+    setAccountStatus('active')
+    setAuthError('')
+
     try {
       const { role: nextRole, accountStatus: nextAccountStatus } = await determineAuthMeta(sessionUser.id)
+      if (syncRequestIdRef.current !== requestId) return
       setRole(nextRole)
       setAccountStatus(nextAccountStatus || 'active')
       setAuthError('')
       await syncCurrentProfile(sessionUser, nextRole)
     } catch (error) {
+      if (syncRequestIdRef.current !== requestId) return
       setRole(null)
       setAuthError(error.message || 'Gagal memverifikasi akses akun.')
     } finally {
-      setLoading(false)
+      if (syncRequestIdRef.current === requestId) setLoading(false)
     }
   }, [determineAuthMeta])
 

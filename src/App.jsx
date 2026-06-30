@@ -18,6 +18,7 @@ function Protected({ children }) {
   const { user, role, accountStatus, authError, loading, refreshAuth } = useAuth()
   if (loading) return <div className="p-6">Memuat...</div>
   if (!user) return <Navigate to="/login" replace />
+  if (!role && !authError) return <div className="p-6">Memverifikasi akun...</div>
   if (authError || !role) {
     return (
       <div className="mx-auto max-w-lg p-6 text-center">
