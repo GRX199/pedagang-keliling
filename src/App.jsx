@@ -3,6 +3,7 @@ import { Routes, Route, Link, Navigate, NavLink, useLocation, useNavigate } from
 import VendorLiveLocationSync from './components/VendorLiveLocationSync'
 import { useToast } from './components/ToastProvider'
 import { useAuth } from './lib/auth'
+import { getFriendlyFetchErrorMessage, requireServerOrigin } from './lib/network'
 import { useRealtimeNotifications } from './lib/notifications'
 import { supabase } from './lib/supabase'
 
@@ -59,8 +60,51 @@ function TopNav() {
   const location = useLocation()
   const toast = useToast()
 
+  async function setVendorOfflineBeforeLogout() {
+    if (role !== 'vendor' || !user?.id) return
+
+    try {
+      const { data } = await supabase.auth.getSession()
+      const accessToken = data?.session?.access_token
+      if (!accessToken) throw new Error('Sesi login tidak ditemukan')
+
+      const serverOrigin = requireServerOrigin()
+      const response = await fetch(`${serverOrigin}/api/vendor/${user.id}/online`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ online: false }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.error || `HTTP ${response.status}`)
+    } catch (error) {
+      console.warn('setVendorOfflineBeforeLogout.backend', error)
+      try {
+        const { error: updateError } = await supabase
+          .from('vendors')
+          .update({ online: false, location: null, last_seen_at: null })
+          .eq('id', user.id)
+
+        if (updateError) throw updateError
+      } catch (fallbackError) {
+        console.warn('setVendorOfflineBeforeLogout.fallback', fallbackError)
+        toast.push(
+          getFriendlyFetchErrorMessage(
+            error,
+            'Anda berhasil logout, tetapi status toko mungkin belum sempat diubah ke offline.'
+          ),
+          { type: 'warning' }
+        )
+      }
+    }
+  }
+
   async function handleLogout() {
     try {
+      await setVendorOfflineBeforeLogout()
       await supabase.auth.signOut()
       navigate('/login', { replace: true })
     } catch (e) {
