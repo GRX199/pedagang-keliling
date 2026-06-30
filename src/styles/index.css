@@ -38,10 +38,6 @@ select {
   box-sizing: border-box;
 }
 
-.account-menu > summary::-webkit-details-marker {
-  display: none;
-}
-
 ::selection {
   background: rgba(15, 23, 42, 0.12);
 }

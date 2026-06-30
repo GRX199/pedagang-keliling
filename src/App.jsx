@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react'
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import VendorLiveLocationSync from './components/VendorLiveLocationSync'
 import PwaInstallPrompt from './components/PwaInstallPrompt'
@@ -60,6 +60,29 @@ function TopNav() {
   const navigate = useNavigate()
   const location = useLocation()
   const toast = useToast()
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [logoutBusy, setLogoutBusy] = useState(false)
+  const accountMenuRef = useRef(null)
+
+  useEffect(() => {
+    setAccountMenuOpen(false)
+  }, [location.pathname, location.search])
+
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined
+
+    function handlePointerDown(event) {
+      if (!accountMenuRef.current) return
+      if (accountMenuRef.current.contains(event.target)) return
+      setAccountMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [accountMenuOpen])
 
   async function setVendorOfflineBeforeLogout() {
     if (role !== 'vendor' || !user?.id) return
@@ -70,14 +93,22 @@ function TopNav() {
       if (!accessToken) throw new Error('Sesi login tidak ditemukan')
 
       const serverOrigin = requireServerOrigin()
-      const response = await fetch(`${serverOrigin}/api/vendor/${user.id}/online`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ online: false }),
-      })
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 4500)
+      let response
+      try {
+        response = await fetch(`${serverOrigin}/api/vendor/${user.id}/online`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ online: false }),
+          signal: controller.signal,
+        })
+      } finally {
+        window.clearTimeout(timeoutId)
+      }
 
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload?.error || `HTTP ${response.status}`)
@@ -104,12 +135,20 @@ function TopNav() {
   }
 
   async function handleLogout() {
+    if (logoutBusy) return
+    setLogoutBusy(true)
+    setAccountMenuOpen(false)
+
     try {
       await setVendorOfflineBeforeLogout()
-      await supabase.auth.signOut()
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
       navigate('/login', { replace: true })
     } catch (e) {
       console.error('Logout error', e)
+      toast.push(e.message || 'Gagal logout. Coba lagi.', { type: 'error' })
+    } finally {
+      setLogoutBusy(false)
     }
   }
 
@@ -259,8 +298,14 @@ function TopNav() {
 
             <div className="flex min-w-0 shrink-0 items-center gap-2">
               {user ? (
-                <details className="account-menu relative">
-                  <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-1 transition hover:bg-slate-50 sm:pr-3">
+                <div ref={accountMenuRef} className="relative">
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={accountMenuOpen}
+                    onClick={() => setAccountMenuOpen((current) => !current)}
+                    className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-1 transition hover:bg-slate-50 sm:pr-3"
+                  >
                     {avatarUrl ? (
                       <img src={avatarUrl} alt="avatar" className="h-8 w-8 shrink-0 rounded-full object-cover" />
                     ) : (
@@ -276,31 +321,41 @@ function TopNav() {
                     <svg aria-hidden="true" viewBox="0 0 20 20" className="hidden h-4 w-4 text-slate-400 sm:block" fill="currentColor">
                       <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.1 1.02l-4.25 4.5a.75.75 0 0 1-1.1 0l-4.25-4.5a.75.75 0 0 1 .02-1.04Z" clipRule="evenodd" />
                     </svg>
-                  </summary>
-                  <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
-                    <div className="border-b border-slate-100 px-3 py-2">
-                      <div className="truncate text-sm font-medium text-slate-900">{user.user_metadata?.full_name || user.email}</div>
-                      <div className="mt-0.5 text-xs text-slate-500">{accountLabel}</div>
+                  </button>
+
+                  {accountMenuOpen ? (
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-full z-[1700] mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
+                    >
+                      <div className="border-b border-slate-100 px-3 py-2">
+                        <div className="truncate text-sm font-medium text-slate-900">{user.user_metadata?.full_name || user.email}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">{accountLabel}</div>
+                      </div>
+                      <Link
+                        to="/dashboard?tab=profile"
+                        role="menuitem"
+                        onClick={() => setAccountMenuOpen(false)}
+                        className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <NavIcon label="Profil" />
+                        Profil & pengaturan
+                      </Link>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={logoutBusy}
+                        onClick={() => void handleLogout()}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M10 17l5-5-5-5M15 12H3M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+                        </svg>
+                        {logoutBusy ? 'Keluar...' : 'Keluar'}
+                      </button>
                     </div>
-                    <Link
-                      to="/dashboard?tab=profile"
-                      className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                      <NavIcon label="Profil" />
-                      Profil & pengaturan
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
-                    >
-                      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M10 17l5-5-5-5M15 12H3M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
-                      </svg>
-                      Keluar
-                    </button>
-                  </div>
-                </details>
+                  ) : null}
+                </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <a
