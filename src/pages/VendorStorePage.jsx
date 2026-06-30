@@ -1148,9 +1148,13 @@ export default function VendorStorePage() {
                   {formatVendorCategoryLabel(vendor.category_primary)}
                 </span>
                 {reviewSummary.count > 0 && (
-                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('store-reviews')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                  >
                     {formatReviewScore(reviewSummary.average)} • {reviewSummary.count} ulasan
-                  </span>
+                  </button>
                 )}
                 {vendor.is_verified && (
                   <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
@@ -1357,15 +1361,15 @@ export default function VendorStorePage() {
               </div>
             </section>
 
-            <section className="hidden rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80 sm:block">
+            <section id="store-reviews" className="scroll-mt-24 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Ulasan Pelanggan</h2>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Ulasan Pelanggan</h2>
                   <p className="mt-1 hidden text-sm text-slate-500 sm:block">
                     Bagian ini membantu pelanggan baru melihat pengalaman transaksi yang sudah selesai.
                   </p>
                 </div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600 sm:rounded-2xl sm:px-4 sm:py-3">
                   {reviewSummary.count > 0
                     ? `${formatReviewScore(reviewSummary.average)} dari ${reviewSummary.count} ulasan`
                     : 'Belum ada ulasan'}
@@ -1373,15 +1377,15 @@ export default function VendorStorePage() {
               </div>
 
               {reviews.length === 0 ? (
-                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                <div className="mt-3 rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500 sm:mt-4 sm:py-8">
                   Ulasan akan muncul setelah pelanggan menyelesaikan pesanan dan memberi penilaian.
                 </div>
               ) : (
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   {visibleReviews.map((review) => (
-                    <article key={review.id} className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                    <article key={review.id} className="rounded-[20px] border border-slate-200 bg-slate-50 p-3 sm:rounded-[24px] sm:p-4">
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-medium text-slate-900">{review.buyer_name || 'Pelanggan'}</div>
                           <div className="mt-1 text-sm text-slate-500">
                             Rating {formatReviewScore(review.rating)} • {new Date(review.created_at).toLocaleDateString('id-ID', {
@@ -1396,7 +1400,7 @@ export default function VendorStorePage() {
                         </span>
                       </div>
 
-                      <div className="mt-3 text-sm leading-6 text-slate-600">
+                      <div className="mt-3 line-clamp-4 text-sm leading-6 text-slate-600 sm:line-clamp-none">
                         {review.comment || 'Pelanggan tidak menambahkan komentar tertulis.'}
                       </div>
                     </article>
