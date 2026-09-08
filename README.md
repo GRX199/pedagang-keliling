@@ -10,6 +10,7 @@ Kelilingku adalah platform map-first commerce untuk pedagang keliling seperti sa
 - [Supabase Setup](./docs/supabase-setup.md)
 - [Phase 1 Upgrade Guide](./docs/phase1-upgrade.md)
 - [Production Hardening](./docs/production-hardening.md)
+- [Pembaruan Stabilitas dan Langkah Penerapan](./docs/stability-update.md)
 - [Deploy Staging](./docs/deploy-staging.md)
 - [Phase 1 Foundation SQL](./supabase/phase1-foundation.sql)
 

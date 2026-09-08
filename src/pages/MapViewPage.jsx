@@ -6,6 +6,7 @@ import 'leaflet.markercluster'
 import VendorProductsPreview from '../components/VendorProductsPreview'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
+import { escapeMapText } from '../lib/map-popup'
 import {
   formatFavoriteCountLabel,
   isFavoritesSchemaCompatibilityError,
@@ -1204,7 +1205,7 @@ export default function MapViewPage() {
       })
 
       circle.bindTooltip(
-        `${hotspot.label}: ${hotspot.orderCount} permintaan`,
+        `${escapeMapText(hotspot.label)}: ${hotspot.orderCount} permintaan`,
         { direction: 'top', opacity: 0.92 }
       )
 

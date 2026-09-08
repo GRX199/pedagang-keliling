@@ -25,6 +25,8 @@
 
 ## Smoke Test Wajib
 
+Untuk database yang sudah memakai hardening sebelumnya, terapkan juga [order-payment-guard.sql](../supabase/order-payment-guard.sql). Untuk instalasi baru, guard tersebut sudah termasuk dalam `production-hardening.sql`. Lihat [pembaruan stabilitas](./stability-update.md) untuk langkah penerapan dan uji tambahan.
+
 1. Customer dan vendor dapat login pada dua device.
 2. Vendor online baru muncul setelah lokasi berhasil tersinkron.
 3. Marker hilang maksimal dua menit setelah location heartbeat berhenti.

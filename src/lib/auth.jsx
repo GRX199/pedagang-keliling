@@ -2,6 +2,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { syncCurrentProfile } from './profiles'
 import { supabase } from './supabase'
+import { createAuthSessionController, INITIAL_AUTH_STATE } from './auth-session'
 
 const AuthContext = createContext({
   user: null,
@@ -13,12 +14,8 @@ const AuthContext = createContext({
 })
 
 export function AuthProvider({ children }){
-  const [user, setUser] = useState(null)
-  const [role, setRole] = useState(null)
-  const [accountStatus, setAccountStatus] = useState('active')
-  const [authError, setAuthError] = useState('')
-  const [loading, setLoading] = useState(true)
-  const syncRequestIdRef = useRef(0)
+  const [{ user, role, accountStatus, authError, loading }, setAuthState] = useState(INITIAL_AUTH_STATE)
+  const controllerRef = useRef(null)
 
   const determineAuthMeta = useCallback(async (uid) => {
     if (!uid) {
@@ -77,80 +74,28 @@ export function AuthProvider({ children }){
     }
   }, [])
 
-  const syncAuthState = useCallback(async (sessionUser) => {
-    const requestId = syncRequestIdRef.current + 1
-    syncRequestIdRef.current = requestId
-    setLoading(true)
-    setUser(sessionUser)
-    if (!sessionUser) {
-      setRole(null)
-      setAccountStatus('active')
-      setAuthError('')
-      if (syncRequestIdRef.current === requestId) setLoading(false)
-      return
-    }
-
-    setRole(null)
-    setAccountStatus('active')
-    setAuthError('')
-
-    try {
-      const { role: nextRole, accountStatus: nextAccountStatus } = await determineAuthMeta(sessionUser.id)
-      if (syncRequestIdRef.current !== requestId) return
-      setRole(nextRole)
-      setAccountStatus(nextAccountStatus || 'active')
-      setAuthError('')
-      await syncCurrentProfile(sessionUser, nextRole)
-    } catch (error) {
-      if (syncRequestIdRef.current !== requestId) return
-      setRole(null)
-      setAuthError(error.message || 'Gagal memverifikasi akses akun.')
-    } finally {
-      if (syncRequestIdRef.current === requestId) setLoading(false)
-    }
-  }, [determineAuthMeta])
-
-  const refreshAuth = useCallback(async () => {
-    setLoading(true)
-    try {
-      const response = await supabase.auth.getSession()
-      await syncAuthState(response?.data?.session?.user ?? null)
-    } catch (error) {
-      console.error('refreshAuth', error)
-      setLoading(false)
-    }
-  }, [syncAuthState])
+  const refreshAuth = useCallback(() => (
+    controllerRef.current?.refresh(() => supabase.auth.getSession())
+  ), [])
 
   useEffect(() => {
-    let mounted = true
-
-    async function init(){
-      try {
-        const response = await supabase.auth.getSession()
-        if (!mounted) return
-        await syncAuthState(response?.data?.session?.user ?? null)
-      } catch (error) {
-        console.error('auth.init err', error)
-        if (mounted) setLoading(false)
-      }
-    }
-
-    init()
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return
-      syncAuthState(session?.user ?? null)
+    const controller = createAuthSessionController({
+      resolveMeta: determineAuthMeta,
+      syncProfile: syncCurrentProfile,
+      onChange: setAuthState,
+    })
+    controllerRef.current = controller
+    // INITIAL_SESSION is emitted by Supabase; a second getSession here races login/logout.
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      controller.handleSession(event, session)
     })
 
     return () => {
-      mounted = false
-      try {
-        listener.subscription.unsubscribe()
-      } catch (error) {
-        console.error('unsubscribeAuthListener', error)
-      }
+      controller.dispose()
+      listener.subscription.unsubscribe()
+      if (controllerRef.current === controller) controllerRef.current = null
     }
-  }, [syncAuthState])
+  }, [determineAuthMeta])
 
   const value = useMemo(() => ({
     user,

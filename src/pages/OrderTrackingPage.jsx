@@ -6,12 +6,15 @@ import OrderReviewComposer from '../components/OrderReviewComposer'
 import OrderStatusTimeline from '../components/OrderStatusTimeline'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
+import { saveOrderChange } from '../lib/order-mutations'
+import { escapeMapText } from '../lib/map-popup'
 import {
   formatFulfillmentTypeLabel,
   formatOrderTimingLabel,
   getBuyerPaymentActions,
   getNextVendorStatusActions,
   getPaymentGuidance,
+  getOrderPaymentDetails,
   formatOrderStatusLabel,
   isSchemaCompatibilityError,
   formatPaymentMethodLabel,
@@ -129,6 +132,10 @@ export default function OrderTrackingPage() {
   const [showOrderItems, setShowOrderItems] = useState(false)
   const [showPaymentDetail, setShowPaymentDetail] = useState(false)
   const [busyAction, setBusyAction] = useState('')
+  const pendingActionRef = useRef(false)
+  const loadRequestRef = useRef(0)
+  const currentOrderIdRef = useRef(id)
+  currentOrderIdRef.current = id
 
   const mapRef = useRef(null)
   const containerRef = useRef(null)
@@ -140,7 +147,8 @@ export default function OrderTrackingPage() {
   const routeAbortRef = useRef(null)
 
   async function loadOrder({ background = false, silent = false } = {}) {
-    if (!id) return
+    if (!id || id !== currentOrderIdRef.current) return
+    const requestId = ++loadRequestRef.current
 
     if (background) setRefreshing(true)
     else setLoading(true)
@@ -169,157 +177,51 @@ export default function OrderTrackingPage() {
         throw reviewError
       }
 
+      if (requestId !== loadRequestRef.current || id !== currentOrderIdRef.current) return
       setOrder(orderRow)
       setVendor(vendorRow || null)
       setOrderItems(orderItemRows || [])
       setReview(reviewRow || null)
     } catch (error) {
+      if (requestId !== loadRequestRef.current || id !== currentOrderIdRef.current) return
       console.error('loadOrderTracking', error)
       if (!silent) {
         toast.push(error.message || 'Gagal memuat tracking pesanan', { type: 'error' })
       }
     } finally {
-      if (background) setRefreshing(false)
-      else setLoading(false)
+      if (requestId === loadRequestRef.current && id === currentOrderIdRef.current) {
+        setRefreshing(false)
+        setLoading(false)
+      }
     }
   }
 
-  async function updatePaymentStatus(paymentStatus) {
-    if (!order?.id) return
-
-    const actionKey = `payment:${paymentStatus}`
-    setBusyAction(actionKey)
+  async function mutateOrder(field, value) {
+    if (!order?.id || order.id !== id || pendingActionRef.current) return
+    pendingActionRef.current = true
+    setBusyAction(`${field === 'status' ? 'status' : 'payment'}:${value}`)
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ payment_status: paymentStatus })
-        .eq('id', order.id)
-
-      if (error) throw error
-      toast.push('Status pembayaran diperbarui', { type: 'success' })
-      void loadOrder({ background: true, silent: true })
+      const updated = await saveOrderChange(supabase, order, field, value, user?.id)
+      if (id !== currentOrderIdRef.current) return
+      loadRequestRef.current += 1
+      setOrder((current) => current?.id === updated.id ? { ...current, ...updated } : current)
+      toast.push(field === 'payment_status' ? 'Status pembayaran diperbarui' : 'Status pesanan diperbarui', { type: 'success' })
     } catch (error) {
-      console.error('updateTrackingPaymentStatus', error)
-      toast.push(error.message || 'Gagal memperbarui status pembayaran', { type: 'error' })
+      console.error('mutateTrackingOrder', error)
+      toast.push(error.message || 'Gagal memperbarui pesanan', { type: 'error' })
     } finally {
+      await loadOrder({ background: true, silent: true })
+      pendingActionRef.current = false
       setBusyAction('')
     }
   }
 
-  async function decrementProductStockForOrder(orderWithItems) {
-    const itemRows = Array.isArray(orderWithItems?.order_items) ? orderWithItems.order_items : []
-    const quantityByProductId = itemRows.reduce((accumulator, item) => {
-      if (!item?.product_id) return accumulator
-      const quantity = Number(item.quantity) || 0
-      if (quantity <= 0) return accumulator
-      accumulator[item.product_id] = (accumulator[item.product_id] || 0) + quantity
-      return accumulator
-    }, {})
-    const productIds = Object.keys(quantityByProductId)
-    if (productIds.length === 0) return false
-
-    const { data: productsData, error: productsError } = await supabase
-      .from('products')
-      .select('id, vendor_id, stock, is_available')
-      .eq('vendor_id', orderWithItems.vendor_id)
-      .in('id', productIds)
-
-    if (productsError) throw productsError
-
-    const stockUpdates = (productsData || [])
-      .map((product) => {
-        if (product.stock === null || typeof product.stock === 'undefined' || product.stock === '') return null
-        const currentStock = Number(product.stock)
-        if (!Number.isFinite(currentStock)) return null
-
-        const nextStock = Math.max(0, currentStock - (quantityByProductId[product.id] || 0))
-        return {
-          productId: product.id,
-          payload: {
-            stock: nextStock,
-            is_available: nextStock > 0 ? product.is_available !== false : false,
-          },
-        }
-      })
-      .filter(Boolean)
-
-    for (const update of stockUpdates) {
-      const { error } = await supabase
-        .from('products')
-        .update(update.payload)
-        .eq('id', update.productId)
-        .eq('vendor_id', orderWithItems.vendor_id)
-
-      if (error) throw error
-    }
-
-    return stockUpdates.length > 0
+  function updatePaymentStatus(paymentStatus) {
+    return mutateOrder('payment_status', paymentStatus)
   }
 
-  async function completeOrderWithStockSync(orderWithItems) {
-    if (!orderWithItems?.id) return false
-
-    try {
-      const { error } = await supabase.rpc('complete_order_and_decrement_stock', {
-        target_order_id: orderWithItems.id,
-      })
-
-      if (error) throw error
-      return true
-    } catch (rpcError) {
-      if (!isSchemaCompatibilityError(rpcError)) throw rpcError
-      console.info('complete_order_and_decrement_stock belum tersedia, memakai fallback client.', rpcError)
-    }
-
-    const { error } = await supabase
-      .from('orders')
-      .update({ status: 'completed' })
-      .eq('id', orderWithItems.id)
-      .neq('status', 'completed')
-
-    if (error) throw error
-
-    return decrementProductStockForOrder(orderWithItems)
-  }
-
-  async function updateOrderStatus(nextStatus) {
-    if (!order?.id || !isVendorViewer) return
-
-    const orderWithItems = { ...order, order_items: orderItems }
-    const actionKey = `status:${nextStatus}`
-    setBusyAction(actionKey)
-
-    try {
-      let stockSynced = false
-
-      if (nextStatus === 'completed' && order.status !== 'completed') {
-        stockSynced = await completeOrderWithStockSync(orderWithItems)
-      } else {
-        const { error } = await supabase
-          .from('orders')
-          .update({ status: nextStatus })
-          .eq('id', order.id)
-
-        if (error) throw error
-      }
-
-      toast.push(
-        nextStatus === 'completed' && stockSynced
-          ? 'Pesanan selesai dan stok produk disesuaikan'
-          : 'Status pesanan diperbarui',
-        { type: 'success' }
-      )
-      void loadOrder({ background: true, silent: true })
-    } catch (error) {
-      console.error('updateTrackingOrderStatus', error)
-      if (isSchemaCompatibilityError(error)) {
-        toast.push('Database belum memakai workflow status terbaru. Jalankan migration foundation terlebih dahulu.', { type: 'error' })
-        return
-      }
-      toast.push(error.message || 'Gagal mengubah status pesanan', { type: 'error' })
-    } finally {
-      setBusyAction('')
-    }
+  function updateOrderStatus(nextStatus) {
+    return mutateOrder('status', nextStatus)
   }
 
   useEffect(() => {
@@ -338,6 +240,7 @@ export default function OrderTrackingPage() {
     }, 30000)
 
     return () => {
+      loadRequestRef.current += 1
       window.clearInterval(intervalId)
       try {
         supabase.removeChannel(orderChannel)
@@ -622,7 +525,7 @@ export default function OrderTrackingPage() {
       } else {
         vendorMarkerRef.current.setLatLng(latLng)
       }
-      vendorMarkerRef.current.bindPopup(`<strong>${vendor?.name || 'Pedagang'}</strong><br/>${vendorLocationLabel}`)
+      vendorMarkerRef.current.bindPopup(`<strong>${escapeMapText(vendor?.name || 'Pedagang')}</strong><br/>${escapeMapText(vendorLocationLabel)}`)
       points.push(latLng)
     } else if (vendorMarkerRef.current) {
       map.removeLayer(vendorMarkerRef.current)
@@ -642,7 +545,7 @@ export default function OrderTrackingPage() {
       } else {
         customerMarkerRef.current.setLatLng(latLng)
       }
-      customerMarkerRef.current.bindPopup(`<strong>Pelanggan</strong><br/>${customerLocationLabel}`)
+      customerMarkerRef.current.bindPopup(`<strong>Pelanggan</strong><br/>${escapeMapText(customerLocationLabel)}`)
       points.push(latLng)
     } else if (customerMarkerRef.current) {
       map.removeLayer(customerMarkerRef.current)
@@ -708,7 +611,7 @@ export default function OrderTrackingPage() {
   const hasVendorTrackingActions = isVendorViewer && (vendorStatusActions.length > 0 || paymentActions.length > 0)
   const operationalNotice = getOrderOperationalNotice(order, isVendorViewer ? 'vendor' : 'customer')
   const paymentReferenceDetails = getVendorPaymentMethodDetails(
-    vendor?.payment_details || order.vendor_payment_details_snapshot,
+    getOrderPaymentDetails(order, vendor),
     order.payment_method
   )
   const canShowReviewComposer = canBuyerReviewOrder(order, user?.id)
@@ -736,7 +639,7 @@ export default function OrderTrackingPage() {
                 <button
                   key={action.value}
                   onClick={() => updatePaymentStatus(action.value)}
-                  disabled={busyAction === `payment:${action.value}`}
+                  disabled={Boolean(busyAction)}
                   className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-medium leading-tight ${
                     action.tone === 'danger'
                       ? 'border border-red-200 bg-red-50 text-red-600'
@@ -778,7 +681,7 @@ export default function OrderTrackingPage() {
                 <button
                   key={action.value}
                   type="button"
-                  disabled={action.disabled || busyAction === `status:${action.value}`}
+                  disabled={action.disabled || Boolean(busyAction)}
                   onClick={() => updateOrderStatus(action.value)}
                   title={action.disabledReason || action.label}
                   className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
@@ -800,7 +703,7 @@ export default function OrderTrackingPage() {
                   key={action.value}
                   type="button"
                   onClick={() => updatePaymentStatus(action.value)}
-                  disabled={busyAction === `payment:${action.value}`}
+                  disabled={Boolean(busyAction)}
                   className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
                     action.tone === 'danger'
                       ? 'border border-red-300/30 bg-red-400/10 text-red-100 hover:bg-red-400/20'

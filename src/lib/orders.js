@@ -101,10 +101,10 @@ export function getOrderTimingHint(orderTiming = 'asap') {
 }
 
 export function getVendorPaymentActions(order) {
-  if (!order) return []
+  if (!order || !isActiveOrderStatus(order.status)) return []
 
   if (order.payment_method === 'cod') {
-    if (['arrived', 'completed'].includes(order.status) && order.payment_status !== 'paid') {
+    if (order.status === 'arrived' && order.payment_status === 'unpaid') {
       return [{ value: 'paid', label: 'Tandai COD Lunas', tone: 'success' }]
     }
 
@@ -146,7 +146,7 @@ export function getVendorStatusTransitionBlockReason(order, nextStatus) {
 }
 
 export function getOrderOperationalNotice(order, viewerRole = 'customer') {
-  if (!order) return ''
+  if (!order || !isActiveOrderStatus(order.status)) return ''
 
   if (requiresPrepaidConfirmation(order) && !isPaymentConfirmed(order)) {
     return viewerRole === 'vendor'
@@ -165,6 +165,7 @@ export function getOrderOperationalNotice(order, viewerRole = 'customer') {
 
 export function getBuyerPaymentActions(order) {
   if (!order) return []
+  if (!['pending', 'accepted', 'preparing'].includes(order.status)) return []
   if (!['qris', 'bank_transfer', 'ewallet'].includes(order.payment_method)) return []
 
   if (order.payment_status === 'unpaid') {
@@ -180,6 +181,14 @@ export function getBuyerPaymentActions(order) {
 
 export function getPaymentGuidance(order, viewerRole = 'customer') {
   if (!order) return ''
+  if (['cancelled', 'rejected'].includes(order.status)) {
+    return ['paid', 'pending_confirmation'].includes(order.payment_status)
+      ? 'Pesanan berakhir. Jika dana sudah terkirim, hubungi pedagang untuk pengembalian.'
+      : ''
+  }
+  if (order.status === 'completed') {
+    return order.payment_status === 'paid' ? 'Pembayaran sudah dikonfirmasi.' : 'Pesanan sudah selesai.'
+  }
   const paymentMethodLabel = formatPaymentMethodLabel(order.payment_method)
 
   if (order.payment_method === 'cod') {
@@ -210,6 +219,12 @@ export function getPaymentGuidance(order, viewerRole = 'customer') {
     default:
       return 'Status pembayaran akan diperbarui setelah transaksi diproses.'
   }
+}
+
+export function getOrderPaymentDetails(order, vendor) {
+  const snapshot = order?.vendor_payment_details_snapshot
+  // Existing orders keep the payment destination agreed at checkout.
+  return snapshot && Object.keys(snapshot).length > 0 ? snapshot : vendor?.payment_details
 }
 
 export function getOrderStatusTone(status) {

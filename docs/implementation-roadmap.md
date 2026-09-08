@@ -28,6 +28,8 @@ Artinya roadmap berikutnya tidak perlu lagi terlalu lebar. Fokus kita sekarang a
 
 ## Prioritas 1: Core Flow Stability
 
+Pembaruan kode terbaru: sesi tidak mereset halaman saat token diperbarui, aksi transaksi disatukan dan dilindungi dari klik berulang, serta pengurangan stok hanya melalui RPC. Lihat [langkah penerapan dan uji dua perangkat](./stability-update.md). Prioritas ini belum dianggap selesai sebelum pengujian pada Supabase dan dua perangkat dilakukan.
+
 Tujuan:
 
 - memastikan alur transaksi inti benar-benar stabil di dua device dan di mobile
@@ -47,6 +49,8 @@ Acceptance criteria:
 - tidak ada refresh visual yang mengganggu di chat, pesanan, dan tracking
 
 ## Prioritas 2: Production Readiness
+
+Popup tracking dan tooltip heatmap sudah melindungi teks pengguna dari interpretasi HTML. Guard pembayaran untuk order berakhir tersedia sebagai migration tambahan. Pemeriksaan kode dan unit test tidak menggantikan pengujian RLS/trigger pada database aktif.
 
 Tujuan:
 

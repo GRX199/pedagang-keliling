@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import AdminPanel from '../components/AdminPanel'
 import ChatWorkspace from '../components/ChatWorkspace'
@@ -6,6 +6,7 @@ import OrderReviewComposer from '../components/OrderReviewComposer'
 import VendorProductsManager from '../components/VendorProductsManager'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
+import { saveOrderChange } from '../lib/order-mutations'
 import { uploadImageFile } from '../lib/media'
 import { getGeolocationErrorMessage } from '../lib/network'
 import {
@@ -73,6 +74,9 @@ function OrdersPanel({ currentUser, role }) {
   const [historyQuery, setHistoryQuery] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [expandedOrderIds, setExpandedOrderIds] = useState([])
+  const [busyOrderIds, setBusyOrderIds] = useState([])
+  const pendingOrdersRef = useRef(new Set())
+  const loadRequestRef = useRef(0)
   const isVendor = role === 'vendor'
   const customerName = currentUser?.user_metadata?.full_name || currentUser?.email || 'Pelanggan'
 
@@ -121,6 +125,7 @@ function OrdersPanel({ currentUser, role }) {
 
   async function fetchOrders({ background = false, silent = false } = {}) {
     if (!currentUser || !role) return
+    const requestId = ++loadRequestRef.current
 
     if (background) {
       setRefreshing(true)
@@ -192,16 +197,16 @@ function OrdersPanel({ currentUser, role }) {
         }
       }
 
-      setOrders(nextOrders)
+      if (requestId === loadRequestRef.current) setOrders(nextOrders)
     } catch (error) {
+      if (requestId !== loadRequestRef.current) return
       console.error('fetchOrders', error)
       if (!silent) {
         toast.push(error.message || 'Gagal memuat pesanan', { type: 'error' })
       }
     } finally {
-      if (background) {
+      if (requestId === loadRequestRef.current) {
         setRefreshing(false)
-      } else {
         setLoading(false)
       }
     }
@@ -229,6 +234,7 @@ function OrdersPanel({ currentUser, role }) {
     }, 30000)
 
     return () => {
+      loadRequestRef.current += 1
       window.clearInterval(intervalId)
       try {
         supabase.removeChannel(channel)
@@ -238,127 +244,31 @@ function OrdersPanel({ currentUser, role }) {
     }
   }, [currentUser, isVendor, role])
 
-  async function decrementProductStockForOrder(order) {
-    const itemRows = Array.isArray(order?.order_items) ? order.order_items : []
-    const quantityByProductId = itemRows.reduce((accumulator, item) => {
-      if (!item?.product_id) return accumulator
-      const quantity = Number(item.quantity) || 0
-      if (quantity <= 0) return accumulator
-      accumulator[item.product_id] = (accumulator[item.product_id] || 0) + quantity
-      return accumulator
-    }, {})
-    const productIds = Object.keys(quantityByProductId)
-    if (productIds.length === 0) return false
-
-    const { data: productsData, error: productsError } = await supabase
-      .from('products')
-      .select('id, vendor_id, stock, is_available')
-      .eq('vendor_id', order.vendor_id)
-      .in('id', productIds)
-
-    if (productsError) throw productsError
-
-    const stockUpdates = (productsData || [])
-      .map((product) => {
-        if (product.stock === null || typeof product.stock === 'undefined' || product.stock === '') return null
-        const currentStock = Number(product.stock)
-        if (!Number.isFinite(currentStock)) return null
-
-        const nextStock = Math.max(0, currentStock - (quantityByProductId[product.id] || 0))
-        return {
-          productId: product.id,
-          payload: {
-            stock: nextStock,
-            is_available: nextStock > 0 ? product.is_available !== false : false,
-          },
-        }
-      })
-      .filter(Boolean)
-
-    for (const update of stockUpdates) {
-      const { error } = await supabase
-        .from('products')
-        .update(update.payload)
-        .eq('id', update.productId)
-        .eq('vendor_id', order.vendor_id)
-
-      if (error) throw error
-    }
-
-    return stockUpdates.length > 0
-  }
-
-  async function completeOrderWithStockSync(order) {
-    if (!order?.id) return false
-
+  async function mutateOrder(order, field, value) {
+    if (!order?.id || pendingOrdersRef.current.has(order.id)) return
+    pendingOrdersRef.current.add(order.id)
+    setBusyOrderIds((current) => [...current, order.id])
     try {
-      const { error } = await supabase.rpc('complete_order_and_decrement_stock', {
-        target_order_id: order.id,
-      })
-
-      if (error) throw error
-      return true
-    } catch (rpcError) {
-      if (!isSchemaCompatibilityError(rpcError)) throw rpcError
-      console.info('complete_order_and_decrement_stock belum tersedia, memakai fallback client.', rpcError)
-    }
-
-    const { error } = await supabase
-      .from('orders')
-      .update({ status: 'completed' })
-      .eq('id', order.id)
-      .neq('status', 'completed')
-
-    if (error) throw error
-
-    return decrementProductStockForOrder(order)
-  }
-
-  async function updateStatus(orderOrId, status) {
-    const order = orderOrId && typeof orderOrId === 'object' ? orderOrId : null
-    const orderId = order?.id || orderOrId
-
-    try {
-      let stockSynced = false
-
-      if (status === 'completed' && order && order.status !== 'completed') {
-        stockSynced = await completeOrderWithStockSync(order)
-      } else {
-        const { error } = await supabase.from('orders').update({ status }).eq('id', orderId)
-        if (error) throw error
-      }
-
-      toast.push(
-        status === 'completed' && stockSynced
-          ? 'Pesanan selesai dan stok produk disesuaikan'
-          : 'Status pesanan diperbarui',
-        { type: 'success' }
-      )
-      void fetchOrders({ background: true, silent: true })
+      const updated = await saveOrderChange(supabase, order, field, value, currentUser?.id)
+      loadRequestRef.current += 1
+      setOrders((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item))
+      toast.push(field === 'payment_status' ? 'Status pembayaran diperbarui' : 'Status pesanan diperbarui', { type: 'success' })
     } catch (error) {
-      console.error('updateStatus', error)
-      if (isSchemaCompatibilityError(error)) {
-        toast.push('Database belum memakai workflow status terbaru. Jalankan migration foundation terlebih dahulu.', { type: 'error' })
-        return
-      }
-      toast.push(error.message || 'Gagal mengubah status pesanan', { type: 'error' })
+      console.error('mutateOrder', error)
+      toast.push(error.message || 'Gagal memperbarui pesanan', { type: 'error' })
+    } finally {
+      await fetchOrders({ background: true, silent: true })
+      pendingOrdersRef.current.delete(order.id)
+      setBusyOrderIds((current) => current.filter((orderId) => orderId !== order.id))
     }
   }
 
-  async function updatePaymentStatus(orderId, paymentStatus) {
-    try {
-      const { error } = await supabase.from('orders').update({ payment_status: paymentStatus }).eq('id', orderId)
-      if (error) throw error
-      toast.push('Status pembayaran diperbarui', { type: 'success' })
-      void fetchOrders({ background: true, silent: true })
-    } catch (error) {
-      console.error('updatePaymentStatus', error)
-      if (isSchemaCompatibilityError(error)) {
-        toast.push('Database belum memuat flow pembayaran terbaru. Jalankan migration foundation lalu coba lagi.', { type: 'error' })
-        return
-      }
-      toast.push(error.message || 'Gagal memperbarui status pembayaran', { type: 'error' })
-    }
+  function updateStatus(order, status) {
+    return mutateOrder(order, 'status', status)
+  }
+
+  function updatePaymentStatus(orderId, paymentStatus) {
+    return mutateOrder(orders.find((order) => order.id === orderId), 'payment_status', paymentStatus)
   }
 
   function renderOrderItems(order) {
@@ -413,7 +323,7 @@ function OrdersPanel({ currentUser, role }) {
           ? 'Aksi'
           : 'Detail'
     const actionButtonBase = 'rounded-full px-4 py-2.5 text-center text-sm font-medium leading-tight transition'
-    const detailActionButtonBase = 'w-full rounded-xl px-3 py-2 text-center text-sm font-medium leading-tight transition sm:w-auto'
+    const detailActionButtonBase = 'w-full rounded-xl px-3 py-2 text-center text-sm font-medium leading-tight transition disabled:cursor-wait disabled:opacity-60 sm:w-auto'
 
     return (
       <div
@@ -515,7 +425,7 @@ function OrdersPanel({ currentUser, role }) {
                 {isVendor && vendorStatusActions.map((action) => (
                   <button
                     key={action.value}
-                    disabled={action.disabled}
+                    disabled={action.disabled || busyOrderIds.includes(order.id)}
                     onClick={() => updateStatus(order, action.value)}
                     title={action.disabledReason || action.label}
                     className={`${detailActionButtonBase} ${
@@ -536,6 +446,7 @@ function OrdersPanel({ currentUser, role }) {
                   <button
                     key={action.value}
                     onClick={() => updatePaymentStatus(order.id, action.value)}
+                    disabled={busyOrderIds.includes(order.id)}
                     className={`${detailActionButtonBase} ${
                       action.tone === 'danger'
                         ? 'border border-red-200 bg-red-50 text-red-600'
@@ -549,6 +460,7 @@ function OrdersPanel({ currentUser, role }) {
                 {!isVendor && order.status === 'pending' && (
                   <button
                     onClick={() => updateStatus(order, 'cancelled')}
+                    disabled={busyOrderIds.includes(order.id)}
                     className={`${detailActionButtonBase} border border-red-200 bg-red-50 text-red-600 hover:bg-red-100`}
                   >
                     Batalkan
@@ -559,6 +471,7 @@ function OrdersPanel({ currentUser, role }) {
                   <button
                     key={action.value}
                     onClick={() => updatePaymentStatus(order.id, action.value)}
+                    disabled={busyOrderIds.includes(order.id)}
                     className={`${detailActionButtonBase} bg-slate-900 text-white hover:bg-slate-800`}
                   >
                     {action.label}
