@@ -4,6 +4,13 @@
 
 :root {
   color-scheme: light;
+  --brand-ink: #102a43;
+  --brand-teal: #0f766e;
+  --brand-mint: #dff7f0;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --line: rgba(148, 163, 184, 0.24);
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.06);
   --app-bg:
     radial-gradient(circle at top left, rgba(14, 165, 233, 0.08), transparent 26%),
     linear-gradient(180deg, #f8fafc 0%, #f1f5f9 58%, #f8fafc 100%);
@@ -25,6 +32,8 @@ body {
   background: var(--app-bg);
   color: var(--app-text);
   font-family: "Aptos", "Trebuchet MS", "Gill Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -38,12 +47,105 @@ select {
   box-sizing: border-box;
 }
 
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+a[role="button"] {
+  touch-action: manipulation;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(14, 165, 233, 0.34);
+  outline-offset: 2px;
+}
+
+input,
+textarea,
+select {
+  color: var(--app-text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #cbd5e1;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: padding-box;
+}
+
 ::selection {
   background: rgba(15, 23, 42, 0.12);
 }
 
 .leaflet-container {
   background: #dfe9f2;
+  font-family: inherit;
+  z-index: 0;
+}
+
+.leaflet-control-zoom a {
+  color: var(--brand-ink) !important;
+  font-weight: 700;
+}
+
+.leaflet-control-attribution {
+  border-radius: 8px 0 0 0;
+  padding: 2px 6px !important;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.84) !important;
+  backdrop-filter: blur(8px);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+}
+
+.leaflet-popup-content-wrapper {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+@media (max-width: 1023px) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  button,
+  a {
+    min-height: 40px;
+  }
+
+  .leaflet-control-zoom a {
+    min-height: 30px;
+  }
 }
 
 .tracking-map {
