@@ -4,11 +4,11 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster'
 import VendorProductsPreview from '../components/VendorProductsPreview'
+import MapSearchFilters from '../components/MapSearchFilters'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
 import { escapeMapText } from '../lib/map-popup'
 import {
-  formatFavoriteCountLabel,
   isFavoritesSchemaCompatibilityError,
   normalizeFavoriteVendorIds,
 } from '../lib/favorites'
@@ -31,7 +31,6 @@ import {
   getVendorPromoText,
   isVendorPresenceFresh,
   isVendorPromoActive,
-  VENDOR_PRESENCE_MAX_AGE_MS,
 } from '../lib/vendor'
 
 const DEFAULT_CENTER = [-2.5489, 118.0149]
@@ -46,11 +45,6 @@ const RELAXED_GEOLOCATION_OPTIONS = {
   timeout: 18000,
   maximumAge: 120000,
 }
-const RATING_FILTER_OPTIONS = [
-  { value: 'all', label: 'Semua rating' },
-  { value: '4', label: '4.0+' },
-  { value: '4.5', label: '4.5+' },
-]
 
 const DefaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -101,14 +95,6 @@ function formatDistanceLabel(distanceMeters) {
   if (typeof distanceMeters !== 'number') return 'Aktifkan lokasi untuk melihat jarak'
   if (distanceMeters < 1000) return `${Math.round(distanceMeters)} m dari Anda`
   return `${(distanceMeters / 1000).toFixed(1)} km dari Anda`
-}
-
-function getViewerLocationStatus(userLocation) {
-  if (!userLocation) {
-    return 'Belum aktif. Gunakan tombol lokasi pada peta agar jarak pedagang bisa dihitung otomatis.'
-  }
-
-  return 'Lokasi Anda aktif dan sudah dipakai untuk menghitung pedagang terdekat.'
 }
 
 function normalizeCategoryValue(value) {
@@ -354,7 +340,6 @@ export default function MapViewPage() {
   const [onlyFavoriteVendors, setOnlyFavoriteVendors] = useState(false)
   const [onlyPromoVendors, setOnlyPromoVendors] = useState(false)
   const [favoriteBusyVendorId, setFavoriteBusyVendorId] = useState(null)
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [showAllVendors, setShowAllVendors] = useState(false)
   const [demandOrders, setDemandOrders] = useState([])
   const [showDemandHeatmap, setShowDemandHeatmap] = useState(true)
@@ -1301,7 +1286,6 @@ export default function MapViewPage() {
 
   const myVendorRow = vendors.find((vendor) => vendor.id === myVendorId)
   const toggleLabel = myVendorRow?.online ? 'Jadikan Offline' : 'Jadikan Online'
-  const presenceTimeoutMinutes = Math.max(1, Math.round(VENDOR_PRESENCE_MAX_AGE_MS / 60000))
   const myVendorPresenceLabel = myVendorRow?.online
     ? formatVendorPresenceAge(myVendorRow, presenceClock)
     : 'Offline'
@@ -1320,8 +1304,6 @@ export default function MapViewPage() {
   const selectedVendorPresenceTone = selectedVendor
     ? getVendorPresenceTone(selectedVendor, presenceClock)
     : 'stale'
-  const selectedCategoryLabel = categoryOptions.find((option) => option.value === selectedCategory)?.label || 'Semua kategori'
-  const selectedRatingFilterLabel = RATING_FILTER_OPTIONS.find((option) => option.value === selectedRatingFilter)?.label || 'Semua rating'
   const emptyVendorStateMessage = onlyFavoriteVendors && onlyPromoVendors
     ? favoriteVendorCount > 0
       ? promoVendorCount > 0
@@ -1337,25 +1319,15 @@ export default function MapViewPage() {
           ? 'Belum ada pedagang dengan promo aktif yang cocok dengan filter ini.'
           : 'Belum ada pedagang yang sedang menjalankan promo aktif saat ini.'
         : 'Belum ada pedagang online yang cocok dengan pencarian Anda.'
-  const activeFilterSummary = onlyFavoriteVendors && onlyPromoVendors
-    ? 'Difokuskan ke pedagang favorit dengan promo aktif.'
-    : onlyFavoriteVendors
-      ? `Difokuskan ke ${formatFavoriteCountLabel(favoriteVendorCount)} yang Anda simpan.`
-      : onlyPromoVendors
-        ? `Menampilkan ${promoVendorCount} toko dengan promo aktif.`
-        : selectedCategory !== 'all'
-          ? `Difokuskan ke kategori ${formatVendorCategoryLabel(selectedCategoryLabel)}.`
-          : selectedRatingFilter !== 'all'
-            ? `Menampilkan toko dengan rating ${selectedRatingFilterLabel}.`
-            : 'Sesuai pencarian dan filter yang aktif.'
-  const activeFilterCount = [
-    selectedCategory !== 'all',
-    selectedRatingFilter !== 'all',
-    onlyWithinRadius,
-    onlyFavoriteVendors,
-    onlyPromoVendors,
-  ].filter(Boolean).length
-  const hasActiveSearchOrFilter = Boolean(query.trim()) || activeFilterCount > 0
+  function changeVendorFilter(name, value) {
+    const setters = {
+      query: setQuery, category: setSelectedCategory, rating: setSelectedRatingFilter,
+      radius: setRadiusKm, withinRadius: setOnlyWithinRadius, promo: setOnlyPromoVendors,
+      favorites: setOnlyFavoriteVendors,
+    }
+    setters[name]?.(value)
+    setShowAllVendors(false)
+  }
 
   function resetVendorFilters() {
     setQuery('')
@@ -1364,13 +1336,13 @@ export default function MapViewPage() {
     setOnlyFavoriteVendors(false)
     setOnlyPromoVendors(false)
     setOnlyWithinRadius(false)
-    setShowAdvancedFilters(false)
+    setShowAllVendors(false)
   }
   return (
     <div className="min-h-screen bg-transparent">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-3 py-4 sm:px-4 sm:py-6">
         {isVendor ? (
-          <section className="order-1 rounded-[22px] bg-slate-950 p-3 text-white shadow-sm ring-1 ring-slate-800 sm:p-4">
+          <section className="order-1 min-w-0 rounded-[22px] border border-teal-900 bg-gradient-to-br from-teal-950 to-slate-900 p-3 text-white shadow-sm sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1390,21 +1362,24 @@ export default function MapViewPage() {
 
               <button
                 onClick={toggleMyOnlineStatus}
-                className="shrink-0 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300"
+                disabled={myVendorRow?.__updating}
+                className="min-h-11 shrink-0 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-60"
               >
                 {myVendorRow?.__updating ? 'Menyimpan...' : toggleLabel}
               </button>
             </div>
 
-            <div className="mt-3 flex gap-2 overflow-x-auto border-t border-white/10 pt-3">
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 sm:flex sm:flex-wrap">
                 <button
                   onClick={syncStoreLocationNow}
+                  disabled={syncingStoreLocation}
                   className="shrink-0 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/15"
                 >
                   {syncingStoreLocation ? 'Sinkron...' : 'Sinkron Lokasi'}
                 </button>
                 <button
                   onClick={() => setShowDemandHeatmap((current) => !current)}
+                  aria-pressed={Boolean(showDemandHeatmap && demandInsights.hotspotCount)}
                   disabled={!demandInsights.hotspotCount}
                   className={`shrink-0 rounded-xl px-3 py-2 text-sm font-medium transition ${
                     showDemandHeatmap && demandInsights.hotspotCount
@@ -1414,144 +1389,24 @@ export default function MapViewPage() {
                 >
                   {showDemandHeatmap && demandInsights.hotspotCount ? 'Area ramai aktif' : 'Area ramai'}
                 </button>
-                <span className="hidden self-center text-xs text-slate-400 sm:inline">
-                  Lokasi kadaluarsa setelah sekitar {presenceTimeoutMinutes} menit tanpa update.
-                </span>
             </div>
           </section>
         ) : null}
 
-        <section className={`${isVendor ? 'order-3' : 'order-2'} rounded-[22px] bg-white/95 p-3 shadow-sm ring-1 ring-slate-200/80 backdrop-blur sm:p-4`}>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-            <label className="min-w-0">
-              <span className="sr-only">Cari pedagang atau produk</span>
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Cari pedagang atau produk..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
-              />
-            </label>
-
-              <button
-                onClick={() => setShowAdvancedFilters((current) => !current)}
-                className={`shrink-0 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                  showAdvancedFilters
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-              </button>
-          </div>
-
-          <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-slate-500">
-            <span className="font-medium text-slate-700">{filteredVendorCount} dari {onlineVendorCount} toko online</span>
-            {userLocation ? <span>• {onlineVendorsWithinRadius.length} dekat</span> : null}
-            <span className="hidden truncate sm:inline">• {activeFilterSummary}</span>
-            {hasActiveSearchOrFilter ? (
-              <button type="button" onClick={resetVendorFilters} className="ml-auto shrink-0 font-medium text-slate-700 hover:text-slate-950">
-                Reset
-              </button>
-            ) : null}
-          </div>
-
-          {showAdvancedFilters && (
-            <div className="mt-3 border-t border-slate-100 pt-3">
-              <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-                <button
-                  onClick={() => setOnlyWithinRadius((current) => !current)}
-                  className={`shrink-0 rounded-full px-3 py-2 text-xs font-medium transition ${onlyWithinRadius ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}
-                >
-                  Dalam radius
-                </button>
-                {isCustomerViewer ? (
-                  <button
-                    onClick={() => setOnlyPromoVendors((current) => !current)}
-                    className={`shrink-0 rounded-full px-3 py-2 text-xs font-medium transition ${onlyPromoVendors ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-700'}`}
-                  >
-                    Promo
-                  </button>
-                ) : null}
-                {isCustomerViewer && favoriteFeatureEnabled ? (
-                  <button
-                    onClick={() => setOnlyFavoriteVendors((current) => !current)}
-                    disabled={favoriteVendorCount === 0 && !onlyFavoriteVendors}
-                    className={`shrink-0 rounded-full px-3 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${onlyFavoriteVendors ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-700'}`}
-                  >
-                    Favorit
-                  </button>
-                ) : null}
-              </div>
-              <div className="grid gap-3 lg:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                <div className="font-medium text-slate-800">Kategori</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setSelectedCategory('all')}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      selectedCategory === 'all'
-                        ? 'bg-slate-900 text-white'
-                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    Semua
-                  </button>
-                  {categoryOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setSelectedCategory(option.value)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                        selectedCategory === option.value
-                          ? 'bg-emerald-600 text-white'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {formatVendorCategoryLabel(option.label)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                <div className="font-medium text-slate-800">Rating</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {RATING_FILTER_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setSelectedRatingFilter(option.value)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                        selectedRatingFilter === option.value
-                          ? 'bg-amber-500 text-white'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <label className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                <div className="font-medium text-slate-800">Radius pencarian</div>
-                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                  <input
-                    type="number"
-                    min="0.1"
-                    step="0.1"
-                    value={radiusKm}
-                    onChange={(event) => setRadiusKm(Number(event.target.value || 0))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none focus:border-slate-400"
-                  />
-                  <span className="text-xs text-slate-500">km</span>
-                </div>
-                <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                  {getViewerLocationStatus(userLocation)}
-                </div>
-              </label>
-              </div>
-            </div>
-          )}
+        <section className={isVendor ? 'order-3 min-w-0' : 'order-2 min-w-0'} aria-label="Pencarian pedagang">
+          <MapSearchFilters
+            filters={{ query, category: selectedCategory, rating: selectedRatingFilter, radius: radiusKm, withinRadius: onlyWithinRadius, promo: onlyPromoVendors, favorites: onlyFavoriteVendors }}
+            onChange={changeVendorFilter}
+            onReset={resetVendorFilters}
+            categories={categoryOptions}
+            customer={isCustomerViewer}
+            favoritesEnabled={favoriteFeatureEnabled}
+            favoritesCount={favoriteVendorCount}
+            totalCount={onlineVendorCount}
+            resultCount={filteredVendorCount}
+            nearbyCount={onlineVendorsWithinRadius.length}
+            locationAvailable={Boolean(userLocation)}
+          />
         </section>
 
         <section className={`${isVendor ? 'order-4' : 'order-3'} grid min-w-0 max-w-full gap-4 xl:grid-cols-[minmax(0,1.35fr)_380px]`}>
