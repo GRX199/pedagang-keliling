@@ -6,7 +6,7 @@ export let fixtureOrder = {
   vendor_name: 'Pak Sayur Keliling Tikala', buyer_name: 'Ani', service_flow: 'pickup_v1',
   status: params.get('status') || 'pending', fulfillment_type: params.get('method') || 'customer_courier',
   meeting_point_label: 'Gerbang pasar Tikala, di samping pos dekat jalan utama',
-  meeting_point_location: { lat: 1.474, lng: 124.846 }, payment_method: 'bank_transfer',
+  meeting_point_location: { lat: 1.474, lng: 124.846 }, payment_method: params.get('paymethod') || 'bank_transfer',
   payment_status: params.get('payment') || 'unpaid', total_amount: 15000, pickup_contact_name: 'Ani',
   collector_name: null, vendor_payment_details_snapshot: { bank_account_number: '123456789', bank_name: 'Bank Contoh', bank_account_name: 'Pak Sayur' },
 }
@@ -51,9 +51,9 @@ export const supabase = {
       fixtureOrder = { ...fixtureOrder, status: 'pending', fulfillment_type: args.target_fulfillment_type, meeting_point_label: args.target_meeting_point_label }
     } else if (name === 'update_pickup_details') {
       fixtureOrder = { ...fixtureOrder, ...(args.target_point ? { meeting_point_label: args.target_point, meeting_point_location: null } : { collector_name: args.target_collector }) }
-    } else if (name === 'confirm_pickup_handover') {
-      if (user.id !== fixtureOrder.vendor_id || fixtureOrder.status !== 'ready' || fixtureOrder.payment_status !== 'paid') return { data: { error: 'Pesanan belum bisa diselesaikan.' }, error: null }
-      fixtureOrder = { ...fixtureOrder, status: 'completed' }
+    } else if (name === 'complete_pickup_order') {
+      if (user.id !== fixtureOrder.vendor_id || fixtureOrder.status !== 'ready' || (fixtureOrder.payment_method !== 'cod' && fixtureOrder.payment_status !== 'paid')) return { data: { error: 'Pesanan belum bisa diselesaikan.' }, error: null }
+      fixtureOrder = { ...fixtureOrder, status: 'completed', payment_status: 'paid' }
     }
     window.pickupFixture.updates++
     return { data: { ...fixtureOrder }, error: null }

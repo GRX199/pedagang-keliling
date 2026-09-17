@@ -30,7 +30,7 @@ describe('pickup flow', () => {
       expect(getVendorPaymentActions({ ...order, status, payment_method: 'qris', payment_status: 'pending_confirmation' })).toEqual([])
     }
     expect(getBuyerPaymentActions({ ...order, status: 'ready', payment_method: 'qris' })[0].value).toBe('pending_confirmation')
-    expect(getVendorPaymentActions({ ...order, status: 'ready' })[0].value).toBe('paid')
+    expect(getVendorPaymentActions({ ...order, status: 'ready' })).toEqual([])
   })
   it('refuses forbidden client mutations without sending a request', async () => {
     const client = { rpc: vi.fn(), from: vi.fn() }

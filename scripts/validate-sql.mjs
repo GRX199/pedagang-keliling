@@ -9,6 +9,7 @@ const migrationFiles = [
   'supabase/order-payment-guard.sql',
   'supabase/pickup-flow.sql',
   'supabase/pickup-simple-handover.sql',
+  'supabase/pickup-cod-progress.sql',
 ]
 
 for (const file of migrationFiles) {

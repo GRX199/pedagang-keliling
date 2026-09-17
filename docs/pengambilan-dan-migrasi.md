@@ -1,5 +1,9 @@
 # Pengambilan Kelilingku: implementasi dan aktivasi
 
+## Progres Utama Dan COD
+
+Jalankan `supabase/pickup-cod-progress.sql` setelah `pickup-simple-handover.sql`, sebelum deploy pembaruan ini. Pedagang pickup tidak lagi memiliki tombol konfirmasi COD terpisah. Pada status siap, tombol Selesaikan pesanan berada di bagian progres utama. Konfirmasi terakhir secara eksplisit menyatakan barang sudah diserahkan dan uang diterima. Satu RPC mengunci pesanan, mencatat COD lunas, lalu menyelesaikan pesanan dalam transaksi yang sama; kegagalan membatalkan seluruh perubahan. Pengulangan tidak mengurangi stok dua kali. Pembayaran non-tunai tetap harus diperiksa terlebih dahulu; pesanan legacy mempertahankan alur lamanya.
+
 ## Checkout Ringkas
 
 Pilihan waktu dihapus dari checkout baru; payload selalu `asap` tanpa jadwal. Ambil sendiri membaca GPS satu kali saat pelanggan mengirim pesanan (dengan izin browser), sebagai lokasi acuan pelanggan saat memesan, bukan kewajiban antar pedagang. Jika GPS ditolak atau gagal, pesanan tetap bisa dikirim tanpa koordinat dan pengambilan dikoordinasikan lewat chat. Kurir tidak meminta GPS atau input lokasi; payload koordinat kosong, dengan keterangan mengambil ke pedagang. Peta kurir hanya menampilkan pedagang, bukan posisi kurir. Perubahan checkout ini tidak membutuhkan SQL tambahan; persyaratan migrasi serah terima tanpa kode di bawah tetap berlaku.

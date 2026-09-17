@@ -82,6 +82,12 @@ try {
   await page.getByRole('button', { name: 'Ya, sudah diserahkan', exact: true }).click()
   await page.getByRole('heading', { name: 'Selesai', exact: true }).waitFor()
   assert.equal(await page.evaluate(() => window.pickupFixture.updates), 1, 'handover without code or collector form')
+  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?role=vendor&status=ready&paymethod=cod')
+  assert.equal(await page.getByRole('button', { name: 'Tandai COD Lunas' }).count(), 0)
+  await page.getByRole('button', { name: 'Selesaikan pesanan', exact: true }).click()
+  await page.getByRole('button', { name: 'Ya, selesaikan pesanan', exact: true }).click()
+  await page.getByRole('heading', { name: 'Selesai', exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => window.pickupFixture.updates), 1, 'COD and completion use one RPC')
   for (const width of [375, 1366]) {
     await page.setViewportSize({ width, height: 850 })
     await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=store&role=buyer')

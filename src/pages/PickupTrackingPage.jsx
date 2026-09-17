@@ -113,6 +113,16 @@ export default function PickupTrackingPage({ initialOrder }) {
             {buyer && order.status === 'pending' && <button className={`${button} text-rose-700`} disabled={busy || !!loadError} onClick={() => change('status', 'cancelled')}>Batalkan permintaan</button>}
             {active && <Link className={button} to={`/chat/${buyer ? order.vendor_id : order.buyer_id}?order=${order.id}`}>Chat {buyer ? 'pedagang' : 'pelanggan'}</Link>}
           </div>
+          {merchant && order.status === 'ready' && <div className="space-y-2">
+            {order.payment_method !== 'cod' && order.payment_status !== 'paid' && <p className="text-sm text-slate-600">Konfirmasi pembayaran lunas sebelum menyelesaikan pesanan.</p>}
+            {!confirmingHandover ? <button className={`${button} bg-teal-700 text-white`} disabled={busy || !!loadError || order.payment_method !== 'cod' && order.payment_status !== 'paid'} onClick={() => setConfirmingHandover(true)}>Selesaikan pesanan</button> : <>
+              <p className="text-sm font-medium">{order.payment_method === 'cod' ? 'Barang sudah diserahkan dan uang COD sudah diterima?' : 'Barang sudah diserahkan kepada pelanggan atau kurirnya?'}</p>
+              <div className="flex flex-wrap gap-2">
+                <button className={`${button} bg-teal-700 text-white`} disabled={busy || !!loadError || order.payment_method !== 'cod' && order.payment_status !== 'paid'} onClick={() => run(() => rpc('complete_pickup_order', {}))}>{order.payment_method === 'cod' ? 'Ya, selesaikan pesanan' : 'Ya, sudah diserahkan'}</button>
+                <button className={button} disabled={busy} onClick={() => setConfirmingHandover(false)}>Belum</button>
+              </div>
+            </>}
+          </div>}
         </section>
         <section className={panel}>
           <h2 className="font-semibold">{automaticPickupLocation || courierPickup ? 'Pengambilan' : order.status === 'pending' ? 'Usulan titik pengambilan' : 'Titik pengambilan'}</h2>
@@ -135,16 +145,7 @@ export default function PickupTrackingPage({ initialOrder }) {
               <label className="block text-sm">Nama pengambil<input required maxLength={100} value={collectorDraft ?? order.collector_name ?? ''} onChange={event => setCollectorDraft(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><button className={button} disabled={busy || !!loadError}>Simpan nama</button>
             </form>
           </details>}
-          {merchant && <div className="space-y-2">
-            {order.payment_status !== 'paid' && <p className="text-sm text-slate-600">Konfirmasi pembayaran lunas sebelum menyelesaikan pesanan.</p>}
-            {!confirmingHandover ? <button className={`${button} bg-teal-700 text-white`} disabled={busy || !!loadError || order.payment_status !== 'paid'} onClick={() => setConfirmingHandover(true)}>Selesaikan pesanan</button> : <>
-              <p className="text-sm font-medium">Barang sudah diserahkan kepada pelanggan atau kurirnya?</p>
-              <div className="flex flex-wrap gap-2">
-                <button className={`${button} bg-teal-700 text-white`} disabled={busy || !!loadError || order.payment_status !== 'paid'} onClick={() => run(() => rpc('confirm_pickup_handover', {}))}>Ya, sudah diserahkan</button>
-                <button className={button} disabled={busy} onClick={() => setConfirmingHandover(false)}>Belum</button>
-              </div>
-            </>}
-          </div>}
+
         </section>}
         {order.status === 'completed' && <section className={panel}><OrderReviewComposer order={order} existingReview={review} viewerId={user?.id} buyerName={order.buyer_name} compact onSaved={setReview} /></section>}
       </div>

@@ -114,6 +114,7 @@ export function getVendorPaymentActions(order) {
   if (isPickupOrder(order) && !['accepted', 'ready'].includes(order.status)) return []
 
   if (order.payment_method === 'cod') {
+    if (isPickupOrder(order)) return []
     if (order.status === (isPickupOrder(order) ? 'ready' : 'arrived') && order.payment_status === 'unpaid') {
       return [{ value: 'paid', label: 'Tandai COD Lunas', tone: 'success' }]
     }
@@ -209,7 +210,7 @@ export function getPaymentGuidance(order, viewerRole = 'customer') {
   const paymentMethodLabel = formatPaymentMethodLabel(order.payment_method)
   if (isPickupOrder(order) && order.status === 'pending') return 'Bayar setelah titik pengambilan disetujui.'
   if (isPickupOrder(order) && order.payment_method === 'cod' && order.payment_status !== 'paid') {
-    return viewerRole === 'vendor' ? 'Tandai lunas setelah menerima pembayaran saat pengambilan.' : 'Bayar barang saat diambil. Untuk kurir, sepakati pembayaran barang lewat chat.'
+    return viewerRole === 'vendor' ? 'Selesaikan pesanan setelah barang diserahkan dan uang diterima. COD tercatat lunas sekaligus.' : 'Bayar barang saat diambil. Untuk kurir, sepakati pembayaran barang lewat chat.'
   }
 
   if (order.payment_method === 'cod') {
