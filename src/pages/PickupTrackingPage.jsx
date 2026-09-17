@@ -31,6 +31,8 @@ export default function PickupTrackingPage({ initialOrder }) {
   const buyer = order.buyer_id === user?.id
   const merchant = order.vendor_id === user?.id
   const active = ['pending', 'accepted', 'ready'].includes(order.status)
+  const automaticPickupLocation = order.meeting_point_label?.startsWith('Lokasi pelanggan saat memesan;') || order.meeting_point_label?.startsWith('Pelanggan mengambil ke pedagang;')
+  const courierPickup = order.fulfillment_type === 'customer_courier'
   const payment = getVendorPaymentMethodDetails(getOrderPaymentDetails(order, vendor), order.payment_method)
 
   async function refresh() {
@@ -113,17 +115,17 @@ export default function PickupTrackingPage({ initialOrder }) {
           </div>
         </section>
         <section className={panel}>
-          <h2 className="font-semibold">{order.status === 'pending' ? 'Usulan titik pengambilan' : 'Titik pengambilan'}</h2>
+          <h2 className="font-semibold">{automaticPickupLocation || courierPickup ? 'Pengambilan' : order.status === 'pending' ? 'Usulan titik pengambilan' : 'Titik pengambilan'}</h2>
           <p className="break-words">{order.meeting_point_label}</p>
           <p className="text-sm text-slate-600">{formatFulfillmentTypeLabel(order.fulfillment_type)}{order.point_confirmed_at ? ' · Disetujui pedagang' : ''}</p>
           {order.requested_fulfillment_at && <p className="text-sm">Waktu usulan: {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}</p>}
-          {buyer && order.status === 'pending' && <details><summary className="cursor-pointer py-2 text-sm text-teal-800">Ubah usulan titik</summary>
+          {buyer && order.status === 'pending' && !automaticPickupLocation && !courierPickup && <details><summary className="cursor-pointer py-2 text-sm text-teal-800">Ubah usulan titik</summary>
             <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); void run(() => rpc('update_pickup_details', { target_point: pointDraft ?? order.meeting_point_label, expected_point: order.meeting_point_label })) }}>
               <label className="block text-sm">Patokan titik<input required maxLength={240} value={pointDraft ?? order.meeting_point_label} onChange={event => setPointDraft(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label>
               <p className="text-xs text-slate-500">Mengubah patokan menghapus pin lama. Pilih titik yang sesuai rute pedagang.</p><button className={button} disabled={busy || !!loadError}>Simpan usulan</button>
             </form>
           </details>}
-          {['accepted', 'ready'].includes(order.status) && <p className="text-xs text-slate-500">Titik dikunci setelah persetujuan. Jika ada kendala, hubungi pihak lain lewat chat; jangan berpindah sepihak.</p>}
+          {['accepted', 'ready'].includes(order.status) && <p className="text-xs text-slate-500">Koordinasikan pengambilan dengan pedagang melalui chat.</p>}
         </section>
         {order.status === 'ready' && <section className={panel}>
           <h2 className="font-semibold">Serah terima barang</h2>
@@ -163,7 +165,7 @@ export default function PickupTrackingPage({ initialOrder }) {
           {order.customer_note && <p className="break-words text-sm">Catatan: {order.customer_note}</p>}
         </details>
       </aside>
-      {active && <div className="min-w-0 lg:col-span-2"><PickupLocationMap vendor={vendor} point={order.meeting_point_location} /></div>}
+      {active && <div className="min-w-0 lg:col-span-2"><PickupLocationMap vendor={vendor} point={courierPickup ? null : order.meeting_point_location} pointLabel={automaticPickupLocation ? 'Lokasi pelanggan saat memesan' : 'Titik pengambilan'} vendorOnly={courierPickup} /></div>}
     </div>
   </main>
 }

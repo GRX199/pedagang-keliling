@@ -3,7 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { getVendorCoordinates, isVendorPresenceFresh, formatVendorPresenceAge } from '../lib/vendor'
 
-export default function PickupLocationMap({ vendor, point }) {
+export default function PickupLocationMap({ vendor, point, pointLabel = 'Titik pengambilan', vendorOnly = false }) {
   const element = useRef(null)
   const mapRef = useRef(null)
   const layers = useRef(null)
@@ -32,7 +32,7 @@ export default function PickupLocationMap({ vendor, point }) {
     if (!map || !layers.current) return
     layers.current.clearLayers()
     const positions = []
-    for (const [coordinates, color, label] of [[vendorPoint, '#059669', 'Pedagang aktif'], [meetingPoint, '#0284c7', 'Titik pengambilan']]) {
+    for (const [coordinates, color, label] of [[vendorPoint, '#059669', 'Pedagang aktif'], [meetingPoint, '#0284c7', pointLabel]]) {
       if (!coordinates) continue
       const latlng = [coordinates.lat, coordinates.lng]
       positions.push(latlng)
@@ -44,16 +44,16 @@ export default function PickupLocationMap({ vendor, point }) {
       map.fitBounds(L.latLngBounds(positions), { padding: [36, 36], maxZoom: 16, animate: false })
       fitted.current = positions.length
     }
-  }, [vendorPoint?.lat, vendorPoint?.lng, meetingPoint?.lat, meetingPoint?.lng])
+  }, [vendorPoint?.lat, vendorPoint?.lng, meetingPoint?.lat, meetingPoint?.lng, pointLabel])
 
   let distance = null
   if (vendorPoint && meetingPoint && mapRef.current) distance = mapRef.current.distance([vendorPoint.lat, vendorPoint.lng], [meetingPoint.lat, meetingPoint.lng])
   return <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white">
     <div ref={element} className="relative isolate z-0 w-full" style={{ height: 'clamp(260px, 45vh, 420px)' }} aria-label="Peta pedagang dan titik pengambilan" />
     <div className="space-y-1 p-3 text-xs text-slate-600" aria-live="polite">
-      <p><span className="font-medium text-emerald-700">Hijau: pedagang</span> · <span className="font-medium text-sky-700">Biru: titik pengambilan</span></p>
+      <p><span className="font-medium text-emerald-700">Hijau: pedagang</span>{meetingPoint && <> · <span className="font-medium text-sky-700">Biru: {pointLabel.toLowerCase()}</span></>}</p>
       <p>{fresh ? `Pedagang: ${formatVendorPresenceAge(vendor, now)}` : 'Lokasi pedagang tidak aktif. Koordinasikan titik melalui chat.'}</p>
-      {!meetingPoint && <p>Titik pengambilan berupa patokan tertulis, belum ditandai pada peta.</p>}
+      {!meetingPoint && !vendorOnly && <p>Titik pengambilan berupa patokan tertulis, belum ditandai pada peta.</p>}
       {distance !== null && <p>Jarak garis lurus: {distance < 1000 ? `${Math.round(distance)} m` : `${(distance / 1000).toFixed(1)} km`}. Bukan rute perjalanan atau ETA.</p>}
       {tileError && <p role="alert">Gambar peta belum termuat. Periksa koneksi; patokan titik tetap tersedia di atas.</p>}
     </div>

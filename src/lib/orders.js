@@ -482,7 +482,7 @@ export function getCartTotals(entries) {
 }
 
 export function getMeetingPointPresetOptions(fulfillmentType = 'meetup') {
-  if (['self_pickup', 'customer_courier'].includes(fulfillmentType)) return [{ label: 'Usulkan lokasi saya', usesCurrentLocation: true }]
+  if (['self_pickup', 'customer_courier'].includes(fulfillmentType)) return []
   if (fulfillmentType === 'delivery') {
     return [
       { label: 'Gunakan lokasi saya saat ini', usesCurrentLocation: true },
@@ -507,7 +507,8 @@ export function getMeetingPointPlaceholder(fulfillmentType = 'meetup') {
 }
 
 export function getFulfillmentTypeHint(fulfillmentType = 'meetup') {
-  if (['self_pickup', 'customer_courier'].includes(fulfillmentType)) return 'Pilih titik sesuai rute pedagang. Pedagang tidak wajib mengantar; tunggu persetujuan dan barang siap.'
+  if (fulfillmentType === 'self_pickup') return 'Ambil barang langsung ke pedagang setelah pesanan siap.'
+  if (fulfillmentType === 'customer_courier') return 'Kurir Anda mengambil barang ke pedagang setelah pesanan siap. Tidak perlu memasukkan lokasi kurir.'
   return fulfillmentType === 'delivery'
     ? 'Gunakan alamat atau patokan yang paling mudah dikenali pedagang. Lokasi saat ini bisa dipakai untuk memperjelas titik antar.'
     : 'Pilih titik temu yang mudah ditemukan. Anda bisa pakai lokasi saat ini agar tracking lebih akurat.'

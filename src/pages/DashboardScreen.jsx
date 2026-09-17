@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { VENDOR_CATEGORIES } from '../lib/vendor-categories'
 import { useLocation, useNavigate } from 'react-router-dom'
 import AdminPanel from '../components/AdminPanel'
 import ChatWorkspace from '../components/ChatWorkspace'
@@ -1204,12 +1205,16 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                 />
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <input
+                  <select
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3"
                     value={form.category_primary}
                     onChange={(event) => setForm((current) => ({ ...current, category_primary: event.target.value }))}
-                    placeholder="Kategori utama, misalnya bakso atau sayur"
-                  />
+                    aria-label="Kategori dagangan"
+                  >
+                    <option value="">Pilih kategori dagangan</option>
+                    {form.category_primary && !VENDOR_CATEGORIES.some(category => category.label === form.category_primary) && <option value={form.category_primary}>{form.category_primary} (kategori lama)</option>}
+                    {VENDOR_CATEGORIES.map(category => <option key={category.id} value={category.label}>{category.label}</option>)}
+                  </select>
                   <input
                     type="number"
                     min="0"

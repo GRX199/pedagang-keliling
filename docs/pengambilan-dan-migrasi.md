@@ -1,5 +1,9 @@
 # Pengambilan Kelilingku: implementasi dan aktivasi
 
+## Checkout Ringkas
+
+Pilihan waktu dihapus dari checkout baru; payload selalu `asap` tanpa jadwal. Ambil sendiri membaca GPS satu kali saat pelanggan mengirim pesanan (dengan izin browser), sebagai lokasi acuan pelanggan saat memesan, bukan kewajiban antar pedagang. Jika GPS ditolak atau gagal, pesanan tetap bisa dikirim tanpa koordinat dan pengambilan dikoordinasikan lewat chat. Kurir tidak meminta GPS atau input lokasi; payload koordinat kosong, dengan keterangan mengambil ke pedagang. Peta kurir hanya menampilkan pedagang, bukan posisi kurir. Perubahan checkout ini tidak membutuhkan SQL tambahan; persyaratan migrasi serah terima tanpa kode di bawah tetap berlaku.
+
 ## Pembaruan 17 September: Tanpa Kode
 
 Aturan terbaru menggantikan persyaratan kode dalam dokumentasi historis di bawah. Pedagang memilih **Selesaikan pesanan**, lalu **Ya, sudah diserahkan**. Pelanggan tidak perlu mencari kode. Nama kurir opsional, sedangkan ambil sendiri memakai nama pelanggan. Pembayaran tetap harus lunas dan status harus siap diambil. Penyelesaian hanya oleh pedagang pemilik yang aktif, waktu serah terima dicatat, dan stok berkurang satu kali. Konfirmasi ini adalah pernyataan pedagang, bukan verifikasi identitas dengan kode.

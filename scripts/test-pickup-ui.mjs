@@ -22,6 +22,16 @@ try {
   await server.listen()
   browser = await chromium.launch({ headless: true })
   const page = await browser.newPage()
+  await page.addInitScript(() => {
+    window.gpsCalls = 0
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: {
+      getCurrentPosition(success, failure) {
+        window.gpsCalls++
+        if (new URLSearchParams(location.search).get('gps') === 'denied') failure({ code: 1 })
+        else success({ coords: { latitude: 1.474, longitude: 124.846, accuracy: 10 } })
+      },
+    } })
+  })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   // No production APIs, accounts, tiles, or third-party data are contacted by this test.
@@ -45,7 +55,7 @@ try {
     }
   }
   await page.setViewportSize({ width: 375, height: 850 })
-  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?role=buyer&status=pending')
+  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?role=buyer&status=pending&method=self_pickup')
   await page.getByText('Ubah usulan titik', { exact: true }).click()
   await page.getByLabel('Patokan titik').fill('Titik baru dekat pasar')
   await page.evaluate(() => window.pickupFixture.refresh())
@@ -78,10 +88,12 @@ try {
     await page.getByRole('button', { name: 'Tambah', exact: true }).click()
     await page.getByRole('button', { name: 'Kurir pelanggan', exact: true }).click()
     await page.getByLabel('Nama pelanggan yang mengatur pengambilan').fill('Ani')
-    await page.getByLabel('Usulan titik pengambilan').fill('Gerbang pasar')
+    assert.equal(await page.getByLabel('Usulan titik pengambilan').count(), 0)
+    assert.equal(await page.locator('input[type="datetime-local"]').count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Nanti', exact: true }).count(), 0)
     await page.evaluate(() => window.pickupFixture.refresh())
-    assert.equal(await page.getByLabel('Usulan titik pengambilan').inputValue(), 'Gerbang pasar')
-    assert(await page.getByLabel('Usulan titik pengambilan').evaluate(element => element === document.activeElement), 'vendor GPS refresh preserves checkout focus')
+    assert.equal(await page.getByLabel('Nama pelanggan yang mengatur pengambilan').inputValue(), 'Ani')
+    assert(await page.getByLabel('Nama pelanggan yang mengatur pengambilan').evaluate(element => element === document.activeElement), 'vendor GPS refresh preserves checkout focus')
     await page.getByRole('button', { name: 'Kirim permintaan', exact: true }).click()
     assert.equal(await page.evaluate(() => window.pickupFixture.updates), 0, 'courier without consent is not submitted')
     await page.getByRole('checkbox').check()
@@ -91,9 +103,25 @@ try {
     await page.getByRole('heading', { name: 'Permintaan tersimpan' }).waitFor()
     const checkout = await page.evaluate(() => window.pickupFixture.checkout)
     assert.equal(checkout.target_fulfillment_type, 'customer_courier')
+    assert.equal(checkout.target_meeting_point_location, null, 'courier has no location')
+    assert.equal(await page.evaluate(() => window.gpsCalls), 0, 'courier never requests GPS')
+    assert.equal(checkout.target_order_timing, 'asap')
+    assert.equal(checkout.target_requested_fulfillment_at, null)
     assert.equal(checkout.target_customer_location, null, 'no implicit customer location storage')
     assert.equal(checkout.target_items[0].quantity, 1)
     assert.equal(await page.evaluate(() => window.pickupFixture.updates), 1, 'single atomic checkout call')
+  }
+  for (const gps of ['allowed', 'denied']) {
+    await page.goto(`http://127.0.0.1:5197/tests/ui/pickup.html?view=store&role=buyer&gps=${gps}`)
+    await page.getByRole('button', { name: 'Tambah', exact: true }).click()
+    await page.getByLabel('Nama pelanggan yang mengatur pengambilan').fill('Ani')
+    await page.getByRole('button', { name: 'Kirim permintaan', exact: true }).click()
+    await page.getByRole('heading', { name: 'Permintaan tersimpan' }).waitFor()
+    const checkout = await page.evaluate(() => window.pickupFixture.checkout)
+    assert.equal(await page.evaluate(() => window.gpsCalls), 1)
+    assert.equal(checkout.target_fulfillment_type, 'self_pickup')
+    if (gps === 'allowed') assert.equal(checkout.target_meeting_point_location.lat, 1.474)
+    else assert.equal(checkout.target_meeting_point_location, null, 'denied GPS never creates fake coordinates')
   }
   assert.deepEqual(errors, [], 'no page runtime errors')
   console.log('PASS: 48 viewport/role/status layouts, 2 checkout layouts, draft/focus/map persistence, offline privacy, vendor actions and atomic checkout UI. Mock services, not hosted UAT.')

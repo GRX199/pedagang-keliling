@@ -9,6 +9,7 @@ import { formatMobility } from '../lib/pickup'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
 import { escapeMapText } from '../lib/map-popup'
+import { getVendorCategoryDefinition, getVendorMarkerOptions, VENDOR_CATEGORIES } from '../lib/vendor-categories'
 import {
   isFavoritesSchemaCompatibilityError,
   normalizeFavoriteVendorIds,
@@ -46,16 +47,6 @@ const RELAXED_GEOLOCATION_OPTIONS = {
   timeout: 18000,
   maximumAge: 120000,
 }
-
-const DefaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-})
-
-L.Marker.prototype.options.icon = DefaultIcon
 
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const toRad = (value) => (value * Math.PI) / 180
@@ -103,7 +94,7 @@ function normalizeCategoryValue(value) {
 }
 
 function getVendorCategory(vendor) {
-  return String(vendor?.category_primary || vendor?.map_category || '').trim()
+  return getVendorCategoryDefinition(vendor?.category_primary || vendor?.map_category).label
 }
 
 function getVendorSearchText(vendor) {
@@ -960,7 +951,7 @@ export default function MapViewPage() {
   )
 
   const categoryOptions = useMemo(() => {
-    const categoryMap = new Map()
+    const categoryMap = new Map(VENDOR_CATEGORIES.map(category => [category.label.toLowerCase(), category.label]))
 
     for (const vendor of onlineVendors) {
       const rawCategory = getVendorCategory(vendor)
@@ -1051,7 +1042,12 @@ export default function MapViewPage() {
       const coordinates = getVendorCoordinates(vendor.location)
       if (!coordinates) return
 
-      const marker = L.marker([coordinates.lat, coordinates.lng])
+      const category = getVendorCategory(vendor)
+      const marker = L.marker([coordinates.lat, coordinates.lng], {
+        icon: L.divIcon(getVendorMarkerOptions(category)),
+        title: `${vendor.name || 'Pedagang'} - ${category}`,
+        alt: `${vendor.name || 'Pedagang'} - ${category}`,
+      })
       const isOwnVendor = isVendor && vendor.id === myVendorId
       const isFavorite = favoriteVendorIdSet.has(vendor.id)
       const popupActions = isOwnVendor
