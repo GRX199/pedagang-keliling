@@ -36,7 +36,9 @@ try {
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `horizontal overflow ${width}/${role}/${status}`)
         if (status === 'ready') {
           assert(await page.getByRole('heading', { name: 'Serah terima barang' }).isVisible())
-          if (role === 'vendor') assert(await page.getByRole('button', { name: 'Konfirmasi serah terima' }).isDisabled())
+          assert.equal(await page.getByText('Lihat kode pengambilan').count(), 0)
+          assert.equal(await page.getByLabel('Kode dari pengambil').count(), 0)
+          if (role === 'vendor') assert(await page.getByRole('button', { name: 'Selesaikan pesanan', exact: true }).isDisabled())
         }
         if (width === 375 && status === 'ready') await page.screenshot({ path: `test-results/pickup/${role}-375.png`, fullPage: true })
       }
@@ -62,6 +64,14 @@ try {
   await page.getByRole('button', { name: 'Barang siap diambil' }).click()
   await page.getByRole('heading', { name: 'Serah terima barang' }).waitFor()
   assert.equal(await page.evaluate(() => window.pickupFixture.updates), 2, 'one mutation per action')
+  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?role=vendor&status=ready&payment=paid')
+  await page.getByRole('button', { name: 'Selesaikan pesanan', exact: true }).click()
+  await page.getByRole('button', { name: 'Belum', exact: true }).click()
+  assert.equal(await page.evaluate(() => window.pickupFixture.updates), 0, 'cancel confirmation does not complete')
+  await page.getByRole('button', { name: 'Selesaikan pesanan', exact: true }).click()
+  await page.getByRole('button', { name: 'Ya, sudah diserahkan', exact: true }).click()
+  await page.getByRole('heading', { name: 'Selesai', exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => window.pickupFixture.updates), 1, 'handover without code or collector form')
   for (const width of [375, 1366]) {
     await page.setViewportSize({ width, height: 850 })
     await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=store&role=buyer')

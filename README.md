@@ -58,3 +58,5 @@ Prioritas pengembangan yang penting sekarang:
 Untuk database baru, jalankan SQL secara berurutan: `schema.sql`, `phase1-foundation.sql`, `admin-foundation.sql`, `production-hardening.sql`, `order-payment-guard.sql`, lalu `pickup-flow.sql`. Periksa hasil dengan `pickup-verification.sql`.
 
 Untuk database yang sudah berjalan, ikuti [panduan aktivasi](./docs/pengambilan-dan-migrasi.md), bukan mengulang seluruh SQL lama. Terapkan migrasi pengambilan sebelum mengaktifkan frontend baru. Pesanan lama tetap menggunakan alur legacy; pesanan baru memakai ambil sendiri atau kurir yang diatur pelanggan.
+
+Pembaruan tanpa kode: jalankan `supabase/pickup-simple-handover.sql` setelah `pickup-flow.sql` sebelum deployment terbaru. Pedagang menyelesaikan pesanan melalui konfirmasi serah terima, tanpa mengetik kode.

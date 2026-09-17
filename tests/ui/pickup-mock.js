@@ -52,7 +52,7 @@ export const supabase = {
     } else if (name === 'update_pickup_details') {
       fixtureOrder = { ...fixtureOrder, ...(args.target_point ? { meeting_point_label: args.target_point, meeting_point_location: null } : { collector_name: args.target_collector }) }
     } else if (name === 'confirm_pickup_handover') {
-      if (args.target_code !== 'A1B2C3D4E5') return { data: { error: 'Kode tidak cocok.' }, error: null }
+      if (user.id !== fixtureOrder.vendor_id || fixtureOrder.status !== 'ready' || fixtureOrder.payment_status !== 'paid') return { data: { error: 'Pesanan belum bisa diselesaikan.' }, error: null }
       fixtureOrder = { ...fixtureOrder, status: 'completed' }
     }
     window.pickupFixture.updates++

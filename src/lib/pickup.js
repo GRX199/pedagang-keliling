@@ -14,7 +14,7 @@ export const pickupStatusLabel = (order) => PICKUP_LABELS[order?.status] || orde
 export function pickupActions(order) {
   if (order.status === 'pending') return [{ value: 'accepted', label: 'Setujui titik', tone: 'primary' }, { value: 'rejected', label: 'Tolak', tone: 'danger' }]
   if (order.status === 'accepted') return [{ value: 'ready', label: 'Barang siap diambil', tone: 'primary' }]
-  // Final handover requires the code form in order details, never a blind status update.
+  // Final handover uses the merchant confirmation RPC, never a direct status update.
   return []
 }
 

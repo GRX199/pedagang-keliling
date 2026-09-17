@@ -161,8 +161,8 @@ export function getOrderOperationalNotice(order, viewerRole = 'customer') {
     if (order.status === 'pending') return 'Tunggu persetujuan titik sebelum berangkat atau membayar.'
     if (order.status === 'accepted') return 'Titik disetujui. Tunggu barang siap sebelum mengambil atau memesan kurir.'
     return viewerRole === 'vendor'
-      ? 'Cocokkan nama pengambil, terima pembayaran, lalu verifikasi kode saat menyerahkan barang.'
-      : 'Barang siap. Ambil di titik yang disepakati; berikan kode hanya saat menerima barang.'
+      ? 'Serahkan barang dan pastikan pembayaran lunas, lalu selesaikan pesanan.'
+      : 'Barang siap diambil di titik yang disepakati. Pedagang menyelesaikan pesanan setelah serah terima.'
   }
 
   if (requiresPrepaidConfirmation(order) && !isPaymentConfirmed(order)) {

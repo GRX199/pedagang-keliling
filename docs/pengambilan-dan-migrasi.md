@@ -1,5 +1,13 @@
 # Pengambilan Kelilingku: implementasi dan aktivasi
 
+## Pembaruan 17 September: Tanpa Kode
+
+Aturan terbaru menggantikan persyaratan kode dalam dokumentasi historis di bawah. Pedagang memilih **Selesaikan pesanan**, lalu **Ya, sudah diserahkan**. Pelanggan tidak perlu mencari kode. Nama kurir opsional, sedangkan ambil sendiri memakai nama pelanggan. Pembayaran tetap harus lunas dan status harus siap diambil. Penyelesaian hanya oleh pedagang pemilik yang aktif, waktu serah terima dicatat, dan stok berkurang satu kali. Konfirmasi ini adalah pernyataan pedagang, bukan verifikasi identitas dengan kode.
+
+Untuk database yang sudah dimigrasi sebelumnya, jalankan **hanya `supabase/pickup-simple-handover.sql`** di SQL Editor sebelum deployment frontend terbaru. Untuk instalasi baru, jalankan berkas tersebut setelah `pickup-flow.sql`. Jangan menjalankan ulang `pickup-flow.sql` setelahnya. Tabel kode lama dipertahankan sebagai kompatibilitas internal checkout, tetapi akses kode dari browser dicabut dan tidak digunakan untuk menyelesaikan pesanan.
+
+Uji dua perangkat: pesanan ready tetapi belum lunas tidak dapat selesai; setelah lunas tombol tersedia; memilih Belum tidak mengubah status; memilih Ya menyelesaikan pesanan tanpa input; pelanggan tidak memiliki tombol penyelesaian. Ulangi permintaan penyelesaian untuk memastikan stok tidak berkurang dua kali. Tes lama `supabase/tests/pickup-flow.sql` khusus keadaan sebelum migrasi ini; sesudahnya gunakan `supabase/tests/pickup-simple-handover.sql`.
+
 Tanggal: 16 September 2026. Dokumen ini menjelaskan perubahan aplikasi utama, bukan wireframe. Migrasi disiapkan dalam repositori dan diuji pada PostgreSQL lokal terisolasi. Belum diterapkan ke Supabase produksi dan belum diuji antardua perangkat fisik.
 
 ## Alur yang berlaku

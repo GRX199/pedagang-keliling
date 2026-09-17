@@ -20,8 +20,7 @@ export default function PickupTrackingPage({ initialOrder }) {
   const [vendor, setVendor] = useState(null)
   const [review, setReview] = useState(null)
   const [items, setItems] = useState([])
-  const [code, setCode] = useState('')
-  const [enteredCode, setEnteredCode] = useState('')
+  const [confirmingHandover, setConfirmingHandover] = useState(false)
   const [pointDraft, setPointDraft] = useState(null)
   const [collectorDraft, setCollectorDraft] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -37,16 +36,15 @@ export default function PickupTrackingPage({ initialOrder }) {
   async function refresh() {
     const version = ++request.current
     try {
-      const [o, v, i, r, secret] = await Promise.all([
+      const [o, v, i, r] = await Promise.all([
         supabase.from('orders').select('*').eq('id', initialOrder.id).single(),
         supabase.from('vendors').select('*').eq('id', initialOrder.vendor_id).maybeSingle(),
         supabase.from('order_items').select('*').eq('order_id', initialOrder.id).order('created_at'),
         supabase.from('reviews').select('*').eq('order_id', initialOrder.id).maybeSingle(),
-        buyer ? supabase.from('pickup_codes').select('code').eq('order_id', initialOrder.id).maybeSingle() : Promise.resolve({ data: null }),
       ])
       if (!mounted.current || version !== request.current) return
-      for (const result of [o, v, i, r, secret]) if (result.error) throw result.error
-      setOrder(o.data); setVendor(v.data); setItems(i.data || []); setReview(r.data); setCode(secret.data?.code || '')
+      for (const result of [o, v, i, r]) if (result.error) throw result.error
+      setOrder(o.data); setVendor(v.data); setItems(i.data || []); setReview(r.data)
       setLoadError('')
     } catch {
       if (mounted.current && version === request.current) {
@@ -77,7 +75,7 @@ export default function PickupTrackingPage({ initialOrder }) {
       if (!mounted.current) return
       request.current += 1
       setOrder(updated)
-      setPointDraft(null); setCollectorDraft(null); setEnteredCode('')
+      setPointDraft(null); setCollectorDraft(null); setConfirmingHandover(false)
       toast.push('Pesanan diperbarui', { type: 'success' })
     } catch (error) {
       if (mounted.current) toast.push(error.message || 'Perubahan belum tersimpan.', { type: 'error' })
@@ -129,18 +127,22 @@ export default function PickupTrackingPage({ initialOrder }) {
         </section>
         {order.status === 'ready' && <section className={panel}>
           <h2 className="font-semibold">Serah terima barang</h2>
-          <p className="break-words text-sm">Pengambil: {order.collector_name || 'Belum diisi pelanggan'}</p>
-          {buyer && <>
-            {order.fulfillment_type === 'customer_courier' && <p className="text-sm text-slate-600">Pesan kurir melalui aplikasi lain, lalu isi nama pengambil di sini. Biaya kurir di luar total barang; tidak ada pelacakan kurir di Kelilingku.</p>}
+          <p className="break-words text-sm">Pengambil: {order.collector_name || (order.fulfillment_type === 'self_pickup' ? order.pickup_contact_name || order.buyer_name : 'Kurir pelanggan')}</p>
+          {buyer && order.fulfillment_type === 'customer_courier' && <details><summary className="cursor-pointer py-2 text-sm text-teal-800">Tambah nama kurir (opsional)</summary>
             <form className="space-y-2" onSubmit={event => { event.preventDefault(); void run(() => rpc('update_pickup_details', { target_collector: collectorDraft ?? order.collector_name ?? '' })) }}>
               <label className="block text-sm">Nama pengambil<input required maxLength={100} value={collectorDraft ?? order.collector_name ?? ''} onChange={event => setCollectorDraft(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><button className={button} disabled={busy || !!loadError}>Simpan nama</button>
             </form>
-            {code && <details><summary className="cursor-pointer py-2 font-medium text-teal-800">Lihat kode pengambilan</summary><p className="my-2 break-all rounded-xl bg-teal-50 p-3 font-mono text-xl tracking-widest">{code}</p><p className="text-xs text-slate-600">Berikan kode hanya kepada pengambil yang ditunjuk. Pedagang memasukkannya ketika barang diserahkan.</p></details>}
-          </>}
-          {merchant && <form className="space-y-2" onSubmit={event => { event.preventDefault(); void run(() => rpc('confirm_pickup_handover', { target_code: enteredCode })) }}>
-            <label className="block text-sm">Kode dari pengambil<input required minLength={10} maxLength={10} autoComplete="off" autoCapitalize="characters" spellCheck={false} value={enteredCode} onChange={event => setEnteredCode(event.target.value.toUpperCase())} className="mt-1 w-full rounded-xl border p-3 font-mono" /></label>
-            <button className={`${button} bg-teal-700 text-white`} disabled={busy || !!loadError || order.payment_status !== 'paid' || !order.collector_name}>Konfirmasi serah terima</button>
-          </form>}
+          </details>}
+          {merchant && <div className="space-y-2">
+            {order.payment_status !== 'paid' && <p className="text-sm text-slate-600">Konfirmasi pembayaran lunas sebelum menyelesaikan pesanan.</p>}
+            {!confirmingHandover ? <button className={`${button} bg-teal-700 text-white`} disabled={busy || !!loadError || order.payment_status !== 'paid'} onClick={() => setConfirmingHandover(true)}>Selesaikan pesanan</button> : <>
+              <p className="text-sm font-medium">Barang sudah diserahkan kepada pelanggan atau kurirnya?</p>
+              <div className="flex flex-wrap gap-2">
+                <button className={`${button} bg-teal-700 text-white`} disabled={busy || !!loadError || order.payment_status !== 'paid'} onClick={() => run(() => rpc('confirm_pickup_handover', {}))}>Ya, sudah diserahkan</button>
+                <button className={button} disabled={busy} onClick={() => setConfirmingHandover(false)}>Belum</button>
+              </div>
+            </>}
+          </div>}
         </section>}
         {order.status === 'completed' && <section className={panel}><OrderReviewComposer order={order} existingReview={review} viewerId={user?.id} buyerName={order.buyer_name} compact onSaved={setReview} /></section>}
       </div>
