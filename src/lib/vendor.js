@@ -1,24 +1,25 @@
 export function getVendorCoordinates(location) {
   if (!location) return null
+  const valid = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
 
-  if (typeof location.lat === 'number' && typeof location.lng === 'number') {
+  if (valid(location.lat, location.lng)) {
     return { lat: location.lat, lng: location.lng }
   }
 
-  if (typeof location.latitude === 'number' && typeof location.longitude === 'number') {
+  if (valid(location.latitude, location.longitude)) {
     return { lat: location.latitude, lng: location.longitude }
   }
 
   if (location.type === 'Point' && Array.isArray(location.coordinates)) {
     const [lng, lat] = location.coordinates
-    if (typeof lat === 'number' && typeof lng === 'number') {
+    if (valid(lat, lng)) {
       return { lat, lng }
     }
   }
 
   if (Array.isArray(location.coordinates)) {
     const [lng, lat] = location.coordinates
-    if (typeof lat === 'number' && typeof lng === 'number') {
+    if (valid(lat, lng)) {
       return { lat, lng }
     }
   }
@@ -27,7 +28,7 @@ export function getVendorCoordinates(location) {
 }
 
 export function createLocationPayload({ lat, lng, accuracy = null }) {
-  if (typeof lat !== 'number' || typeof lng !== 'number') return null
+  if (!getVendorCoordinates({ lat, lng })) return null
 
   return {
     lat,
@@ -62,12 +63,12 @@ export function getVendorPresenceTime(vendor) {
 }
 
 export function isVendorPresenceFresh(vendor, now = Date.now()) {
-  if (!vendor?.online || !getVendorCoordinates(vendor.location)) return false
+  if (vendor?.is_verified !== true || !vendor?.online || !getVendorCoordinates(vendor.location)) return false
 
   const presenceTime = getVendorPresenceTime(vendor)
   if (!presenceTime) return false
 
-  return now - presenceTime <= VENDOR_PRESENCE_MAX_AGE_MS
+  return now - presenceTime >= -30000 && now - presenceTime <= VENDOR_PRESENCE_MAX_AGE_MS
 }
 
 export function formatVendorPresenceAge(vendor, now = Date.now()) {

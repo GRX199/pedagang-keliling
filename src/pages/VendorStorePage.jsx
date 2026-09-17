@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
+import { formatMobility, validatePickupRequest } from '../lib/pickup'
 import { findOrCreateDirectChat, sendChatMessage } from '../lib/conversations'
 import {
   isFavoritesSchemaCompatibilityError,
@@ -10,9 +11,6 @@ import {
 } from '../lib/favorites'
 import {
   buildOrderChatMessage,
-  buildOrderInsertPayload,
-  buildOrderItemRows,
-  buildOrderItemsText,
   formatOrderTimingLabel,
   formatPriceLabel,
   formatPaymentMethodLabel,
@@ -32,7 +30,6 @@ import {
   formatVendorCategoryLabel,
   getVendorPaymentMethodDetails,
   getVendorPaymentSetupSummary,
-  formatVendorServiceMode,
   formatVendorServiceRadius,
   getOperatingHoursText,
   getVendorPromoText,
@@ -62,6 +59,7 @@ function getProductStockLabel(product) {
 
 function isProductOrderable(product) {
   const stock = getManagedStockNumber(product)
+  if (product?.price === null || product?.price === undefined) return false
   if (product?.is_available === false) return false
   if (stock !== null && stock <= 0) return false
   return true
@@ -105,8 +103,11 @@ export default function VendorStorePage() {
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState({})
   const [submittingOrder, setSubmittingOrder] = useState(false)
+  const submitLock = useRef(false)
   const [paymentMethod, setPaymentMethod] = useState('cod')
-  const [fulfillmentType, setFulfillmentType] = useState('meetup')
+  const [fulfillmentType, setFulfillmentType] = useState('self_pickup')
+  const [pickupContact, setPickupContact] = useState('')
+  const [courierConsent, setCourierConsent] = useState(false)
   const [orderTiming, setOrderTiming] = useState('asap')
   const [requestedFulfillmentAt, setRequestedFulfillmentAt] = useState('')
   const [meetingPointLabel, setMeetingPointLabel] = useState('')
@@ -122,6 +123,9 @@ export default function VendorStorePage() {
   const [expandedProductNoteIds, setExpandedProductNoteIds] = useState({})
 
   const isOwner = user?.id === id
+  useEffect(() => {
+    setPickupContact(user?.user_metadata?.full_name || '')
+  }, [user?.id])
   const isFavorite = isVendorFavorited(favoriteVendorIds, id)
   const hasActivePromo = isVendorPromoActive(vendor)
 
@@ -129,9 +133,10 @@ export default function VendorStorePage() {
     if (!id) return undefined
 
     let active = true
-
+    let request = 0
+    setLoading(true)
     async function loadVendorStore() {
-      setLoading(true)
+      const version = ++request
       try {
         const [vendorResult, productsResult] = await Promise.all([
           supabase.from('vendors').select('*').eq('id', id).maybeSingle(),
@@ -159,14 +164,15 @@ export default function VendorStorePage() {
           }
         }
 
+        if (!active || version !== request) return
         setVendor(vendorResult.data || null)
         setProducts(productsResult.data || [])
         setReviews(nextReviews)
       } catch (error) {
         console.error('loadVendorStore', error)
-        if (active) toast.push(error.message || 'Gagal memuat profil pedagang', { type: 'error' })
+        if (active && version === request) toast.push(error.message || 'Gagal memuat profil pedagang', { type: 'error' })
       } finally {
-        if (active) setLoading(false)
+        if (active && version === request) setLoading(false)
       }
     }
 
@@ -398,6 +404,7 @@ export default function VendorStorePage() {
     }
 
     setMeetingPointLabel(preset.label)
+    setMeetingPointLocation(null)
   }
 
   async function toggleFavoriteVendor() {
@@ -459,6 +466,7 @@ export default function VendorStorePage() {
 
   async function submitOrder(event) {
     event.preventDefault()
+    if (submitLock.current) return
 
     if (!user) {
       toast.push('Silakan login terlebih dahulu untuk memesan', { type: 'info' })
@@ -491,159 +499,43 @@ export default function VendorStorePage() {
       return
     }
 
+    const invalidPickup = validatePickupRequest({ method: fulfillmentType, point: meetingPointLabel, collector: pickupContact, courierConsent })
+    if (invalidPickup) {
+      toast.push(invalidPickup, { type: 'error' })
+      return
+    }
+    submitLock.current = true
     setSubmittingOrder(true)
     try {
       const buyerName = user.user_metadata?.full_name || user.email || 'Pelanggan'
-      const customerLocation = await getCurrentLocationSnapshot()
-      const scheduleTimestamp = requestedFulfillmentAt
-        ? new Date(requestedFulfillmentAt).toISOString()
-        : null
-      const resolvedMeetingPointLocation = meetingPointLocation || customerLocation
-      const resolvedMeetingPointLabel = meetingPointLabel.trim() || (
-        fulfillmentType === 'delivery'
-          ? 'Lokasi pelanggan'
-          : 'Titik temu akan dikonfirmasi'
-      )
-
-      if (
-        orderTiming === 'preorder' &&
-        !meetingPointLabel.trim() &&
-        !meetingPointLocation &&
-        !customerLocation
-      ) {
-        toast.push('Untuk titip pesanan, isi area atau titik temu agar pedagang tahu rute tujuan Anda.', { type: 'error' })
-        setSubmittingOrder(false)
-        return
-      }
-
-      const orderPayload = buildOrderInsertPayload({
-        vendorId: id,
-        vendorName: vendor?.name || 'Pedagang',
-        buyerId: user.id,
-        buyerName,
-        entries: cartEntries,
-        paymentMethod,
-        fulfillmentType,
-        orderTiming,
-        requestedFulfillmentAt: scheduleTimestamp,
-        meetingPointLabel: resolvedMeetingPointLabel,
-        customerNote,
-        meetingPointLocation: resolvedMeetingPointLocation,
-        customerLocation,
-        vendorLocationSnapshot: vendor?.location || null,
+      const scheduleTimestamp = requestedFulfillmentAt ? new Date(requestedFulfillmentAt).toISOString() : null
+      const resolvedMeetingPointLabel = meetingPointLabel.trim()
+      const { data, error } = await supabase.rpc('create_pickup_order', {
+        target_vendor_id: id,
+        target_payment_method: paymentMethod,
+        target_fulfillment_type: fulfillmentType,
+        target_order_timing: orderTiming,
+        target_requested_fulfillment_at: scheduleTimestamp,
+        target_meeting_point_label: resolvedMeetingPointLabel,
+        target_meeting_point_location: meetingPointLocation,
+        target_customer_note: customerNote.trim() || null,
+        target_customer_location: null,
+        target_pickup_contact_name: pickupContact.trim(),
+        target_courier_consent: courierConsent,
+        target_items: cartEntries.map((entry) => ({
+          product_id: entry.product.id, quantity: entry.quantity, note: entry.note || null,
+        })),
       })
-
-      let createdOrder = null
-      let structuredOrderSaved = true
-      let orderCreatedByRpc = false
-      let directChat = null
+      if (error) {
+        if (isSchemaCompatibilityError(error)) throw new Error('Pemesanan pengambilan belum tersedia. Hubungi pengelola; pesanan belum dibuat.')
+        throw error
+      }
+      const createdOrder = Array.isArray(data) ? data[0] : data
+      if (!createdOrder?.id) throw new Error('Pesanan belum terkonfirmasi. Periksa halaman pesanan sebelum mencoba lagi.')
       const notes = []
+      let directChat = null
 
-      try {
-        const { data, error } = await supabase.rpc('create_order_with_items', {
-          target_vendor_id: id,
-          target_payment_method: paymentMethod,
-          target_fulfillment_type: fulfillmentType,
-          target_order_timing: orderTiming,
-          target_requested_fulfillment_at: scheduleTimestamp,
-          target_meeting_point_label: resolvedMeetingPointLabel,
-          target_meeting_point_location: resolvedMeetingPointLocation,
-          target_customer_note: customerNote.trim() || null,
-          target_customer_location: customerLocation,
-          target_items: cartEntries.map((entry) => ({
-            product_id: entry.product.id,
-            quantity: Number(entry.quantity) || 0,
-            note: entry.note || null,
-          })),
-        })
-
-        if (error) throw error
-        createdOrder = Array.isArray(data) ? data[0] : data
-        orderCreatedByRpc = true
-      } catch (error) {
-        if (!isSchemaCompatibilityError(error)) throw error
-
-        try {
-          const { data, error: insertError } = await supabase
-            .from('orders')
-            .insert([orderPayload])
-            .select()
-            .single()
-
-          if (insertError) throw insertError
-          createdOrder = data
-          notes.push('Database belum memakai checkout atomik. Jalankan production-hardening.sql sebelum production.')
-        } catch (compatibilityError) {
-          if (!isSchemaCompatibilityError(compatibilityError)) throw compatibilityError
-
-          if (orderTiming === 'preorder') {
-            throw new Error(
-              'Database belum memuat field pre-order. Jalankan migration terbaru agar titip pesanan bisa dipakai.',
-              { cause: compatibilityError }
-            )
-          }
-
-          try {
-            const compatibilityPayload = { ...orderPayload }
-            delete compatibilityPayload.customer_location
-            delete compatibilityPayload.vendor_location_snapshot
-            delete compatibilityPayload.order_timing
-            delete compatibilityPayload.requested_fulfillment_at
-
-            const { data, error: legacyError } = await supabase
-              .from('orders')
-              .insert([compatibilityPayload])
-              .select()
-              .single()
-
-            if (legacyError) throw legacyError
-            createdOrder = data
-            notes.push('Tracking dua titik akan aktif penuh setelah migration tracking terbaru dijalankan.')
-          } catch (legacyError) {
-            if (!isSchemaCompatibilityError(legacyError)) throw legacyError
-
-            structuredOrderSaved = false
-            const { data, error: fallbackError } = await supabase
-              .from('orders')
-              .insert([{
-                vendor_id: id,
-                vendor_name: vendor?.name || 'Pedagang',
-                buyer_id: user.id,
-                buyer_name: buyerName,
-                items: buildOrderItemsText(cartEntries),
-                status: 'pending',
-              }])
-              .select()
-              .single()
-
-            if (fallbackError) throw fallbackError
-            createdOrder = data
-            notes.push('Database masih memakai model order lama, jadi detail pembayaran dan titik temu belum tersimpan penuh.')
-          }
-        }
-      }
-
-      if (createdOrder?.id && !orderCreatedByRpc) {
-        try {
-          const orderItemsPayload = buildOrderItemRows({
-            orderId: createdOrder.id,
-            vendorId: id,
-            entries: cartEntries,
-          })
-
-          if (orderItemsPayload.length > 0) {
-            const { error: itemsError } = await supabase.from('order_items').insert(orderItemsPayload)
-            if (itemsError) throw itemsError
-          }
-        } catch (itemsError) {
-          console.error('submitOrder.orderItems', itemsError)
-          if (!isSchemaCompatibilityError(itemsError)) {
-            notes.push('Pesanan masuk, tetapi item order terstruktur belum tersimpan sempurna.')
-          }
-        }
-      }
-
-      let successMessage = 'Pesanan berhasil dikirim dan chat dibuka untuk tindak lanjut.'
+      let successMessage = 'Permintaan dikirim. Tunggu persetujuan titik dari pedagang.'
       try {
         directChat = await findOrCreateDirectChat(user.id, id)
         await sendChatMessage(directChat.id, user.id, buildOrderChatMessage({
@@ -663,28 +555,16 @@ export default function VendorStorePage() {
       }
 
       clearCart()
-      if (!structuredOrderSaved) {
-        setPaymentMethod('cod')
-        setFulfillmentType('meetup')
-      }
-      if (!customerLocation) {
-        notes.push('Lokasi pelanggan belum ikut tersimpan, jadi tracking peta hanya akan memakai data yang tersedia saat ini.')
-      }
-      if (orderTiming === 'preorder') {
-        notes.push('Pesanan ini dicatat sebagai titip untuk nanti, jadi pedagang bisa menyesuaikan area dan waktu yang Anda minta lewat chat.')
-      }
-      if (paymentMethod !== 'cod') {
-        notes.push('Buka chat atau detail pesanan untuk mengirim konfirmasi pembayaran setelah pembayaran non-tunai dilakukan.')
-      }
       if (notes.length > 0) {
         successMessage = `${successMessage} ${notes.join(' ')}`
       }
       toast.push(successMessage, { type: notes.length > 0 ? 'info' : 'success' })
-      navigate(createdOrder?.id ? `/chat/${vendor.id}?order=${createdOrder.id}` : `/chat/${vendor.id}`)
+      navigate(`/orders/${createdOrder.id}`)
     } catch (error) {
       console.error('submitOrder', error)
       toast.push(error.message || 'Gagal mengirim pesanan', { type: 'error' })
     } finally {
+      submitLock.current = false
       setSubmittingOrder(false)
     }
   }
@@ -752,7 +632,11 @@ export default function VendorStorePage() {
               <h2 className="font-semibold text-slate-900">Info Toko</h2>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
                 <div>Kategori: {formatVendorCategoryLabel(vendor.category_primary)}</div>
-                <div>Mode layanan: {formatVendorServiceMode(vendor.service_mode)}</div>
+                <div>Pengambilan di titik disepakati</div>
+                <div>{formatMobility(vendor.mobility_type)}</div>
+                {vendor.service_area && <div className="break-words">Area: {vendor.service_area}</div>}
+                {vendor.route_description && <div className="break-words">Rute: {vendor.route_description}</div>}
+                {vendor.stopping_points && <div className="break-words">Titik berhenti: {vendor.stopping_points}</div>}
                 <div>Area layanan: {formatVendorServiceRadius(vendor.service_radius_km)}</div>
                 <div>Jam operasional: {getOperatingHoursText(vendor.operating_hours)}</div>
                 <div>Lokasi: {getStoreLocationStatus(vendor.location)}</div>
@@ -985,8 +869,8 @@ export default function VendorStorePage() {
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 p-3 sm:p-4">
-                      <div className="text-sm font-medium text-slate-900">Serah Terima</div>
-                      <div className="mt-2 hidden text-sm text-slate-500 sm:block">
+                      <div className="text-sm font-medium text-slate-900">Pengambilan</div>
+                      <div className="mt-2 text-sm text-slate-500">
                         {getFulfillmentTypeHint(fulfillmentType)}
                       </div>
                       {orderTiming === 'preorder' && (
@@ -997,28 +881,36 @@ export default function VendorStorePage() {
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          onClick={() => setFulfillmentType('meetup')}
+                          onClick={() => setFulfillmentType('self_pickup')}
                           className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
-                            fulfillmentType === 'meetup'
+                            fulfillmentType === 'self_pickup'
                               ? 'bg-emerald-600 text-white'
                               : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                           }`}
                         >
-                          Titik Temu
+                          Ambil sendiri
                         </button>
                         <button
                           type="button"
-                          onClick={() => setFulfillmentType('delivery')}
+                          onClick={() => setFulfillmentType('customer_courier')}
                           className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
-                            fulfillmentType === 'delivery'
+                            fulfillmentType === 'customer_courier'
                               ? 'bg-emerald-600 text-white'
                               : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                           }`}
                         >
-                          Antar
+                          Kurir pelanggan
                         </button>
                       </div>
 
+                      <label className="mt-3 block text-sm text-slate-700">
+                        Nama pelanggan yang mengatur pengambilan
+                        <input value={pickupContact} maxLength={100} onChange={(event) => setPickupContact(event.target.value)} className="mt-1 w-full rounded-xl border p-3" autoComplete="name" />
+                      </label>
+                      {fulfillmentType === 'customer_courier' && <label className="mt-3 flex items-start gap-2 text-sm text-slate-600">
+                        <input type="checkbox" checked={courierConsent} onChange={(event) => setCourierConsent(event.target.checked)} className="mt-1" />
+                        <span>Saya memesan dan membayar kurir di aplikasi lain setelah barang siap. Kelilingku tidak menyediakan kurir atau tarifnya.</span>
+                      </label>}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {getMeetingPointPresetOptions(fulfillmentType).map((preset) => (
                           <button
@@ -1035,7 +927,9 @@ export default function VendorStorePage() {
 
                       <input
                         value={meetingPointLabel}
-                        onChange={(event) => setMeetingPointLabel(event.target.value)}
+                        aria-label="Usulan titik pengambilan"
+                        maxLength={240}
+                        onChange={(event) => { setMeetingPointLabel(event.target.value); setMeetingPointLocation(null) }}
                         className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
                         placeholder={
                           orderTiming === 'preorder'
@@ -1099,8 +993,8 @@ export default function VendorStorePage() {
                           {submittingOrder
                             ? 'Mengirim Pesanan...'
                             : orderTiming === 'preorder'
-                              ? 'Titip & Chat'
-                              : 'Pesan & Chat'}
+                              ? 'Kirim permintaan titip'
+                              : 'Kirim permintaan'}
                         </button>
                         <button
                           type="button"
@@ -1138,6 +1032,11 @@ export default function VendorStorePage() {
                 </div>
               </div>
 
+              <details className="mt-3 rounded-xl bg-slate-50 p-3 text-sm">
+                <summary className="cursor-pointer font-medium">{formatMobility(vendor.mobility_type)}{vendor.service_area ? ` · ${vendor.service_area}` : ''}</summary>
+                <p className="mt-2 break-words">Rute: {vendor.route_description || 'Koordinasikan melalui chat'}</p>
+                <p className="mt-1 break-words">Titik berhenti: {vendor.stopping_points || 'Usulkan titik sesuai rute pedagang'}</p>
+              </details>
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className={`rounded-full px-3 py-1 text-xs font-medium ${
                   vendorIsOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'

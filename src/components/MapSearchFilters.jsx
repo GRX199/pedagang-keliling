@@ -1,5 +1,6 @@
 import React, { useId, useState } from 'react'
 import { formatVendorCategoryLabel } from '../lib/vendor'
+import { MOBILITY_OPTIONS } from '../lib/pickup'
 
 export default function MapSearchFilters({
   filters, onChange, onReset, categories, customer, favoritesEnabled,
@@ -7,7 +8,7 @@ export default function MapSearchFilters({
 }) {
   const [expanded, setExpanded] = useState(false)
   const panelId = useId()
-  const extraFilterCount = [filters.rating !== 'all', filters.withinRadius, filters.promo, filters.favorites].filter(Boolean).length
+  const extraFilterCount = [filters.rating !== 'all', filters.mobility && filters.mobility !== 'all', filters.withinRadius, filters.promo, filters.favorites].filter(Boolean).length
   const hasFilters = Boolean(filters.query.trim()) || filters.category !== 'all' || extraFilterCount > 0
 
   function toggle(label, name, disabled = false) {
@@ -38,7 +39,7 @@ export default function MapSearchFilters({
             type="search"
             value={filters.query}
             onChange={(event) => onChange('query', event.target.value)}
-            placeholder="Cari toko atau produk"
+            placeholder="Cari toko, barang, atau area"
             className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-base text-slate-900 transition focus:border-teal-600 focus:bg-white sm:text-sm"
           />
         </label>
@@ -67,6 +68,12 @@ export default function MapSearchFilters({
 
       <div id={panelId} hidden={!expanded}>
         <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+          <label className="block text-sm text-slate-600">Cara berkeliling
+            <select value={filters.mobility || 'all'} onChange={event => onChange('mobility', event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-base sm:text-sm">
+              <option value="all">Semua mobilitas</option>
+              {MOBILITY_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
           <div className="flex flex-wrap gap-2">
             {toggle('Dalam radius', 'withinRadius', !locationAvailable && !filters.withinRadius)}
             {customer && toggle('Promo', 'promo')}

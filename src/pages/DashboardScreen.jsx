@@ -6,6 +6,7 @@ import OrderReviewComposer from '../components/OrderReviewComposer'
 import VendorProductsManager from '../components/VendorProductsManager'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
+import { formatMobility, MOBILITY_OPTIONS, isPickupOrder } from '../lib/pickup'
 import { saveOrderChange } from '../lib/order-mutations'
 import { uploadImageFile } from '../lib/media'
 import { getGeolocationErrorMessage } from '../lib/network'
@@ -37,7 +38,6 @@ import {
   formatVendorPromoExpiry,
   getVendorPaymentMethodDetails,
   getVendorPaymentSetupSummary,
-  formatVendorServiceMode,
   formatVendorServiceRadius,
   createVendorLocationPayload,
   getOperatingHoursText,
@@ -309,7 +309,7 @@ function OrdersPanel({ currentUser, role }) {
     const paymentGuidance = getPaymentGuidance(order, isVendor ? 'vendor' : 'customer')
     const operationalNotice = getOrderOperationalNotice(order, isVendor ? 'vendor' : 'customer')
     const historyLabel = isHistoryCard ? formatOrderHistoryLabel(order) : ''
-    const primaryActionLabel = isHistoryCard ? 'Buka' : 'Lacak'
+    const primaryActionLabel = isHistoryCard ? 'Buka' : isPickupOrder(order) ? (order.status === 'ready' ? 'Serah terima' : 'Detail') : 'Lacak (lama)'
     const isPreorder = order.order_timing === 'preorder'
     const totalAmount = Number(order.total_amount || 0)
     const hasFollowUpActions = isVendor
@@ -343,7 +343,7 @@ function OrdersPanel({ currentUser, role }) {
               <div className="mt-1 truncate text-base font-semibold text-slate-900">{title}</div>
             </div>
             <span className={`shrink-0 rounded-full px-3 py-1 text-center text-[11px] font-semibold uppercase leading-tight tracking-wide ${getOrderStatusTone(order.status)}`}>
-              {formatOrderStatusLabel(order.status)}
+              {formatOrderStatusLabel(order)}
             </span>
           </div>
 
@@ -711,6 +711,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
     service_radius_km: '',
     operating_hours_text: '',
     service_mode: 'meetup',
+    mobility_type: '', service_area: '', route_description: '', stopping_points: '',
     promo_text: '',
     promo_expires_at: '',
     payment_qris_image_url: '',
@@ -735,6 +736,10 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
         ? ''
         : getOperatingHoursText(nextProfile?.operating_hours),
       service_mode: nextProfile?.service_mode || 'meetup',
+      mobility_type: nextProfile?.mobility_type || '',
+      service_area: nextProfile?.service_area || '',
+      route_description: nextProfile?.route_description || '',
+      stopping_points: nextProfile?.stopping_points || '',
       promo_text: nextProfile?.promo_text || '',
       promo_expires_at: nextProfile?.promo_expires_at
         ? new Date(nextProfile.promo_expires_at).toISOString().slice(0, 16)
@@ -841,7 +846,10 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
           category_primary: form.category_primary.trim() || null,
           service_radius_km: form.service_radius_km === '' ? null : Number(form.service_radius_km),
           operating_hours: buildOperatingHoursPayload(form.operating_hours_text),
-          service_mode: form.service_mode || 'meetup',
+          mobility_type: form.mobility_type || null,
+          service_area: form.service_area.trim() || null,
+          route_description: form.route_description.trim() || null,
+          stopping_points: form.stopping_points.trim() || null,
           promo_text: form.promo_text.trim() || null,
           promo_expires_at: form.promo_expires_at ? new Date(form.promo_expires_at).toISOString() : null,
           payment_details: buildVendorPaymentDetailsPayload({
@@ -1045,7 +1053,7 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                       {formatVendorServiceRadius(profile.service_radius_km)}
                     </span>
                     <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                      {formatVendorServiceMode(profile.service_mode)}
+                      {formatMobility(profile.mobility_type)}
                     </span>
                   </div>
 
@@ -1213,15 +1221,20 @@ function ProfilePanel({ currentUser, role, onVendorProfileSaved }) {
                   />
                 </div>
 
-                <select
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-                  value={form.service_mode}
-                  onChange={(event) => setForm((current) => ({ ...current, service_mode: event.target.value }))}
-                >
-                  <option value="meetup">Titik temu</option>
-                  <option value="delivery">Antar ke pelanggan</option>
-                  <option value="both">Antar dan titik temu</option>
-                </select>
+                <label className="block text-sm text-slate-600">Cara berkeliling
+                  <select className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3" value={form.mobility_type} onChange={(event) => setForm(current => ({ ...current, mobility_type: event.target.value }))}>
+                    <option value="">Belum diisi</option>
+                    {MOBILITY_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                {[
+                  ['service_area', 'Area berjualan', 240],
+                  ['route_description', 'Rute biasa (deskriptif)', 500],
+                  ['stopping_points', 'Titik berhenti untuk pengambilan', 500],
+                ].map(([field, label, maxLength]) => <label key={field} className="block text-sm text-slate-600">{label}
+                  <input className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3" maxLength={maxLength} value={form[field] || ''} onChange={event => setForm(current => ({ ...current, [field]: event.target.value }))} />
+                </label>)}
+                <p className="text-xs text-slate-500">Pelanggan mengusulkan titik sesuai rute Anda. Anda tidak wajib mengantar.</p>
 
                 <textarea
                   className="min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3"

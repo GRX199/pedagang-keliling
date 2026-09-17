@@ -303,7 +303,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }) {
     const productIsOrderable = isProductOrderable(product)
     const stock = getManagedStockNumber(product)
     const nextPayload = productIsOrderable
-      ? { is_available: false, stock: 0 }
+      ? { is_available: false }
       : {
           is_available: true,
           stock: stock !== null && stock <= 0 ? null : product.stock,

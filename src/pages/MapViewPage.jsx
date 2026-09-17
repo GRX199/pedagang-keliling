@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster'
 import VendorProductsPreview from '../components/VendorProductsPreview'
 import MapSearchFilters from '../components/MapSearchFilters'
+import { formatMobility } from '../lib/pickup'
 import { useToast } from '../components/ToastProvider'
 import { useAuth } from '../lib/auth'
 import { escapeMapText } from '../lib/map-popup'
@@ -106,7 +107,7 @@ function getVendorCategory(vendor) {
 }
 
 function getVendorSearchText(vendor) {
-  return String(vendor?.map_search_text || '').trim().toLowerCase()
+  return [vendor?.map_search_text, vendor?.service_area, vendor?.route_description, vendor?.stopping_points, formatMobility(vendor?.mobility_type)].filter(Boolean).join(' ').trim().toLowerCase()
 }
 
 function getVendorAverageRating(vendor) {
@@ -330,6 +331,7 @@ export default function MapViewPage() {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedRatingFilter, setSelectedRatingFilter] = useState('all')
+  const [selectedMobility, setSelectedMobility] = useState('all')
   const [selectedVendor, setSelectedVendor] = useState(null)
   const [userLocation, setUserLocation] = useState(null)
   const [radiusKm, setRadiusKm] = useState(2.5)
@@ -915,6 +917,7 @@ export default function MapViewPage() {
       }
 
       if (!matchesRatingFilter(vendor, selectedRatingFilter)) return false
+      if (selectedMobility !== 'all' && vendor.mobility_type !== selectedMobility) return false
       if (onlyFavoriteVendors && !favoriteVendorIdSet.has(vendor.id)) return false
       if (onlyPromoVendors && !isVendorPromoActive(vendor)) return false
 
@@ -946,6 +949,7 @@ export default function MapViewPage() {
     presenceClock,
     selectedCategory,
     selectedRatingFilter,
+    selectedMobility,
     userLocation,
     vendors,
   ])
@@ -1322,6 +1326,7 @@ export default function MapViewPage() {
   function changeVendorFilter(name, value) {
     const setters = {
       query: setQuery, category: setSelectedCategory, rating: setSelectedRatingFilter,
+      mobility: setSelectedMobility,
       radius: setRadiusKm, withinRadius: setOnlyWithinRadius, promo: setOnlyPromoVendors,
       favorites: setOnlyFavoriteVendors,
     }
@@ -1333,6 +1338,7 @@ export default function MapViewPage() {
     setQuery('')
     setSelectedCategory('all')
     setSelectedRatingFilter('all')
+    setSelectedMobility('all')
     setOnlyFavoriteVendors(false)
     setOnlyPromoVendors(false)
     setOnlyWithinRadius(false)
@@ -1395,7 +1401,7 @@ export default function MapViewPage() {
 
         <section className={isVendor ? 'order-3 min-w-0' : 'order-2 min-w-0'} aria-label="Pencarian pedagang">
           <MapSearchFilters
-            filters={{ query, category: selectedCategory, rating: selectedRatingFilter, radius: radiusKm, withinRadius: onlyWithinRadius, promo: onlyPromoVendors, favorites: onlyFavoriteVendors }}
+            filters={{ query, category: selectedCategory, mobility: selectedMobility, rating: selectedRatingFilter, radius: radiusKm, withinRadius: onlyWithinRadius, promo: onlyPromoVendors, favorites: onlyFavoriteVendors }}
             onChange={changeVendorFilter}
             onReset={resetVendorFilters}
             categories={categoryOptions}

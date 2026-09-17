@@ -117,7 +117,7 @@ export default function LandingPage() {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-semibold">Bakso Mas Ridho</div>
-                          <div className="mt-1 text-xs text-slate-300">Bakso & mie • 320 m • ETA 4 menit</div>
+                          <div className="mt-1 text-xs text-slate-300">Bakso & mie • 320 m • Ambil di titik disepakati</div>
                         </div>
                         <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-medium text-emerald-100">
                           Online

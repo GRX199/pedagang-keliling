@@ -1,8 +1,8 @@
 import React from 'react'
 import { getOrderStatusSteps } from '../lib/orders'
 
-export default function OrderStatusTimeline({ status }) {
-  const steps = getOrderStatusSteps(status)
+export default function OrderStatusTimeline({ status, serviceFlow }) {
+  const steps = getOrderStatusSteps(status, serviceFlow)
   const activeIndex = Math.max(0, steps.findIndex((step) => step.active))
   const activeStep = steps[activeIndex] || steps[0]
   const nextStep = steps.find((step) => step.pending)
@@ -50,7 +50,7 @@ export default function OrderStatusTimeline({ status }) {
         )}
       </div>
 
-      <div className="mt-3 hidden gap-3 sm:grid sm:grid-cols-3 xl:grid-cols-6">
+      <div className={`mt-3 hidden gap-3 sm:grid ${serviceFlow === 'pickup_v1' ? 'sm:grid-cols-2 xl:grid-cols-4' : 'sm:grid-cols-3 xl:grid-cols-6'}`}>
         {steps.map((step) => (
           <div key={step.key} className="min-w-0 rounded-2xl bg-white/70 p-3 ring-1 ring-slate-200/80">
             <div

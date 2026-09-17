@@ -12,6 +12,8 @@ const FAVORITE_VENDOR_ALERT_DISTANCE_METERS = 500
 
 function statusLabel(status) {
   switch (status) {
+    case 'ready':
+      return 'Barang siap diambil di titik yang disepakati.'
     case 'accepted':
       return 'Pesanan Anda diterima pedagang.'
     case 'rejected':
@@ -294,7 +296,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
         if (vendorIds.length > 0) {
           const { data: vendorRows, error: vendorError } = await supabase
             .from('vendors')
-            .select('id, name, location, online, last_seen_at')
+            .select('id, name, location, online, last_seen_at, is_verified')
             .in('id', vendorIds)
 
           if (vendorError) throw vendorError
@@ -306,7 +308,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
 
         for (const order of activeOrders) {
           const vendor = vendorMap[order.vendor_id]
-          const vendorCoordinates = getVendorCoordinates(vendor?.location) || getVendorCoordinates(order.vendor_location_snapshot)
+          const vendorCoordinates = isVendorPresenceFresh(vendor) ? getVendorCoordinates(vendor.location) : null
           const destinationCoordinates = getOrderDestination(order)
 
           if (!vendorCoordinates || !destinationCoordinates) continue
@@ -373,7 +375,7 @@ export function useRealtimeNotifications({ user, role, pathname, search, toast }
 
         const { data: vendorRows, error: vendorError } = await supabase
           .from('vendors')
-          .select('id, name, location, online, last_seen_at')
+          .select('id, name, location, online, last_seen_at, is_verified')
           .in('id', favoriteVendorIds)
 
         if (vendorError) throw vendorError

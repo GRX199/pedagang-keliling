@@ -316,7 +316,7 @@ app.post(['/vendor/:id/online', '/api/vendor/:id/online'], async (req, res) => {
     const vendorId = req.params.id
     const { data: vendorRow, error: vendorError } = await supabaseAdmin
       .from('vendors')
-      .select('id, user_id, online')
+      .select('id, user_id, online, is_verified')
       .eq('id', vendorId)
       .maybeSingle()
 
@@ -335,6 +335,10 @@ app.post(['/vendor/:id/online', '/api/vendor/:id/online'], async (req, res) => {
       ? req.body.online
       : !vendorRow.online
 
+    if (nextStatus && vendorRow.is_verified !== true) {
+      res.status(403).json({ error: 'Toko perlu diverifikasi admin sebelum mulai berjualan.' })
+      return
+    }
     const updatePayload = nextStatus
       ? { online: true }
       : { online: false, location: null, last_seen_at: null }

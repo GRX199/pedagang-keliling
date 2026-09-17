@@ -1,12 +1,18 @@
 # Kelilingku Essential Roadmap
 
+## Pembaruan Alur Pengambilan
+
+Implementasi 16 September 2026 memusatkan pesanan baru pada `pending -> accepted -> ready -> completed`: ambil sendiri atau kurir eksternal yang diatur pelanggan, bukan kewajiban antar oleh pedagang. Peta menunjukkan lokasi pedagang dan titik pengambilan tanpa ETA semu. Pesanan lama tetap diberi label legacy.
+
+Kode, migrasi, pengujian PostgreSQL lokal, dan simulasi UI sudah disiapkan. Langkah penting berikutnya adalah aktivasi migrasi, deployment terkoordinasi, lalu pengujian Supabase nyata dan dua perangkat. Jangan menganggap tahap tersebut selesai hanya karena build lulus. Lihat [alur, batas fitur, dan checklist aktivasi](./pengambilan-dan-migrasi.md); dokumen ini menjadi acuan terbaru bila panduan lama masih menyebut alur antar.
+
 ## Fokus Utama
 
 Roadmap ini sengaja dipersempit hanya ke hal yang paling penting untuk Kelilingku.
 
 Prinsipnya:
 
-- utamakan alur inti `peta -> toko -> checkout -> chat -> tracking -> selesai`
+- utamakan alur inti `peta -> toko -> permintaan -> persetujuan -> siap diambil -> serah terima`
 - stabilkan pengalaman mobile lebih dulu
 - jangan menambah fitur baru jika transaksi inti belum benar-benar nyaman dipakai
 

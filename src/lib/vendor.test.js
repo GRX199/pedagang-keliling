@@ -16,6 +16,7 @@ describe('vendor presence', () => {
 
   it('expires stale location updates', () => {
     const freshVendor = {
+      is_verified: true,
       online: true,
       location: { lat: -5, lng: 119 },
       last_seen_at: new Date(now - VENDOR_PRESENCE_MAX_AGE_MS + 1000).toISOString(),
@@ -31,6 +32,7 @@ describe('vendor presence', () => {
 
   it('formats presence freshness for mobile map cards', () => {
     const liveVendor = {
+      is_verified: true,
       online: true,
       location: { lat: -5, lng: 119 },
       last_seen_at: new Date(now - 20000).toISOString(),

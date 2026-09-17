@@ -2,6 +2,8 @@
 
 Panduan ini cocok untuk codebase di folder ini setelah refactor terakhir.
 
+Untuk upgrade database yang sudah berjalan, ikuti [aktivasi alur pengambilan](./pengambilan-dan-migrasi.md). Jangan menjalankan ulang migrasi lama setelah migrasi pengambilan karena dapat mengganti aturan akses dan status terbaru.
+
 ## 1. Buat project baru
 
 1. Buka dashboard Supabase dan buat project baru.
@@ -19,7 +21,10 @@ Panduan ini cocok untuk codebase di folder ini setelah refactor terakhir.
 4. Jalankan query sampai selesai.
 5. Setelah itu jalankan juga [phase1-foundation.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/phase1-foundation.sql).
 6. Jalankan [admin-foundation.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/admin-foundation.sql).
-7. Terakhir, jalankan [production-hardening.sql](/C:/xampp/htdocs/pedagang-keliling-react/supabase/production-hardening.sql).
+7. Jalankan [production-hardening.sql](../supabase/production-hardening.sql).
+8. Jalankan [order-payment-guard.sql](../supabase/order-payment-guard.sql).
+9. Jalankan [pickup-flow.sql](../supabase/pickup-flow.sql).
+10. Periksa instalasi dengan [pickup-verification.sql](../supabase/pickup-verification.sql). Semua pemeriksaan boolean harus true. Jangan menjalankan fixture di `supabase/tests` pada produksi.
 
 Schema itu sudah menyiapkan:
 - tabel `vendors`

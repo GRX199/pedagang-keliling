@@ -1,3 +1,5 @@
+import { isPickupOrder, pickupActions, PICKUP_LABELS, PICKUP_STATUSES } from './pickup'
+
 export function formatPriceLabel(price) {
   if (price === null || typeof price === 'undefined') return 'Harga belum diatur'
   return `Rp ${Number(price).toLocaleString('id-ID')}`
@@ -13,6 +15,7 @@ export const ORDER_STATUS_SEQUENCE = [
 ]
 
 export const ORDER_STATUS_LABELS = {
+  ready: 'Siap diambil',
   pending: 'Menunggu konfirmasi',
   accepted: 'Diterima',
   preparing: 'Disiapkan',
@@ -24,6 +27,7 @@ export const ORDER_STATUS_LABELS = {
 }
 
 export const ACTIVE_ORDER_STATUSES = [
+  'ready',
   'pending',
   'accepted',
   'preparing',
@@ -53,6 +57,8 @@ export const PAYMENT_STATUS_LABELS = {
 }
 
 export const FULFILLMENT_TYPE_LABELS = {
+  self_pickup: 'Ambil sendiri',
+  customer_courier: 'Kurir pelanggan',
   meetup: 'Titik temu',
   delivery: 'Antar',
 }
@@ -63,6 +69,9 @@ export const ORDER_TIMING_LABELS = {
 }
 
 export function formatOrderStatusLabel(status) {
+  if (status && typeof status === 'object') {
+    return isPickupOrder(status) ? PICKUP_LABELS[status.status] || status.status : formatOrderStatusLabel(status.status)
+  }
   return ORDER_STATUS_LABELS[status] || String(status || 'pending')
 }
 
@@ -102,9 +111,10 @@ export function getOrderTimingHint(orderTiming = 'asap') {
 
 export function getVendorPaymentActions(order) {
   if (!order || !isActiveOrderStatus(order.status)) return []
+  if (isPickupOrder(order) && !['accepted', 'ready'].includes(order.status)) return []
 
   if (order.payment_method === 'cod') {
-    if (order.status === 'arrived' && order.payment_status === 'unpaid') {
+    if (order.status === (isPickupOrder(order) ? 'ready' : 'arrived') && order.payment_status === 'unpaid') {
       return [{ value: 'paid', label: 'Tandai COD Lunas', tone: 'success' }]
     }
 
@@ -147,6 +157,13 @@ export function getVendorStatusTransitionBlockReason(order, nextStatus) {
 
 export function getOrderOperationalNotice(order, viewerRole = 'customer') {
   if (!order || !isActiveOrderStatus(order.status)) return ''
+  if (isPickupOrder(order)) {
+    if (order.status === 'pending') return 'Tunggu persetujuan titik sebelum berangkat atau membayar.'
+    if (order.status === 'accepted') return 'Titik disetujui. Tunggu barang siap sebelum mengambil atau memesan kurir.'
+    return viewerRole === 'vendor'
+      ? 'Cocokkan nama pengambil, terima pembayaran, lalu verifikasi kode saat menyerahkan barang.'
+      : 'Barang siap. Ambil di titik yang disepakati; berikan kode hanya saat menerima barang.'
+  }
 
   if (requiresPrepaidConfirmation(order) && !isPaymentConfirmed(order)) {
     return viewerRole === 'vendor'
@@ -165,7 +182,7 @@ export function getOrderOperationalNotice(order, viewerRole = 'customer') {
 
 export function getBuyerPaymentActions(order) {
   if (!order) return []
-  if (!['pending', 'accepted', 'preparing'].includes(order.status)) return []
+  if (!(isPickupOrder(order) ? ['accepted', 'ready'] : ['pending', 'accepted', 'preparing']).includes(order.status)) return []
   if (!['qris', 'bank_transfer', 'ewallet'].includes(order.payment_method)) return []
 
   if (order.payment_status === 'unpaid') {
@@ -190,6 +207,10 @@ export function getPaymentGuidance(order, viewerRole = 'customer') {
     return order.payment_status === 'paid' ? 'Pembayaran sudah dikonfirmasi.' : 'Pesanan sudah selesai.'
   }
   const paymentMethodLabel = formatPaymentMethodLabel(order.payment_method)
+  if (isPickupOrder(order) && order.status === 'pending') return 'Bayar setelah titik pengambilan disetujui.'
+  if (isPickupOrder(order) && order.payment_method === 'cod' && order.payment_status !== 'paid') {
+    return viewerRole === 'vendor' ? 'Tandai lunas setelah menerima pembayaran saat pengambilan.' : 'Bayar barang saat diambil. Untuk kurir, sepakati pembayaran barang lewat chat.'
+  }
 
   if (order.payment_method === 'cod') {
     if (order.payment_status === 'paid') {
@@ -229,6 +250,7 @@ export function getOrderPaymentDetails(order, vendor) {
 
 export function getOrderStatusTone(status) {
   switch (status) {
+    case 'ready':
     case 'accepted':
     case 'preparing':
     case 'on_the_way':
@@ -245,6 +267,7 @@ export function getOrderStatusTone(status) {
 }
 
 export function getNextVendorStatusActions(input) {
+  if (isPickupOrder(input)) return pickupActions(input)
   const order = input && typeof input === 'object' ? input : null
   const status = order ? order.status : input
 
@@ -294,24 +317,26 @@ export function isHistoryOrderStatus(status) {
   return HISTORY_ORDER_STATUSES.includes(status)
 }
 
-export function getOrderStatusSteps(status) {
+export function getOrderStatusSteps(status, serviceFlow = 'legacy') {
+  const sequence = serviceFlow === 'pickup_v1' ? PICKUP_STATUSES : ORDER_STATUS_SEQUENCE
+  const label = (step) => serviceFlow === 'pickup_v1' ? PICKUP_LABELS[step] : formatOrderStatusLabel(step)
   if (status === 'cancelled' || status === 'rejected') {
     return ['pending', status].map((step, index) => ({
       key: step,
-      label: formatOrderStatusLabel(step),
+      label: label(step),
       complete: index === 0,
       active: index === 1,
       pending: false,
     }))
   }
 
-  const activeIndex = ORDER_STATUS_SEQUENCE.indexOf(status) >= 0
-    ? ORDER_STATUS_SEQUENCE.indexOf(status)
+  const activeIndex = sequence.indexOf(status) >= 0
+    ? sequence.indexOf(status)
     : 0
 
-  return ORDER_STATUS_SEQUENCE.map((step, index) => ({
+  return sequence.map((step, index) => ({
     key: step,
-    label: formatOrderStatusLabel(step),
+    label: label(step),
     complete: activeIndex > index,
     active: activeIndex === index,
     pending: activeIndex < index,
@@ -379,7 +404,7 @@ export function buildOrderChatMessage({
   const noteLine = String(customerNote || '').trim()
     ? `\nCatatan: ${String(customerNote).trim()}`
     : ''
-  return `${reference}Halo, saya ${buyerName} ingin memesan:\n${summary}\n\nMetode bayar: ${formatPaymentMethodLabel(paymentMethod)}\nSerah terima: ${formatFulfillmentTypeLabel(fulfillmentType)}${timingLine}${requestedTimeLine}${meetingPointLine}${noteLine}\n\nSilakan konfirmasi stok, pembayaran, atau detail pengirimannya ya.`
+  return `${reference}Halo, saya ${buyerName} ingin memesan:\n${summary}\n\nMetode bayar: ${formatPaymentMethodLabel(paymentMethod)}\nSerah terima: ${formatFulfillmentTypeLabel(fulfillmentType)}${timingLine}${requestedTimeLine}${meetingPointLine}${noteLine}\n\nMohon konfirmasi kesediaan barang dan titik pengambilan sesuai rute pedagang.`
 }
 
 export function buildOrderInsertPayload({
@@ -457,6 +482,7 @@ export function getCartTotals(entries) {
 }
 
 export function getMeetingPointPresetOptions(fulfillmentType = 'meetup') {
+  if (['self_pickup', 'customer_courier'].includes(fulfillmentType)) return [{ label: 'Usulkan lokasi saya', usesCurrentLocation: true }]
   if (fulfillmentType === 'delivery') {
     return [
       { label: 'Gunakan lokasi saya saat ini', usesCurrentLocation: true },
@@ -481,6 +507,7 @@ export function getMeetingPointPlaceholder(fulfillmentType = 'meetup') {
 }
 
 export function getFulfillmentTypeHint(fulfillmentType = 'meetup') {
+  if (['self_pickup', 'customer_courier'].includes(fulfillmentType)) return 'Pilih titik sesuai rute pedagang. Pedagang tidak wajib mengantar; tunggu persetujuan dan barang siap.'
   return fulfillmentType === 'delivery'
     ? 'Gunakan alamat atau patokan yang paling mudah dikenali pedagang. Lokasi saat ini bisa dipakai untuk memperjelas titik antar.'
     : 'Pilih titik temu yang mudah ditemukan. Anda bisa pakai lokasi saat ini agar tracking lebih akurat.'

@@ -106,7 +106,7 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onTr
               Pesanan #{String(order.id).slice(0, 8)}
             </div>
             <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-slate-100">
-              {formatOrderStatusLabel(order.status)}
+              {formatOrderStatusLabel(order)}
             </span>
           </div>
           <div className="mt-1 truncate text-xs text-slate-300">
@@ -119,7 +119,7 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onTr
             onClick={onTrackOrder}
             className="shrink-0 rounded-xl bg-white px-3 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-100"
           >
-            Lacak
+            {order.service_flow === 'pickup_v1' ? 'Detail' : 'Lacak'}
           </button>
         ) : null}
       </div>

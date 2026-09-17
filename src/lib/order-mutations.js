@@ -1,4 +1,5 @@
 import { getBuyerPaymentActions, getNextVendorStatusActions, getVendorPaymentActions } from './orders'
+import { isPickupOrder } from './pickup'
 
 const STALE_ORDER_MESSAGE = 'Pesanan sudah berubah. Muat ulang pesanan sebelum mencoba lagi.'
 
@@ -35,13 +36,16 @@ export async function saveOrderChange(client, order, field, value, viewerId) {
     return data
   }
 
-  const { data, error } = await client.from('orders')
+  let query = client.from('orders')
     .update({ [field]: value })
     .eq('id', order.id)
     .eq('status', order.status)
     .eq('payment_status', order.payment_status)
-    .select('*')
-    .maybeSingle()
+  if (isPickupOrder(order) && field === 'status' && value === 'accepted') {
+    query = query.eq('meeting_point_label', order.meeting_point_label)
+    if (order.updated_at) query = query.eq('updated_at', order.updated_at)
+  }
+  const { data, error } = await query.select('*').maybeSingle()
 
   if (error) throw error
   if (!data) throw new Error(STALE_ORDER_MESSAGE)
