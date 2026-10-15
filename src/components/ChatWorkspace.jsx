@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { findOrCreateDirectChat, sendChatMessage } from '../lib/conversations'
 import {
@@ -127,7 +127,7 @@ function OrderContextCard({ currentUser, order, partnerLabel, relatedCount, onTr
   )
 }
 
-function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode = false }) {
+export function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode = false }) {
   const toast = useToast()
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
@@ -135,6 +135,9 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
   const [uploadingImage, setUploadingImage] = useState(false)
   const [pendingImage, setPendingImage] = useState(null)
   const endRef = useRef(null)
+  const messageListRef = useRef(null)
+  const nearBottomRef = useRef(true)
+  const sendLock = useRef(false)
   const fileInputRef = useRef(null)
   const messageIdsRef = useRef(new Set())
   const latestMessageAtRef = useRef(null)
@@ -179,10 +182,11 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
           .order('created_at', { ascending: true })
 
         if (error) throw error
-        if (active) applyMessageRows(data || [], { replace: true })
+        // Realtime or a send can finish before this initial request.
+        if (active) applyMessageRows(data || [])
       } catch (error) {
         console.error('loadMessages', error)
-        toast.push('Gagal memuat pesan', { type: 'error' })
+        if (active) toast.push('Gagal memuat pesan', { type: 'error' })
       }
     }
 
@@ -195,14 +199,15 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
           .order('created_at', { ascending: true })
 
         if (latestMessageAtRef.current) {
-          query = query.gt('created_at', latestMessageAtRef.current)
+          query = query.gte('created_at', latestMessageAtRef.current)
         }
 
         const { data, error } = await query
         if (error) throw error
-        if (active && (data || []).length > 0) {
-          applyMessageRows(data || [])
-          for (const message of data || []) {
+        const newMessages = (data || []).filter(message => !messageIdsRef.current.has(message.id))
+        if (active && newMessages.length > 0) {
+          applyMessageRows(newMessages)
+          for (const message of newMessages) {
             onMessageActivity?.(chatId, message)
           }
         }
@@ -219,7 +224,7 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload) => {
-          if (!payload.new?.id || messageIdsRef.current.has(payload.new.id)) return
+          if (!active || !payload.new?.id || messageIdsRef.current.has(payload.new.id)) return
           applyMessageRows([payload.new])
           onMessageActivity?.(chatId, payload.new)
         }
@@ -240,10 +245,13 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
         console.error('removeMessagesChannel', error)
       }
     }
-  }, [chatId, currentUser, onMessageActivity, toast])
+  }, [chatId, currentUser?.id, onMessageActivity, toast])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const list = messageListRef.current
+    if (list && (nearBottomRef.current || messages.at(-1)?.from_user === currentUser?.id)) {
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' })
+    }
   }, [messages])
 
   useEffect(() => {
@@ -258,8 +266,9 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
       return
     }
 
-    if (sending || !chatId || !currentUser || !text.trim()) return
+    if (sendLock.current || !chatId || !currentUser || !text.trim()) return
 
+    sendLock.current = true
     setSending(true)
     try {
       const message = await sendChatMessage(chatId, currentUser.id, text.trim())
@@ -270,14 +279,16 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
       console.error('sendMessage', error)
       toast.push(error.message || 'Gagal mengirim pesan', { type: 'error' })
     } finally {
+      sendLock.current = false
       setSending(false)
     }
   }
 
   async function sendImageMessage() {
-    if (sending || !chatId || !currentUser || !pendingImage?.file) return
+    if (sendLock.current || !chatId || !currentUser || !pendingImage?.file) return
 
     const caption = text.trim()
+    sendLock.current = true
     setSending(true)
     setUploadingImage(true)
     try {
@@ -298,6 +309,7 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
       console.error('sendImageMessage', error)
       toast.push(error.message || 'Gagal mengirim foto', { type: 'error' })
     } finally {
+      sendLock.current = false
       setUploadingImage(false)
       setSending(false)
     }
@@ -321,7 +333,10 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
-      <div className="min-h-0 flex-1 space-y-3 overflow-auto rounded-2xl border border-slate-100 bg-slate-50 p-3">
+      <div ref={messageListRef} onScroll={() => {
+        const list = messageListRef.current
+        nearBottomRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 80
+      }} className="min-h-0 flex-1 space-y-3 overflow-auto rounded-2xl border border-slate-100 bg-slate-50 p-3">
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-slate-500">
             Belum ada pesan. Mulai percakapan dari sini.
@@ -409,9 +424,10 @@ function ChatThread({ chatId, currentUser, onMessageActivity, paymentProofMode =
         />
         <textarea
           value={text}
+          disabled={sending}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault()
               sendMessage()
             }
@@ -658,7 +674,7 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
     }
   }
 
-  function handleMessageActivity(chatId, message) {
+  const handleMessageActivity = useCallback((chatId, message) => {
     if (!chatId || !message) return
 
     setChats((current) => {
@@ -673,7 +689,7 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
       })
       return nextRows
     })
-  }
+  }, [])
 
   useEffect(() => {
     if (!user?.id || !selectedPartnerId) {
@@ -842,6 +858,7 @@ export default function ChatWorkspace({ initialVendorId = null, initialOrderId =
                   : (featuredOrder ? 'h-[58vh] min-h-[340px] sm:h-[58vh] sm:min-h-[390px]' : 'h-[70vh] min-h-[400px] sm:h-[70vh] sm:min-h-[460px]')}
               >
               <ChatThread
+                key={`${user.id}:${selectedChat.id}`}
                 chatId={selectedChat.id}
                 currentUser={user}
                 onMessageActivity={handleMessageActivity}

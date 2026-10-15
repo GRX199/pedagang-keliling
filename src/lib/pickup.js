@@ -12,7 +12,7 @@ export const formatMobility = (value) => MOBILITY_OPTIONS.find((item) => item.va
 export const pickupStatusLabel = (order) => PICKUP_LABELS[order?.status] || order?.status
 
 export function pickupActions(order) {
-  if (order.status === 'pending') return [{ value: 'accepted', label: 'Setujui titik', tone: 'primary' }, { value: 'rejected', label: 'Tolak', tone: 'danger' }]
+  if (order.status === 'pending') return [{ value: 'accepted', label: 'Terima pesanan', tone: 'primary' }, { value: 'rejected', label: 'Tolak', tone: 'danger' }]
   if (order.status === 'accepted') return [{ value: 'ready', label: 'Barang siap diambil', tone: 'primary' }]
   // Final handover uses the merchant confirmation RPC, never a direct status update.
   return []

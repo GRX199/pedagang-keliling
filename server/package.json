@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "node --watch app.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.32.0",
@@ -18,8 +18,5 @@
   },
   "overrides": {
     "qs": "^6.16.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
   }
 }

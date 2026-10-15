@@ -159,10 +159,16 @@ export function getVendorStatusTransitionBlockReason(order, nextStatus) {
 export function getOrderOperationalNotice(order, viewerRole = 'customer') {
   if (!order || !isActiveOrderStatus(order.status)) return ''
   if (isPickupOrder(order)) {
-    if (order.status === 'pending') return 'Tunggu persetujuan titik sebelum berangkat atau membayar.'
-    if (order.status === 'accepted') return 'Titik disetujui. Tunggu barang siap sebelum mengambil atau memesan kurir.'
+    if (order.status === 'pending') return viewerRole === 'vendor'
+      ? 'Periksa barang, lalu terima atau tolak pesanan.'
+      : 'Menunggu konfirmasi pedagang. Bayar setelah pesanan diterima.'
+    if (order.status === 'accepted') return viewerRole === 'vendor'
+      ? 'Siapkan barang, lalu tandai siap diambil.'
+      : 'Pesanan diterima. Tunggu barang siap sebelum mengambil atau memesan kurir.'
     return viewerRole === 'vendor'
-      ? 'Serahkan barang dan pastikan pembayaran lunas, lalu selesaikan pesanan.'
+      ? order.payment_method === 'cod'
+        ? 'Serahkan barang dan terima uang, lalu selesaikan pesanan.'
+        : 'Periksa pembayaran, serahkan barang, lalu selesaikan pesanan.'
       : 'Barang siap diambil di titik yang disepakati. Pedagang menyelesaikan pesanan setelah serah terima.'
   }
 
@@ -208,7 +214,9 @@ export function getPaymentGuidance(order, viewerRole = 'customer') {
     return order.payment_status === 'paid' ? 'Pembayaran sudah dikonfirmasi.' : 'Pesanan sudah selesai.'
   }
   const paymentMethodLabel = formatPaymentMethodLabel(order.payment_method)
-  if (isPickupOrder(order) && order.status === 'pending') return 'Bayar setelah titik pengambilan disetujui.'
+  if (isPickupOrder(order) && order.status === 'pending') return viewerRole === 'vendor'
+    ? 'Pembayaran dilakukan setelah Anda menerima pesanan.'
+    : 'Bayar setelah pesanan diterima pedagang.'
   if (isPickupOrder(order) && order.payment_method === 'cod' && order.payment_status !== 'paid') {
     return viewerRole === 'vendor' ? 'Selesaikan pesanan setelah barang diserahkan dan uang diterima. COD tercatat lunas sekaligus.' : 'Bayar barang saat diambil. Untuk kurir, sepakati pembayaran barang lewat chat.'
   }

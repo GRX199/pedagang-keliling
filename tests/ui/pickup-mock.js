@@ -12,8 +12,30 @@ export let fixtureOrder = {
 }
 const vendor = { id: 'vendor', name: 'Pak Sayur', online: true, is_verified: true, mobility_type: 'walking', service_area: 'Tikala', route_description: 'Pasar ke kantor kelurahan', stopping_points: 'Gerbang pasar', location: { lat: 1.475, lng: 124.849 }, last_seen_at: new Date().toISOString() }
 const listeners = new Set()
+const chatMessages = { first: [], second: [] }
+const initialChatRequests = []
+const pendingSends = []
+const messageListeners = new Set()
+window.chatFixture = {
+  sends: 0, subscriptions: 0,
+  releaseInitial() { for (const resolve of initialChatRequests.splice(0)) resolve() },
+  releaseSends() { for (const resolve of pendingSends.splice(0)) resolve() },
+  incoming(chatId, text, createdAt = new Date().toISOString()) {
+    const message = { id: crypto.randomUUID(), chat_id: chatId, from_user: 'vendor', text, created_at: createdAt }
+    chatMessages[chatId].push(message)
+    for (const listener of messageListeners) if (listener.chatId === chatId) listener.handler({ new: message })
+  },
+}
+export async function sendChatMessage(chatId, fromUser, text) {
+  window.chatFixture.sends++
+  if (params.get('view') === 'chat') await new Promise(resolve => pendingSends.push(resolve))
+  const message = { id: crypto.randomUUID(), chat_id: chatId, from_user: fromUser, text, created_at: new Date().toISOString() }
+  if (chatMessages[chatId]) chatMessages[chatId].push(message)
+  return message
+}
 window.pickupFixture = {
   updates: 0,
+  failTables: [],
   refresh() { for (const listener of listeners) listener() },
   offline() { vendor.online = false; this.refresh() },
   stale() { vendor.last_seen_at = new Date(Date.now() - 130000).toISOString(); this.refresh() },
@@ -21,18 +43,36 @@ window.pickupFixture = {
 export const supabase = {
   channel() {
     const local = []
-    return { on(_event, _filter, handler) { local.push(handler); listeners.add(handler); return this }, subscribe() { return this }, unsubscribe() { for (const listener of local) listeners.delete(listener) } }
+    return {
+      on(_event, filter, handler) {
+        if (filter.table === 'messages') {
+          const listener = { chatId: filter.filter.slice('chat_id=eq.'.length), handler }
+          local.push(listener); messageListeners.add(listener)
+        } else { local.push(handler); listeners.add(handler) }
+        return this
+      },
+      subscribe() { if (params.get('view') === 'chat') window.chatFixture.subscriptions++; return this },
+      unsubscribe() { for (const listener of local) { listeners.delete(listener); messageListeners.delete(listener) } },
+    }
   },
   removeChannel(channel) { channel.unsubscribe() },
   from(table) {
     let mutation
     let single = false
+    let chatId
+    let incremental = false
     const query = {
-      select() { return this }, eq() { return this }, order() { return this }, limit() { return this },
+      select() { return this }, eq(field, value) { if (field === 'chat_id') chatId = value; return this }, order() { return this }, limit() { return this },
+      gte() { incremental = true; return this },
       update(value) { mutation = value; return this },
       maybeSingle() { single = true; return this.result() }, single() { single = true; return this.result() },
       then(resolve, reject) { return this.result().then(resolve, reject) },
       result() {
+        if (window.pickupFixture.failTables.includes(table)) return Promise.resolve({ data: null, error: { message: 'Simulated network error' } })
+        if (table === 'messages') {
+          const data = [...(chatMessages[chatId] || [])]
+          return incremental ? Promise.resolve({ data, error: null }) : new Promise(resolve => initialChatRequests.push(() => resolve({ data, error: null })))
+        }
         if (mutation) { fixtureOrder = { ...fixtureOrder, ...mutation }; window.pickupFixture.updates++ }
         const data = table === 'orders' ? { ...fixtureOrder }
           : table === 'vendors' ? { ...vendor }

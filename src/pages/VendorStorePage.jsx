@@ -100,6 +100,8 @@ export default function VendorStorePage() {
   const [cart, setCart] = useState({})
   const [submittingOrder, setSubmittingOrder] = useState(false)
   const submitLock = useRef(false)
+  const summaryRef = useRef(null)
+  const [summaryVisible, setSummaryVisible] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('cod')
   const [fulfillmentType, setFulfillmentType] = useState('self_pickup')
   const [pickupContact, setPickupContact] = useState('')
@@ -119,6 +121,16 @@ export default function VendorStorePage() {
   }, [user?.id])
   const isFavorite = isVendorFavorited(favoriteVendorIds, id)
   const hasActivePromo = isVendorPromoActive(vendor)
+
+  useEffect(() => {
+    const summary = summaryRef.current
+    if (loading || isOwner || !summary || typeof IntersectionObserver === 'undefined') return undefined
+    const observer = new IntersectionObserver(([entry]) => setSummaryVisible(entry.isIntersecting), {
+      rootMargin: '-72px 0px -96px 0px',
+    })
+    observer.observe(summary)
+    return () => observer.disconnect()
+  }, [id, isOwner, loading])
 
   useEffect(() => {
     if (!id) return undefined
@@ -663,7 +675,7 @@ export default function VendorStorePage() {
             </div>
 
             {!isOwner && (
-              <section id="order-summary" className="scroll-mt-24 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
+              <section ref={summaryRef} id="order-summary" className="scroll-mt-24 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="text-lg font-semibold text-slate-900">Ringkasan Pesanan</h2>
@@ -1196,9 +1208,10 @@ export default function VendorStorePage() {
         </div>
       </div>
 
-      {!isOwner && cartEntries.length > 0 && (
+      {!isOwner && cartEntries.length > 0 && !summaryVisible && (
         <div className="fixed inset-x-4 bottom-24 z-30 lg:hidden">
           <button
+            aria-label="Buka ringkasan pesanan"
             onClick={() => document.getElementById('order-summary')?.scrollIntoView({ behavior: 'smooth' })}
             className="flex w-full items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-left text-white shadow-xl shadow-slate-900/20"
           >

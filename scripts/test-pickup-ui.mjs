@@ -13,7 +13,7 @@ const server = await createServer({
       const path = id.replaceAll('\\', '/')
       if (path.endsWith('/src/lib/supabase.js')) return "export { supabase } from '/tests/ui/pickup-mock.js'"
       if (path.endsWith('/src/lib/auth.jsx')) return "import { user } from '/tests/ui/pickup-mock.js'; export const useAuth = () => ({user});"
-      if (path.endsWith('/src/lib/conversations.js')) return "export const findOrCreateDirectChat = async () => ({id:'chat'}); export const sendChatMessage = async () => ({id:'message'});"
+      if (path.endsWith('/src/lib/conversations.js')) return "export const findOrCreateDirectChat = async () => ({id:'chat'}); export { sendChatMessage } from '/tests/ui/pickup-mock.js';"
     },
   }],
 })
@@ -45,7 +45,7 @@ try {
         await page.getByRole('heading', { level: 1 }).waitFor()
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `horizontal overflow ${width}/${role}/${status}`)
         if (status === 'ready') {
-          assert(await page.getByRole('heading', { name: 'Serah terima barang' }).isVisible())
+          if (role === 'buyer') assert(await page.getByRole('heading', { name: 'Serah terima barang' }).isVisible())
           assert.equal(await page.getByText('Lihat kode pengambilan').count(), 0)
           assert.equal(await page.getByLabel('Kode dari pengambil').count(), 0)
           if (role === 'vendor') assert(await page.getByRole('button', { name: 'Selesaikan pesanan', exact: true }).isDisabled())
@@ -69,10 +69,19 @@ try {
   await page.evaluate(() => window.pickupFixture.offline())
   await page.getByText('Lokasi pedagang tidak aktif. Koordinasikan titik melalui chat.').waitFor()
   assert.equal(await page.locator('path.leaflet-interactive').count(), 0, 'offline marker removed, manual point has no pin')
+  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?role=vendor&status=ready&paymethod=cod')
+  await page.locator('path.leaflet-interactive').first().waitFor()
+  await page.evaluate(() => { window.pickupFixture.failTables = ['orders']; window.pickupFixture.refresh() })
+  await page.getByText('Pembaruan tertunda. Periksa koneksi sebelum melakukan aksi.').waitFor()
+  assert(await page.getByRole('button', { name: 'Selesaikan pesanan', exact: true }).isDisabled())
+  assert.equal(await page.locator('path.leaflet-interactive').count(), 1, 'transient failure keeps fresh vendor marker')
+  await page.evaluate(() => { window.pickupFixture.failTables = ['reviews']; window.pickupFixture.refresh() })
+  await page.getByText('Sebagian detail belum diperbarui. Mencoba lagi otomatis.').waitFor()
+  assert(await page.getByRole('button', { name: 'Selesaikan pesanan', exact: true }).isEnabled(), 'review error does not block handover')
   await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?role=vendor&status=pending')
-  await page.getByRole('button', { name: 'Setujui titik' }).click()
+  await page.getByRole('button', { name: 'Terima pesanan', exact: true }).click()
   await page.getByRole('button', { name: 'Barang siap diambil' }).click()
-  await page.getByRole('heading', { name: 'Serah terima barang' }).waitFor()
+  await page.getByRole('button', { name: 'Selesaikan pesanan', exact: true }).waitFor()
   assert.equal(await page.evaluate(() => window.pickupFixture.updates), 2, 'one mutation per action')
   await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?role=vendor&status=ready&payment=paid')
   await page.getByRole('button', { name: 'Selesaikan pesanan', exact: true }).click()
@@ -92,6 +101,12 @@ try {
     await page.setViewportSize({ width, height: 850 })
     await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=store&role=buyer')
     await page.getByRole('button', { name: 'Tambah', exact: true }).click()
+    if (width === 375) {
+      const cartShortcut = page.getByRole('button', { name: 'Buka ringkasan pesanan', exact: true })
+      await cartShortcut.waitFor({ state: 'visible' })
+      await cartShortcut.click()
+      await cartShortcut.waitFor({ state: 'hidden' })
+    }
     await page.getByRole('button', { name: 'Kurir pelanggan', exact: true }).click()
     await page.getByLabel('Nama pelanggan yang mengatur pengambilan').fill('Ani')
     assert.equal(await page.getByLabel('Usulan titik pengambilan').count(), 0)
@@ -129,8 +144,34 @@ try {
     if (gps === 'allowed') assert.equal(checkout.target_meeting_point_location.lat, 1.474)
     else assert.equal(checkout.target_meeting_point_location, null, 'denied GPS never creates fake coordinates')
   }
+  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=chat&role=buyer')
+  const composer = page.getByPlaceholder('Ketik pesan...')
+  await composer.fill('Pesan pertama')
+  await composer.press('Enter')
+  await page.evaluate(() => window.chatFixture.releaseSends())
+  await page.getByText('Pesan pertama', { exact: true }).waitFor()
+  const subscriptions = await page.evaluate(() => window.chatFixture.subscriptions)
+  await page.evaluate(() => window.chatFixture.releaseInitial())
+  assert(await page.getByText('Pesan pertama', { exact: true }).isVisible(), 'late initial fetch preserves sent message')
+  await page.evaluate(() => window.chatFixture.incoming('first', 'Pesan masuk'))
+  await page.getByText('Pesan masuk', { exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => window.chatFixture.subscriptions), subscriptions, 'activity does not resubscribe')
+  await composer.fill('Draft percakapan pertama')
+  await page.getByRole('button', { name: 'Ganti percakapan' }).click()
+  assert.equal(await composer.inputValue(), '', 'switching chat clears old composer')
+  assert.equal(await page.getByText('Pesan pertama', { exact: true }).count(), 0, 'switching chat does not display another conversation')
+  await composer.fill('Pesan kedua')
+  await composer.evaluate(element => {
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  })
+  assert.equal(await page.evaluate(() => window.chatFixture.sends), 2, 'rapid Enter submits once')
+  await page.evaluate(() => window.chatFixture.releaseSends())
+  await page.getByText('Pesan kedua', { exact: true }).waitFor()
+  await page.evaluate(() => window.chatFixture.releaseInitial())
+  assert(await page.getByText('Pesan kedua', { exact: true }).isVisible())
   assert.deepEqual(errors, [], 'no page runtime errors')
-  console.log('PASS: 48 viewport/role/status layouts, 2 checkout layouts, draft/focus/map persistence, offline privacy, vendor actions and atomic checkout UI. Mock services, not hosted UAT.')
+  console.log('PASS: 48 layouts, checkout, GPS, tracking recovery, COD and chat races/switching/single-send. Mock services, not hosted UAT.')
 } finally {
   await browser?.close()
   await server.close()

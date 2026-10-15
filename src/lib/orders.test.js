@@ -10,6 +10,12 @@ import {
 } from './orders'
 
 describe('order workflow', () => {
+  it('guides merchants to act while buyers wait on pickup progress', () => {
+    const order = { service_flow: 'pickup_v1', status: 'pending', payment_method: 'cod' }
+    expect(getOrderOperationalNotice(order, 'vendor')).toContain('terima atau tolak')
+    expect(getOrderOperationalNotice(order, 'customer')).toContain('Menunggu konfirmasi')
+    expect(getOrderOperationalNotice({ ...order, status: 'accepted' }, 'vendor')).toContain('Siapkan barang')
+  })
   it('keeps vendor status transitions sequential', () => {
     expect(getNextVendorStatusActions('pending').map((action) => action.value)).toEqual(['accepted', 'rejected'])
     expect(getNextVendorStatusActions('accepted').map((action) => action.value)).toEqual(['preparing'])

@@ -25,6 +25,7 @@ export default function PickupTrackingPage({ initialOrder }) {
   const [collectorDraft, setCollectorDraft] = useState(null)
   const [busy, setBusy] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [detailError, setDetailError] = useState('')
   const lock = useRef(false)
   const request = useRef(0)
   const mounted = useRef(true)
@@ -45,13 +46,17 @@ export default function PickupTrackingPage({ initialOrder }) {
         supabase.from('reviews').select('*').eq('order_id', initialOrder.id).maybeSingle(),
       ])
       if (!mounted.current || version !== request.current) return
-      for (const result of [o, v, i, r]) if (result.error) throw result.error
-      setOrder(o.data); setVendor(v.data); setItems(i.data || []); setReview(r.data)
+      if (o.error) throw o.error
+      if (!o.data) throw new Error('Pesanan tidak ditemukan.')
+      setOrder(o.data)
+      if (!v.error) setVendor(v.data)
+      if (!i.error) setItems(i.data || [])
+      if (!r.error) setReview(r.data)
+      setDetailError([v, i, r].some(result => result.error) ? 'Sebagian detail belum diperbarui. Mencoba lagi otomatis.' : '')
       setLoadError('')
     } catch {
       if (mounted.current && version === request.current) {
         setLoadError('Pembaruan tertunda. Periksa koneksi sebelum melakukan aksi.')
-        setVendor(null)
       }
     }
   }
@@ -103,6 +108,7 @@ export default function PickupTrackingPage({ initialOrder }) {
       <Link className={button} to="/dashboard?tab=orders">Pesanan</Link>
     </header>
     {loadError && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900" role="alert">{loadError}</p>}
+    {!loadError && detailError && <p className="text-sm text-slate-500" role="status">{detailError}</p>}
     <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-4">
         <section className={panel}>
@@ -114,6 +120,7 @@ export default function PickupTrackingPage({ initialOrder }) {
             {active && <Link className={button} to={`/chat/${buyer ? order.vendor_id : order.buyer_id}?order=${order.id}`}>Chat {buyer ? 'pedagang' : 'pelanggan'}</Link>}
           </div>
           {merchant && order.status === 'ready' && <div className="space-y-2">
+            <p className="break-words text-sm text-slate-600">Pengambil: {order.collector_name || (order.fulfillment_type === 'self_pickup' ? order.pickup_contact_name || order.buyer_name : 'Kurir pelanggan')}</p>
             {order.payment_method !== 'cod' && order.payment_status !== 'paid' && <p className="text-sm text-slate-600">Konfirmasi pembayaran lunas sebelum menyelesaikan pesanan.</p>}
             {!confirmingHandover ? <button className={`${button} bg-teal-700 text-white`} disabled={busy || !!loadError || order.payment_method !== 'cod' && order.payment_status !== 'paid'} onClick={() => setConfirmingHandover(true)}>Selesaikan pesanan</button> : <>
               <p className="text-sm font-medium">{order.payment_method === 'cod' ? 'Barang sudah diserahkan dan uang COD sudah diterima?' : 'Barang sudah diserahkan kepada pelanggan atau kurirnya?'}</p>
@@ -137,7 +144,7 @@ export default function PickupTrackingPage({ initialOrder }) {
           </details>}
           {['accepted', 'ready'].includes(order.status) && <p className="text-xs text-slate-500">Koordinasikan pengambilan dengan pedagang melalui chat.</p>}
         </section>
-        {order.status === 'ready' && <section className={panel}>
+        {buyer && order.status === 'ready' && <section className={panel}>
           <h2 className="font-semibold">Serah terima barang</h2>
           <p className="break-words text-sm">Pengambil: {order.collector_name || (order.fulfillment_type === 'self_pickup' ? order.pickup_contact_name || order.buyer_name : 'Kurir pelanggan')}</p>
           {buyer && order.fulfillment_type === 'customer_courier' && <details><summary className="cursor-pointer py-2 text-sm text-teal-800">Tambah nama kurir (opsional)</summary>
