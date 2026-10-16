@@ -972,6 +972,7 @@ async function run() {
     await runHostedBrowserQA({
       appOrigin,
       apiOrigin,
+      inspectQueryCache: !deployedMode,
       supabaseOrigin: new URL(url).origin,
       buyer: freshBuyer,
       vendor,

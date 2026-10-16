@@ -28,6 +28,7 @@ export async function runHostedBrowserQA({
   registerUpload,
   runId,
   redact,
+  inspectQueryCache = true,
 }) {
   const { chromium } = require(
     process.env.PLAYWRIGHT_MODULE_PATH || 'playwright',
@@ -369,7 +370,9 @@ export async function runHostedBrowserQA({
       },
     )
     await check(
-      'browser: mobile logout hides vendor and account switching clears private cache',
+      inspectQueryCache
+        ? 'browser: mobile logout hides vendor and account switching clears private cache'
+        : 'browser: mobile logout hides vendor and account switching restores the correct role',
       async () => {
         await vendorPage.setViewportSize({ width: 375, height: 850 })
         await logout(vendorPage)
@@ -388,22 +391,21 @@ export async function runHostedBrowserQA({
         )
         await logout(buyerPage)
         await login(buyerPage, vendor)
-        const leaked = await buyerPage.evaluate(async (oldViewer) => {
-          const { queryClient } = await import('/src/shared/lib/queryClient.ts')
-          return queryClient
-            .getQueryCache()
-            .getAll()
-            .some(
-              (query) =>
-                query.queryKey[1] === oldViewer &&
-                query.queryKey[0] !== 'visible-chat',
-            )
-        }, buyer.id)
-        assert.equal(
-          leaked,
-          false,
-          'previous customer query cache survives account switch',
-        )
+        // Source-module introspection is only available on the local Vite test server.
+        if (inspectQueryCache) {
+          const leaked = await buyerPage.evaluate(async (oldViewer) => {
+            const { queryClient } = await import('/src/shared/lib/queryClient.ts')
+            return queryClient
+              .getQueryCache()
+              .getAll()
+              .some(
+                (query) =>
+                  query.queryKey[1] === oldViewer &&
+                  query.queryKey[0] !== 'visible-chat',
+              )
+          }, buyer.id)
+          assert.equal(leaked, false, 'previous customer query cache survives account switch')
+        }
         await buyerPage
           .getByRole('link', { name: 'Produk', exact: true })
           .first()
