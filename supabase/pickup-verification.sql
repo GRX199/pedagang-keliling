@@ -1,8 +1,12 @@
--- Read-only deployment verification. Run AFTER pickup-flow.sql.
+-- Read-only deployment verification. Run after pickup-cod-progress.sql.
 select
   to_regprocedure('public.create_pickup_order(uuid,text,text,text,timestamptz,text,jsonb,text,jsonb,jsonb,text,boolean)') is not null as checkout_installed,
   to_regprocedure('public.update_pickup_details(uuid,text,text,text)') is not null as details_installed,
   to_regprocedure('public.confirm_pickup_handover(uuid,text)') is not null as handover_installed,
+  to_regprocedure('public.complete_pickup_order(uuid)') is not null as code_free_completion_installed,
+  coalesce(has_function_privilege('authenticated', to_regprocedure('public.complete_pickup_order(uuid)'), 'execute'), false) as participant_completion_enabled,
+  not coalesce(has_function_privilege('anon', to_regprocedure('public.complete_pickup_order(uuid)'), 'execute'), true) as anonymous_completion_blocked,
+  not has_table_privilege('authenticated', 'public.pickup_codes', 'select') as pickup_codes_hidden_from_browser,
   not has_function_privilege('authenticated', 'public.create_order_with_items(uuid,text,text,text,timestamptz,text,jsonb,text,jsonb,jsonb)', 'execute') as old_checkout_blocked,
   not has_function_privilege('anon', 'public.create_pickup_order(uuid,text,text,text,timestamptz,text,jsonb,text,jsonb,jsonb,text,boolean)', 'execute') as anonymous_checkout_blocked,
   not has_column_privilege('authenticated', 'public.orders', 'handed_over_at', 'update') as handover_not_directly_writable,

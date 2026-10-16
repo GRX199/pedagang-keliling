@@ -1,12 +1,15 @@
 node_modules/
 dist/
 test-results/
+supabase/.temp/
 .env*
 !.env.example
 server/.env*
 .DS_Store
 
 # Private proposal/seminar documents
+docs/revisi-sempro.md
+public/wireframe/
 docs/seminar-proposal-*
 docs/*proposal*.docx
 docs/*proposal*.md

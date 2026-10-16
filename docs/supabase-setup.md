@@ -24,7 +24,8 @@ Untuk upgrade database yang sudah berjalan, ikuti [aktivasi alur pengambilan](./
 7. Jalankan [production-hardening.sql](../supabase/production-hardening.sql).
 8. Jalankan [order-payment-guard.sql](../supabase/order-payment-guard.sql).
 9. Jalankan [pickup-flow.sql](../supabase/pickup-flow.sql).
-10. Periksa instalasi dengan [pickup-verification.sql](../supabase/pickup-verification.sql). Semua pemeriksaan boolean harus true. Jangan menjalankan fixture di `supabase/tests` pada produksi.
+10. Jalankan [pickup-simple-handover.sql](../supabase/pickup-simple-handover.sql), lalu [pickup-cod-progress.sql](../supabase/pickup-cod-progress.sql).
+11. Periksa instalasi dengan [pickup-verification.sql](../supabase/pickup-verification.sql). Semua pemeriksaan boolean harus true. Jangan menjalankan fixture di `supabase/tests` pada produksi.
 
 Schema itu sudah menyiapkan:
 - tabel `vendors`

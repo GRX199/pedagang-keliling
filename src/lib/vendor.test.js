@@ -30,6 +30,16 @@ describe('vendor presence', () => {
     expect(isVendorPresenceFresh(staleVendor, now)).toBe(false)
   })
 
+  it('requires last_seen_at like the database policy, not a location JSON timestamp', () => {
+    expect(isVendorPresenceFresh({ is_verified: true, online: true, location: { lat: -5, lng: 119, updated_at: new Date(now).toISOString() } }, now)).toBe(false)
+  })
+
+  it('rejects unverified and implausibly future presence', () => {
+    const vendor = { is_verified: true, online: true, location: { lat: -5, lng: 119 }, last_seen_at: new Date(now + 31000).toISOString() }
+    expect(isVendorPresenceFresh(vendor, now)).toBe(false)
+    expect(isVendorPresenceFresh({ ...vendor, is_verified: false, last_seen_at: new Date(now).toISOString() }, now)).toBe(false)
+  })
+
   it('formats presence freshness for mobile map cards', () => {
     const liveVendor = {
       is_verified: true,

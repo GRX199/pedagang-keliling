@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAuthSessionController } from './auth-session'
+import { createAuthSessionController } from '../features/auth/auth-session'
 
 const user = { id: 'vendor-1', user_metadata: { full_name: 'Toko' } }
 const meta = { role: 'vendor', accountStatus: 'active' }
 
 function setup(resolveMeta = vi.fn().mockResolvedValue(meta)) {
   const onChange = vi.fn()
-  const syncProfile = vi.fn().mockResolvedValue(null)
+  const syncProfile = vi.fn().mockImplementation(async (actor) => ({ id: actor.id }))
   const controller = createAuthSessionController({ resolveMeta, syncProfile, onChange })
   return { controller, resolveMeta, syncProfile, onChange, latest: () => onChange.mock.lastCall[0] }
 }
@@ -111,5 +111,53 @@ describe('auth session lifecycle', () => {
     controller.handleSession('SIGNED_IN', { user })
     await vi.runAllTimersAsync()
     expect(latest()).toMatchObject({ role: 'vendor', loading: false, authError: '' })
+  })
+
+  it('does not open private pages before initial profile synchronization finishes', async () => {
+    const { controller, syncProfile, latest } = setup()
+    let finishProfile
+    syncProfile.mockImplementation(() => new Promise(resolve => { finishProfile = resolve }))
+    controller.handleSession('SIGNED_IN', { user })
+    vi.advanceTimersByTime(0)
+    await Promise.resolve()
+    expect(syncProfile).toHaveBeenCalledTimes(1)
+    expect(latest()).toMatchObject({ loading: true, role: null })
+    finishProfile({ id: user.id })
+    await vi.runAllTimersAsync()
+    expect(latest()).toMatchObject({ loading: false, role: 'vendor' })
+  })
+
+  it('keeps initial access closed after a failed bootstrap and permits a retry', async () => {
+    const { controller, syncProfile, latest } = setup()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    syncProfile.mockResolvedValueOnce(null)
+    controller.handleSession('SIGNED_IN', { user })
+    await vi.runAllTimersAsync()
+    expect(latest().role).toBeNull()
+    expect(latest().authError).toContain('Profil akun belum siap')
+    controller.handleSession('SIGNED_IN', { user })
+    await vi.runAllTimersAsync()
+    expect(latest()).toMatchObject({ role: 'vendor', loading: false, authError: '' })
+  })
+
+  it('cannot restore a logged-out account when its profile bootstrap finishes late', async () => {
+    const { controller, syncProfile, latest } = setup()
+    let finishProfile
+    syncProfile.mockImplementation(() => new Promise(resolve => { finishProfile = resolve }))
+    controller.handleSession('SIGNED_IN', { user })
+    vi.advanceTimersByTime(0)
+    await Promise.resolve()
+    controller.handleSession('SIGNED_OUT', null)
+    finishProfile({ id: user.id })
+    await vi.runAllTimersAsync()
+    expect(latest()).toMatchObject({ user: null, role: null, loading: false })
+  })
+
+  it('applies account restrictions without waiting for an unnecessary profile write', async () => {
+    const { controller, syncProfile, latest } = setup(vi.fn().mockResolvedValue({ ...meta, accountStatus: 'blocked' }))
+    controller.handleSession('SIGNED_IN', { user })
+    await vi.runAllTimersAsync()
+    expect(latest()).toMatchObject({ role: 'vendor', accountStatus: 'blocked', loading: false })
+    expect(syncProfile).not.toHaveBeenCalled()
   })
 })

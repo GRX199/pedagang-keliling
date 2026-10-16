@@ -1,37 +1,50 @@
-├── .env.example
-├── .env.local
-├── generateTree.js
-├── index.html
-├── package-lock.json
-├── package.json
-├── postcss.config.cjs
-├── server
-│   ├── .env
-│   ├── .env.example
-│   ├── package-lock.json
-│   ├── package.json
-│   └── server.js
-├── src
-│   ├── App.jsx
-│   ├── components
-│   │   ├── ChatModal.jsx
-│   │   ├── MapView.jsx
-│   │   ├── OrdersPanel.jsx
-│   │   ├── ToastProvider.jsx
-│   │   ├── VendorChatsList.jsx
-│   │   ├── VendorOrdersPanel.jsx
-│   │   ├── VendorProducts.jsx
-│   │   └── VendorsList.jsx
-│   ├── lib
-│   │   ├── auth.jsx
-│   │   └── supabase.js
-│   ├── main.jsx
-│   ├── pages
-│   │   ├── DashboardPage.jsx
-│   │   ├── LoginPage.jsx
-│   │   ├── MapPage.jsx
-│   │   └── VendorProfile.jsx
-│   └── styles
-│       └── index.css
-├── tailwind.config.cjs
-└── vite.config.js
+Struktur ringkas setelah refactor adaptif (16 Oktober 2026)
+Detail: docs/architecture-refactor.md
+
+index.html
+package.json
+vite.config.js
+tsconfig.json
+eslint.config.mjs
+src/
+  main.tsx
+  App.tsx
+  features/
+    auth/       AuthProvider, auth-session, LoginPage, ProtectedRoute
+    map/        MapViewPage, LeafletMap, VendorMarker, useVendorMarkers,
+                useActiveVendors, useDemandOrders, useDrivingRoute, components/
+    notifications/ useNotifications, useNearbyAlerts, notification-model
+    vendor/     VendorStorePage, ProductList, DashboardScreen, useVendor, useProducts,
+                VendorLiveLocationSync, useVendorPresence, ProfilePanel,
+                useProfile, profile-api, profile-form, useFavorites, components/
+    orders/     OrdersPanel, OrderTrackingPage, PickupTrackingPage, HandoverModal,
+                LegacyOrderTrackingPage, useOrders, api, cart, components/
+    chat/       ChatsPage, ChatWorkspace, ChatRoom, MessageList,
+                useChat, useChats, messages
+    admin/      AdminDashboard, VendorVerification, useAdminVendors,
+                useAdminVendorMutation, admin-api
+  shared/
+    components/ AppNavigation, UI dasar, ToastProvider, AppErrorBoundary, PWA
+    hooks/      useGeolocation, useDebounce, useOnlineStatus, useRealtimeQuerySync,
+                usePresenceClock, useLiveViewerLocation
+    lib/        supabase, queryClient, media, coordinates, leaflet, utils
+  types/        database.types.ts, domain.types.ts
+  lib/          helper bisnis/format/routing/PWA TypeScript
+  pages/        LandingPage.tsx
+  styles/       index.css
+server/
+  app.js
+  package.json
+supabase/       skema, migrasi, dan tests/ SQL yang sudah ada
+scripts/        validasi SQL, generasi tipe, tes UI, concurrency,
+                test-pwa-ui.mjs, test-hosted-qa.mjs, hosted-browser-qa.mjs
+tests/ui/       fixture terisolasi, bukan halaman production
+public/         manifest, ikon PWA, sw.js, offline.html mandiri
+.github/workflows/quality.yml  gate CI tanpa akses production
+docs/           dokumentasi arsitektur dan panduan aplikasi
+
+Catatan:
+- Tailwind v4 memakai @tailwindcss/vite, bukan postcss.config.cjs atau tailwind.config.cjs.
+- .env.local dan server/.env tetap lokal, tidak dimasukkan ke Git.
+- Seluruh kode produksi src memakai TypeScript strict; allowJs=false.
+- Backend Express, skrip tooling, dan sebagian tes tetap JavaScript.

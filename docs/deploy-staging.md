@@ -80,7 +80,7 @@ Referensi resmi: [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vi
 4. Karena backend ada di folder `server`, pakai konfigurasi berikut:
    - Root Directory: `server`
    - Runtime: `Node`
-   - Build Command: `npm install`
+   - Build Command: `npm ci`
    - Start Command: `npm run start`
 5. Tambahkan environment variables:
 

@@ -1,10 +1,14 @@
 # Kelilingku Essential Roadmap
 
+## Status 16 Oktober 2026
+
+Refactor TypeScript strict dan modularisasi selesai. Gate lokal mencakup 217 tes, 132 kombinasi layout/regresi, browser publik dan PWA offline/reconnect. Pengujian Supabase asli 18 pemeriksaan sudah lulus dan fixture dibersihkan. Pemeriksaan deployment baca-saja menunjukkan frontend Vercel masih build lama; health/CORS Render normal. Prioritas tersisa adalah menerapkan commit terbaru, lalu UAT perangkat fisik, email reset password dan akun admin yang sah. Lihat [gerbang rilis](./release-readiness.md); jangan menambah fitur baru sebelum gerbang ini tuntas.
+
 ## Pembaruan Alur Pengambilan
 
 Implementasi 16 September 2026 memusatkan pesanan baru pada `pending -> accepted -> ready -> completed`: ambil sendiri atau kurir eksternal yang diatur pelanggan, bukan kewajiban antar oleh pedagang. Peta menunjukkan lokasi pedagang dan titik pengambilan tanpa ETA semu. Pesanan lama tetap diberi label legacy.
 
-Kode, migrasi, pengujian PostgreSQL lokal, dan simulasi UI sudah disiapkan. Langkah penting berikutnya adalah aktivasi migrasi, deployment terkoordinasi, lalu pengujian Supabase nyata dan dua perangkat. Jangan menganggap tahap tersebut selesai hanya karena build lulus. Lihat [alur, batas fitur, dan checklist aktivasi](./pengambilan-dan-migrasi.md); dokumen ini menjadi acuan terbaru bila panduan lama masih menyebut alur antar.
+Kode, kontrak migrasi, PostgreSQL lokal, simulasi UI dan Supabase nyata sudah diuji. Langkah penting berikutnya adalah deployment terkoordinasi dan pengujian dua perangkat fisik. Pada database yang sudah lulus kontrak, jangan mengulang migrasi lama hanya untuk deploy refactor. Lihat [alur, batas fitur, dan checklist aktivasi](./pengambilan-dan-migrasi.md).
 
 ## Fokus Utama
 

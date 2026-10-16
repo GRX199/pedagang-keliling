@@ -4,6 +4,8 @@ Kelilingku adalah platform map-first commerce untuk pedagang keliling seperti sa
 
 ## Dokumentasi Utama
 
+- [Arsitektur TypeScript dan Hasil Refactor](./docs/architecture-refactor.md) - skema nyata, struktur fitur, aturan cache, pemeriksaan, dan batas verifikasi.
+- [Pemeriksaan Rilis dan UAT](./docs/release-readiness.md) - gate otomatis, hasil pemeriksaan deployment, dan pengujian perangkat fisik yang tersisa.
 - [Alur Pengambilan dan Aktivasi Migrasi](./docs/pengambilan-dan-migrasi.md) - implementasi aplikasi utama, urutan deployment, serta pengujian dua perangkat.
 - [Product Blueprint](./docs/product-blueprint.md)
 - [Implementation Roadmap](./docs/implementation-roadmap.md)
@@ -17,7 +19,8 @@ Kelilingku adalah platform map-first commerce untuk pedagang keliling seperti sa
 
 ## Stack Saat Ini
 
-- Frontend: React + Vite
+- Frontend: React 18 + Vite + TypeScript strict, React Router 7, Tailwind 4
+- Server state: TanStack Query v5 + Supabase Realtime
 - Backend ringan: Node.js untuk upload dan endpoint operasional
 - Database/Auth/Realtime/Storage: Supabase
 
@@ -42,6 +45,14 @@ cd server
 npm run dev
 ```
 
+Pemeriksaan sebelum rilis (tanpa menulis ke Supabase production):
+
+```powershell
+npm ci
+npx playwright install chromium
+npm run check:release
+```
+
 ## Arah Produk
 
 Produk ini dibangun sebagai `map-first commerce`, bukan marketplace katalog biasa.
@@ -55,8 +66,8 @@ Prioritas pengembangan yang penting sekarang:
 
 ## Catatan
 
-Untuk database baru, jalankan SQL secara berurutan: `schema.sql`, `phase1-foundation.sql`, `admin-foundation.sql`, `production-hardening.sql`, `order-payment-guard.sql`, lalu `pickup-flow.sql`. Periksa hasil dengan `pickup-verification.sql`.
+Untuk database baru, jalankan SQL secara berurutan: `schema.sql`, `phase1-foundation.sql`, `admin-foundation.sql`, `production-hardening.sql`, `order-payment-guard.sql`, `pickup-flow.sql`, `pickup-simple-handover.sql`, lalu `pickup-cod-progress.sql`. Periksa hasil dengan `pickup-verification.sql`.
 
 Untuk database yang sudah berjalan, ikuti [panduan aktivasi](./docs/pengambilan-dan-migrasi.md), bukan mengulang seluruh SQL lama. Terapkan migrasi pengambilan sebelum mengaktifkan frontend baru. Pesanan lama tetap menggunakan alur legacy; pesanan baru memakai ambil sendiri atau kurir yang diatur pelanggan.
 
-Pembaruan tanpa kode: jalankan `supabase/pickup-simple-handover.sql` setelah `pickup-flow.sql` sebelum deployment terbaru. Pedagang menyelesaikan pesanan melalui konfirmasi serah terima, tanpa mengetik kode.
+Pembaruan tanpa kode dan COD pada progres utama memerlukan `pickup-simple-handover.sql`, lalu `pickup-cod-progress.sql`, setelah `pickup-flow.sql`. Database terhubung sudah lulus pengujian kontrak tersebut; jangan menjalankan ulang SQL lama hanya untuk deploy refactor TypeScript atau pembaruan PWA ini.
