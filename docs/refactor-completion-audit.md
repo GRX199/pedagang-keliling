@@ -9,7 +9,7 @@ Tanggal: 16 Oktober 2026. Cakupan: permintaan refactor adaptif Tahap 0-3, bukan 
 | Inspeksi konfigurasi sebelum migrasi | React 18, Router 7, Tailwind 4 dengan `@tailwindcss/vite` dipertahankan; tidak ada konfigurasi Tailwind 3/PostCSS tambahan. |
 | Kontrak berdasarkan SQL asli | Empat SQL wajib dan empat migrasi lanjutan diperiksa. `database.types.ts` dihasilkan dari katalog PostgreSQL disposable setelah migrasi, mencakup 15 tabel dan 10 RPC authenticated; tidak menebak skema hosted. |
 | Environment kompatibel | Klien mendukung `VITE_SUPABASE_URL`, publishable key atau fallback anon key, bucket dan URL backend yang sudah dipakai. Tidak mengubah environment atau menaruh service-role key di frontend. |
-| TypeScript strict | 101 berkas produksi `src` memakai TS/TSX, `strict=true`, `allowJs=false`. Tidak ada produksi JS/JSX tersisa atau bypass `any`/`@ts-ignore`/`@ts-nocheck`. Backend/tooling dan tes JS lama sengaja tidak dimigrasikan. |
+| TypeScript strict | 102 berkas produksi `src` memakai TS/TSX, `strict=true`, `allowJs=false`. Tidak ada produksi JS/JSX tersisa atau bypass `any`/`@ts-ignore`/`@ts-nocheck`. Backend/tooling dan tes JS lama sengaja tidak dimigrasikan. |
 | Dependensi yang diminta | TanStack Query v5, Lucide, TypeScript, tipe React 18, React DOM dan Leaflet tersedia pada package/lockfile. |
 | Struktur fitur | Auth, map, vendor, orders, chat, admin dan notifications dipisahkan ke `src/features/`. Halaman dan komponen lama yang sudah tergantikan dihapus. |
 | Shared foundation | Klien Supabase bertipe, QueryClient, media abstraction, Button/Modal/Badge/Card/Input/Spinner, serta hook geolokasi/debounce/online tersedia di `src/shared/`. |
@@ -26,7 +26,7 @@ Tanggal: 16 Oktober 2026. Cakupan: permintaan refactor adaptif Tahap 0-3, bukan 
 
 ## Bukti Pengujian
 
-- `npm run check`: 217 tes/30 berkas, ESLint termasuk service worker, TypeScript, parser delapan migrasi SQL serta satu verifikasi read-only, build production dan sintaks backend lulus.
+- `npm run check`: 219 tes/30 berkas, ESLint termasuk service worker, TypeScript, parser delapan migrasi SQL serta satu verifikasi read-only, build production dan sintaks backend lulus.
 - `scripts/test-pickup-ui.mjs`: 132 kombinasi layout/regresi lulus. Tambahan pemeriksaan mencakup modal serah terima pada HP, Escape, fokus kembali, tidak ada PIN, satu RPC COD, draft/input tetap stabil, chat/notification races, map persisten, admin dan PWA. Memakai layanan fixture, bukan production.
 - `scripts/test-public-ui.mjs`: bundle production/providers, landing, login, label/toggle password dan redirect privat lulus pada 320/375/1366 piksel.
 - `scripts/test-pwa-ui.mjs`: service worker nyata dari build production lulus untuk instalasi pertama pada login, ikon PNG, navigasi offline tanpa bundle React, isolasi cache privat, layout 320/375/1366 dan pemulihan koneksi. Baseline sebelum perbaikan gagal menampilkan halaman offline pada cold install.

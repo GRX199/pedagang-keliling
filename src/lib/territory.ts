@@ -92,13 +92,18 @@ function pickAreaLabel(labelsMap: Map<string, number>, fallbackLabel: string) {
 
 export function buildVendorTerritoryInsights(
   orders: readonly DemandOrder[],
-  { lookbackDays = DEMAND_LOOKBACK_DAYS } = {},
+  {
+    lookbackDays = DEMAND_LOOKBACK_DAYS,
+  }: { lookbackDays?: number | null } = {},
 ) {
   const safeOrders = Array.isArray(orders) ? orders : []
-  const lookbackThreshold = Date.now() - lookbackDays * 24 * 60 * 60 * 1000
+  const lookbackThreshold =
+    lookbackDays === null ? 0 : Date.now() - lookbackDays * 24 * 60 * 60 * 1000
 
   const hotspotMap = new Map<string, Cell>()
   let mappedOrderCount = 0
+  let eligibleOrderCount = 0
+  let unmappedOrderCount = 0
   let preorderCount = 0
 
   safeOrders.forEach((order) => {
@@ -110,8 +115,12 @@ export function buildVendorTerritoryInsights(
       return
     }
 
+    eligibleOrderCount += 1
     const coordinate = getDemandCoordinate(order)
-    if (!coordinate) return
+    if (!coordinate) {
+      unmappedOrderCount += 1
+      return
+    }
 
     const key = `${roundCell(coordinate.lat).toFixed(4)}:${roundCell(coordinate.lng).toFixed(4)}`
     if (!hotspotMap.has(key)) {
@@ -208,10 +217,16 @@ export function buildVendorTerritoryInsights(
 
   return {
     lookbackDays,
+    eligibleOrderCount,
+    unmappedOrderCount,
     mappedOrderCount,
     preorderCount,
     hotspotCount: normalizedHotspots.length,
-    hotspots: normalizedHotspots.slice(0, 5),
+    hotspots: normalizedHotspots,
     leadHotspot: normalizedHotspots[0] || null,
   }
 }
+
+export type DemandHotspot = ReturnType<
+  typeof buildVendorTerritoryInsights
+>['hotspots'][number]

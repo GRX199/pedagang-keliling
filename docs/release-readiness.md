@@ -7,12 +7,14 @@ Diperbarui 16 Oktober 2026. Dokumen ini memisahkan baseline sebelum rilis, gate 
 - Fallback PWA tidak lagi memuat HTML aplikasi lama yang bisa kehilangan bundle saat offline. Halaman offline mandiri menampilkan status koneksi dan tombol Coba lagi; URL tujuan dipertahankan.
 - Service worker tidak menyimpan navigasi privat, request berotorisasi, POST, URL aset dengan query, error HTTP atau HTML yang salah dikirim sebagai JavaScript. Cache bundle dibatasi 64 entri; cache aplikasi lain tidak dihapus.
 - Worker terdaftar dengan `updateViaCache: none`. Konfigurasi Vercel menyediakan revalidasi worker/manifest/offline HTML dan header keamanan dasar, tanpa mematikan geolokasi same-origin. Perubahan header belum berlaku pada deployment lama.
-- `npm run check:release` menjalankan lint, tipe, 217 tes, delapan migrasi SQL dan verifikasi read-only, build, sintaks backend, 132 kombinasi UI, smoke publik serta uji offline/reconnect service worker nyata.
+- `npm run check:release` menjalankan lint, tipe, 219 tes, delapan migrasi SQL dan verifikasi read-only, build, sintaks backend, 132 kombinasi UI beserta regresi Area Pesanan, smoke publik serta uji offline/reconnect service worker nyata.
 - `.github/workflows/quality.yml` menjalankan gate dan audit dependensi pada push main, pull request atau pemicu manual. Token GitHub hanya `contents: read`; environment Supabase adalah placeholder. Tidak menjalankan pengujian hosted, mengunggah artefak privat atau melakukan deployment.
 - Playwright 1.62.1 dikunci sebagai dev dependency agar tes browser tidak bergantung pada runtime editor. Dependensi inti React 18/Router 7/Tailwind 4 dipertahankan. Render menggunakan `npm ci` sesuai lockfile.
 - Panduan instalasi diselaraskan: delapan migrasi, tanpa PIN, COD melalui progres utama. `pickup-verification.sql` memeriksa RPC penyelesaian/grants/akses kode; seluruh boolean dan publication lulus pada cluster lokal yang kemudian dihentikan.
 
 ## Baseline Deployment Sebelum Rilis
+
+Rilis refactor `539685d` kemudian berhasil dipush dan diterapkan; CI serta 18 pemeriksaan pada Vercel/Render/Supabase asli lulus dengan cleanup QA berhasil. Rincian baseline di tabel berikut adalah hasil sebelum rilis tersebut, bukan status gangguan saat ini. UAT perangkat fisik tetap belum digantikan oleh pengujian browser.
 
 Target yang dikonfirmasi pemilik: [frontend Vercel](https://pedagang-keliling.vercel.app/). Backend ditemukan dari origin publik bundle: [API Render](https://pedagang-keliling-api.onrender.com/).
 
@@ -47,6 +49,14 @@ node scripts/test-public-ui.mjs --url https://pedagang-keliling.vercel.app/
 ```
 
 Perintah ini tidak login dan memblokir request lintas origin. Tes service worker lokal terpisah memakai `npm run test:ui:pwa`. Jika konten offline/precache diubah lagi, perbarui versi worker dan ulangi tes; jangan mengandalkan cache lama.
+
+## Area Pesanan Pedagang
+
+Fitur ini memetakan pesanan toko milik akun pedagang, bukan lokasi semua pelanggan di platform. Default periode 14 hari dapat kosong jika riwayat lebih lama; ini sebelumnya membuat tombol tidak aktif tanpa penjelasan. Sekarang pilih Area pesanan, lalu 14 hari, 30 hari, atau Semua periode. Aktivasi/pergantian periode memfokuskan peta sekali ke area yang dipilih. Polling latar belakang mempertahankan layer dan viewport; data kosong atau gagal dimuat ditampilkan jelas.
+
+Semua sel area dalam hasil terpilih digambar, bukan hanya lima terbesar. Query dibatasi maksimal 1.000 pesanan terbaru milik toko dengan penanda jika hasil terpotong. Pesanan aktif yang belum selesai tetap dipertahankan walaupun lebih lama dari periode. Pesanan tanpa koordinat, termasuk kurir mandiri tanpa GPS, tidak diberi titik buatan. Tidak ada migrasi atau perubahan lokasi/data pesanan production untuk perbaikan ini.
+
+## Pengujian Hosted
 
 Pengujian transaksi pada deployment nyata, hanya dengan izin eksplisit pemilik:
 

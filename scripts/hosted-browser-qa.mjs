@@ -26,6 +26,7 @@ export async function runHostedBrowserQA({
   product,
   check,
   registerUpload,
+  prepareDemandHistory,
   runId,
   redact,
   inspectQueryCache = true,
@@ -236,6 +237,46 @@ export async function runHostedBrowserQA({
         assert.equal(stock.reserved_stock, 0)
       },
     )
+    if (prepareDemandHistory) {
+      await check(
+        'browser: merchant order-area periods include old history and focus the map on mobile',
+        async () => {
+          await prepareDemandHistory(orderId)
+          await vendorPage.goto(`${appOrigin}/map`)
+          const toggle = vendorPage.getByRole('button', { name: /^Area pesanan/ })
+          await toggle.click()
+          const period = vendorPage.getByLabel('Periode area pesanan', { exact: true })
+          const areaCount = vendorPage.getByText(/^\d+ pesanan · \d+ area$/)
+          const count = async () => (await areaCount.count())
+            ? Number((await areaCount.textContent()).split(' ')[0]) : 0
+          await until(async () => {
+            if (await vendorPage.getByText('Memuat area pesanan...', { exact: true }).count()) return false
+            return (await areaCount.count()) > 0 || (await vendorPage.getByText(/Tidak ada pesanan 14 hari terakhir/).count()) > 0
+          }, 'Order-area query did not finish')
+          const recentCount = await count()
+          await period.selectOption('all')
+          await until(async () => (await count()) === recentCount + 1, 'All periods did not include the old completed QA order')
+          await vendorPage.locator('.vendor-demand-area').first().waitFor()
+          await vendorPage.setViewportSize({ width: 375, height: 850 })
+          await vendorPage.locator('.leaflet-container').scrollIntoViewIfNeeded()
+          await until(() => vendorPage.evaluate(() => {
+            const map = document.querySelector('.leaflet-container').getBoundingClientRect()
+            return [...document.querySelectorAll('.vendor-demand-area')].some(element => {
+              const area = element.getBoundingClientRect()
+              return area.width > 0 && area.right > map.left && area.left < map.right && area.bottom > map.top && area.top < map.bottom
+            })
+          }), 'Order areas were drawn outside the visible map')
+          assert(await vendorPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Expanded order-area controls overflow mobile')
+          await vendorPage.screenshot({ path: `${folder}/vendor-demand-history-375.png`, fullPage: true })
+          await period.selectOption('30')
+          await until(async () => (await count()) === recentCount, '30-day period incorrectly includes the old completed order')
+          await toggle.click()
+          assert.equal(await period.count(), 0, 'Turning the layer off should collapse its controls')
+          assert.equal(await vendorPage.locator('.vendor-demand-area').count(), 0)
+          await vendorPage.setViewportSize({ width: 1366, height: 900 })
+        },
+      )
+    }
     const text = `QA UI ping ${runId}`
     let chatId
     await check(

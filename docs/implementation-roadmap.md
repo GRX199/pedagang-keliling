@@ -2,7 +2,7 @@
 
 ## Status 16 Oktober 2026
 
-Refactor TypeScript strict dan modularisasi selesai. Gate lokal mencakup 217 tes, 132 kombinasi layout/regresi, browser publik dan PWA offline/reconnect. Pengujian Supabase asli 18 pemeriksaan sudah lulus dan fixture dibersihkan. Pemeriksaan deployment baca-saja menunjukkan frontend Vercel masih build lama; health/CORS Render normal. Prioritas tersisa adalah menerapkan commit terbaru, lalu UAT perangkat fisik, email reset password dan akun admin yang sah. Lihat [gerbang rilis](./release-readiness.md); jangan menambah fitur baru sebelum gerbang ini tuntas.
+Refactor TypeScript strict dan modularisasi selesai dan rilis `539685d` sudah terverifikasi online. Gate lokal kini mencakup 219 tes, 132 kombinasi layout/regresi beserta Area Pesanan, browser publik dan PWA offline/reconnect. Pengujian Supabase asli 18 pemeriksaan lulus dan fixture dibersihkan. Perbaikan Area Pesanan menyediakan periode riwayat dan fokus layer tanpa mengubah database. Prioritas tersisa adalah UAT perangkat fisik, email reset password dan akun admin yang sah. Lihat [gerbang rilis](./release-readiness.md); jangan menambah fitur baru sebelum gerbang ini tuntas.
 
 ## Pembaruan Alur Pengambilan
 

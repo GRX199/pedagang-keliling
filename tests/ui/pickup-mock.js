@@ -51,6 +51,7 @@ window.pickupFixture = {
   stale() { vendor.last_seen_at = new Date(Date.now() - 130000).toISOString(); this.refresh() },
   moveVendor() { vendor.location = { lat: 1.476, lng: 124.850 }; vendor.last_seen_at = new Date().toISOString(); this.refresh() },
   setOrderStatus(status) { fixtureOrder = { ...fixtureOrder, status }; this.refresh() },
+  setDemandOrder(value) { fixtureOrder = { ...fixtureOrder, ...value }; this.refresh() },
 }
 const notificationListeners = new Set()
 const notificationReads = []

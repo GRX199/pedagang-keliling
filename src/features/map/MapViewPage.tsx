@@ -12,6 +12,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useActiveVendors } from './useActiveVendors'
 import { useFavorites } from '../vendor/useFavorites'
 import { useDemandOrders } from './useDemandOrders'
+import { useDemandLayer } from './useDemandLayer'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import L from '../../shared/lib/leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -21,7 +22,6 @@ import MapSearchFilters from './components/MapFilters'
 
 import { useToast } from '../../shared/components/ToastProvider'
 import { useAuth } from '../auth/AuthProvider'
-import { escapeMapText } from '../../lib/map-popup'
 import { VENDOR_CATEGORIES } from '../../lib/vendor-categories'
 
 import { getGeolocationErrorMessage } from '../../lib/network'
@@ -93,7 +93,6 @@ function MapViewContent() {
     },
     []
   )
-  const heatmapLayerRef = useRef<L.LayerGroup | null>(null)
   const autoLocateAttemptedRef = useRef(false)
 
   const vendorQuery = useActiveVendors()
@@ -125,7 +124,9 @@ function MapViewContent() {
   const [showAllVendors, setShowAllVendors] = useState(false)
   const demandQuery = useDemandOrders()
   const demandOrders = demandQuery.orders
-  const [showDemandHeatmap, setShowDemandHeatmap] = useState(true)
+  const [showDemandHeatmap, setShowDemandHeatmap] = useState(false)
+  const [demandPeriod, setDemandPeriod] = useState<'14' | '30' | 'all'>('14')
+  const [demandFocusRequest, setDemandFocusRequest] = useState(0)
   const presenceClock = usePresenceClock(vendors)
   const changeVendorFilter = useCallback(
     <K extends keyof MapFilters>(name: K, value: MapFilters[K]) => {
@@ -422,7 +423,17 @@ function MapViewContent() {
     selectedRatingFilter,
   ])
 
-  const demandInsights = useMemo(() => buildVendorTerritoryInsights(demandOrders), [demandOrders])
+  const demandMinute = Math.floor(presenceClock / 60_000)
+  const demandInsights = useMemo(
+    () => buildVendorTerritoryInsights(demandOrders, { lookbackDays: demandPeriod === 'all' ? null : Number(demandPeriod) }),
+    [demandOrders, demandPeriod, demandMinute]
+  )
+  useDemandLayer(mapInstance, demandInsights.hotspots, isVendor && showDemandHeatmap, demandFocusRequest)
+
+  function toggleDemandLayer() {
+    setShowDemandHeatmap(current => !current)
+    if (!showDemandHeatmap) setDemandFocusRequest(current => current + 1)
+  }
 
   useEffect(() => {
     if (!selectedVendor) return
@@ -532,69 +543,6 @@ function MapViewContent() {
       myVendorId,
     ])
   )
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return undefined
-
-    if (heatmapLayerRef.current) {
-      try {
-        map.removeLayer(heatmapLayerRef.current)
-      } catch (error) {
-        console.error('removeDemandHeatmapLayer', error)
-      }
-      heatmapLayerRef.current = null
-    }
-
-    if (!isVendor || !showDemandHeatmap || !demandInsights.hotspotCount) {
-      return undefined
-    }
-
-    const group = L.layerGroup()
-
-    demandInsights.hotspots.forEach((hotspot) => {
-      if (!Number.isFinite(hotspot.lat) || !Number.isFinite(hotspot.lng)) return
-
-      const radius = 120 + hotspot.intensity * 95
-      const fillOpacity = 0.1 + hotspot.intensity * 0.08
-      const circle = L.circle([hotspot.lat, hotspot.lng], {
-        radius,
-        color: '#f97316',
-        weight: 1,
-        opacity: 0.45,
-        fillColor: '#f59e0b',
-        fillOpacity,
-      })
-
-      circle.bindTooltip(`${escapeMapText(hotspot.label)}: ${hotspot.orderCount} permintaan`, {
-        direction: 'top',
-        opacity: 0.92,
-      })
-
-      const core = L.circleMarker([hotspot.lat, hotspot.lng], {
-        radius: 5 + hotspot.intensity,
-        color: '#ea580c',
-        weight: 1,
-        fillColor: '#f97316',
-        fillOpacity: 0.85,
-      })
-
-      group.addLayer(circle)
-      group.addLayer(core)
-    })
-
-    heatmapLayerRef.current = group
-    group.addTo(map)
-
-    return () => {
-      try {
-        map.removeLayer(group)
-      } catch (error) {
-        console.error('cleanupDemandHeatmapLayer', error)
-      }
-      heatmapLayerRef.current = null
-    }
-  }, [demandInsights, isVendor, mapInstance, showDemandHeatmap])
 
   async function toggleMyOnlineStatus() {
     const current = vendors.find((vendor) => vendor.id === myVendorId)
@@ -709,10 +657,9 @@ function MapViewContent() {
                 {syncingStoreLocation ? 'Sinkron...' : 'Sinkron Lokasi'}
               </button>
               <button
-                onClick={() => setShowDemandHeatmap((current) => !current)}
+                onClick={toggleDemandLayer}
                 title="Area dari pesanan toko Anda, bukan seluruh permintaan pasar"
-                aria-pressed={Boolean(showDemandHeatmap && demandInsights.hotspotCount)}
-                disabled={!demandInsights.hotspotCount}
+                aria-pressed={showDemandHeatmap}
                 className={`shrink-0 rounded-xl px-3 py-2 text-sm font-medium transition ${
                   showDemandHeatmap && demandInsights.hotspotCount
                     ? 'bg-amber-400 text-amber-950'
@@ -724,6 +671,46 @@ function MapViewContent() {
                   : 'Area pesanan'}
               </button>
             </div>
+            {showDemandHeatmap && (
+              <div className="mt-2 space-y-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <label className="sr-only" htmlFor="demand-period">Periode area pesanan</label>
+                  <select
+                    id="demand-period"
+                    value={demandPeriod}
+                    onChange={event => {
+                      const value = event.target.value
+                      if (value !== '14' && value !== '30' && value !== 'all') return
+                      setDemandPeriod(value)
+                      setDemandFocusRequest(current => current + 1)
+                    }}
+                    className="min-h-11 max-w-full rounded-xl border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white"
+                  >
+                    <option value="14">14 hari terakhir</option>
+                    <option value="30">30 hari terakhir</option>
+                    <option value="all">Semua periode</option>
+                  </select>
+                  {demandInsights.mappedOrderCount > 0 && (
+                    <span className="text-xs text-slate-200">{demandInsights.mappedOrderCount} pesanan · {demandInsights.hotspotCount} area</span>
+                  )}
+                </div>
+                {demandQuery.isPending ? (
+                  <p role="status" className="text-xs text-slate-200">Memuat area pesanan...</p>
+                ) : demandQuery.isError ? (
+                  <p role="alert" className="text-xs text-amber-200">
+                    Area pesanan belum diperbarui.{' '}
+                    <button onClick={() => void demandQuery.refetch()} className="min-h-11 underline">Coba lagi</button>
+                  </p>
+                ) : !demandInsights.mappedOrderCount ? (
+                  <p role="status" className="text-xs text-slate-200">
+                    {!demandOrders.length ? 'Belum ada pesanan untuk dipetakan.' : !demandInsights.eligibleOrderCount
+                      ? `Tidak ada pesanan ${demandPeriod} hari terakhir. Pilih Semua periode untuk melihat riwayat.`
+                      : 'Pesanan pada periode ini belum memiliki lokasi yang dapat dipetakan.'}
+                  </p>
+                ) : null}
+                {demandQuery.truncated && <p className="text-xs text-slate-300">Menampilkan {demandOrders.length.toLocaleString('id-ID')} pesanan terbaru.</p>}
+              </div>
+            )}
           </section>
         ) : null}
 

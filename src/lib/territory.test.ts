@@ -41,4 +41,38 @@ describe('merchant demand layer', () => {
       ]).mappedOrderCount,
     ).toBe(1)
   })
+  it('can show history older than the recent period without inventing coordinates', () => {
+    const rows = [
+      {
+        status: 'completed',
+        created_at: '2020-01-01T00:00:00Z',
+        meeting_point_location: { lat: -6.2, lng: 106.8 },
+      },
+      {
+        status: 'completed',
+        created_at: '2020-01-02T00:00:00Z',
+        fulfillment_type: 'customer_courier',
+      },
+    ]
+    expect(buildVendorTerritoryInsights(rows).mappedOrderCount).toBe(0)
+    expect(
+      buildVendorTerritoryInsights(rows, { lookbackDays: null }),
+    ).toMatchObject({
+      mappedOrderCount: 1,
+      eligibleOrderCount: 2,
+      unmappedOrderCount: 1,
+      hotspotCount: 1,
+    })
+  })
+  it('returns every mapped area instead of silently showing only the top five', () => {
+    const rows = Array.from({ length: 8 }, (_, index) => ({
+      status: 'completed',
+      created_at: '2020-01-01T00:00:00Z',
+      meeting_point_location: { lat: -6.2 + index * 0.02, lng: 106.8 },
+    }))
+    const result = buildVendorTerritoryInsights(rows, { lookbackDays: null })
+    expect(result.hotspots).toHaveLength(8)
+    expect(result.hotspotCount).toBe(8)
+    expect(result.mappedOrderCount).toBe(8)
+  })
 })

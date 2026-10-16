@@ -978,6 +978,19 @@ async function run() {
       vendor,
       product,
       check,
+      async prepareDemandHistory(orderId) {
+        for (const actor of [freshBuyer, vendor]) {
+          assert.ok(state.users.some(entry => entry.id === actor.id), 'Unjournalled QA participant')
+          const { user } = unwrap(await admin.auth.admin.getUserById(actor.id))
+          assert.equal(user.user_metadata.qa_run_id, state.runId, 'Refuse to modify non-QA history')
+        }
+        // Reproduce old history only on this run's completed disposable order.
+        const updated = unwrap(await admin.from('orders')
+          .update({ created_at: '2020-01-01T00:00:00.000Z' })
+          .eq('id', orderId).eq('buyer_id', freshBuyer.id).eq('vendor_id', vendor.id)
+          .eq('status', 'completed').select('id').single())
+        assert.equal(updated.id, orderId)
+      },
       registerUpload(owner) {
         state.uploadOwners = [
           ...new Set([...(state.uploadOwners || []), owner]),
