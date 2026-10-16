@@ -28,7 +28,7 @@ bukan klaim bahwa seluruh pengujian sudah lulus.
 - Lokasi berusia lebih dari 120 detik diberi label kedaluwarsa. Sinkronisasi pedagang mencoba kembali saat online/foreground tanpa menjanjikan layanan background native.
 - Mutasi tidak diantrekan offline atau diulang otomatis; request diberi deadline, tanpa menganggap timeout sebagai rollback.
 - Pelaporan error best-effort dan log backend JSON sudah terpasang. Endpoint baru membutuhkan sesi valid, validasi allowlist dan rate limit. Tidak membutuhkan tabel/environment baru.
-- Gate source terakhir lulus: 256 tes/37 berkas, lint, tipe, parser delapan migrasi dan verifikasi read-only, build, 132 layout beserta regresi pagination/offline, smoke publik 320/375/1366 dan PWA offline/reconnect nyata. Regresi tambahan membuktikan gagal memuat pesan lama tidak menghentikan sinkronisasi pesan baru atau menggeser posisi baca.
+- Gate source aktif lulus: 208 tes/30 berkas, lint, tipe, parser delapan migrasi dan verifikasi read-only, build, 132 layout beserta regresi pagination/offline, smoke publik 320/375/1366 dan PWA offline/reconnect nyata. Angka lokal 256/37 sebelumnya ikut menghitung tujuh salinan tes lama di `test-results`; discovery kini mengecualikan artefak tersebut dan `.codegraph`, sehingga hitungan sesuai CI. Regresi tambahan membuktikan gagal memuat pesan lama tidak menghentikan sinkronisasi pesan baru atau menggeser posisi baca.
 - Pengulangan source final terhadap Supabase asli lulus 22 pemeriksaan: run `a856dc41-3368-49cd-be0d-1dc5a37ab309`, `failure=null`, warning kosong dan `cleaned=true`. Termasuk UI recovery dan perubahan password akun QA asli: password lama ditolak dan login baru berhasil, tanpa mengirim email. Frontend/Express yang diuji adalah versi lokal; ini bukan verifikasi deployment baru atau UAT perangkat fisik.
 - Audit production dependencies frontend/backend: nol kerentanan terlapor. Scan 18 bundle JavaScript akhir tidak menemukan service-role key.
 - Tidak ada perubahan skema/environment. Kode sudah dipush dan penerapan online diverifikasi sesuai bukti di bawah. Data asli pengguna tidak diubah; data QA sementara dibuat hanya dengan izin pemilik dan dibersihkan.
@@ -79,7 +79,8 @@ Pemilik menyetujui push ke `main` dan verifikasi online. Commit kode
 
 Tidak perlu SQL migration baru. `server/authentication.js` dan
 `server/diagnostics.js` sudah disertakan bersama `server/app.js`. Commit
-dokumentasi berikutnya tidak mengubah kode aplikasi yang telah diuji.
+dokumentasi dan koreksi discovery tes berikutnya tidak mengubah fitur aplikasi
+yang telah diuji.
 
 ## Dokumentasi Dan UAT
 
