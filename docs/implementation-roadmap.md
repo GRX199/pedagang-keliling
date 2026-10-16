@@ -2,13 +2,13 @@
 
 ## Status 17 Oktober 2026
 
-Rilis `6c4caef` sudah terverifikasi online: CI, smoke publik mobile/laptop dan 19 pemeriksaan hosted lulus dengan cleanup. Peningkatan 17 Oktober mencakup pagination pesanan/chat, status koneksi/lokasi, deadline dan pencegahan antrean mutasi offline, serta diagnostik aman. Verifikasi akhir/deployment pengerjaan baru dilacak di [performa dan keandalan](performance-reliability.md). Prioritas manual tetap UAT perangkat fisik, email reset password dan akun admin sah; lihat [checklist UAT](uat-perangkat.md). Jangan menambah fitur bisnis baru sebelum gerbang ini tuntas.
+Rilis `168814e` sudah terverifikasi online: CI, smoke publik mobile/laptop dan 22 pemeriksaan hosted lulus dengan cleanup. Peningkatan 17 Oktober mencakup pagination pesanan/chat, status koneksi/lokasi, deadline dan pencegahan antrean mutasi offline, serta diagnostik aman. Bukti deployment dilacak di [performa dan keandalan](performance-reliability.md). Prioritas manual tetap UAT perangkat fisik, email reset password dan akun admin sah; lihat [checklist UAT](uat-perangkat.md). Jangan menambah fitur bisnis baru sebelum gerbang ini tuntas.
 
 ## Pembaruan Alur Pengambilan
 
 Implementasi 16 September 2026 memusatkan pesanan baru pada `pending -> accepted -> ready -> completed`: ambil sendiri atau kurir eksternal yang diatur pelanggan, bukan kewajiban antar oleh pedagang. Peta menunjukkan lokasi pedagang dan titik pengambilan tanpa ETA semu. Pesanan lama tetap diberi label legacy.
 
-Kode, kontrak migrasi, PostgreSQL lokal, simulasi UI dan Supabase nyata sudah diuji. Langkah penting berikutnya adalah deployment terkoordinasi dan pengujian dua perangkat fisik. Pada database yang sudah lulus kontrak, jangan mengulang migrasi lama hanya untuk deploy refactor. Lihat [alur, batas fitur, dan checklist aktivasi](./pengambilan-dan-migrasi.md).
+Kode, kontrak migrasi, PostgreSQL lokal, simulasi UI dan deployment Vercel/Render dengan Supabase nyata sudah diuji. Langkah penting berikutnya adalah pengujian dua perangkat fisik. Pada database yang sudah lulus kontrak, jangan mengulang migrasi lama hanya untuk deploy refactor. Lihat [alur, batas fitur, dan checklist aktivasi](./pengambilan-dan-migrasi.md).
 
 ## Fokus Utama
 

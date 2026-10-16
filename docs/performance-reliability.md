@@ -31,7 +31,7 @@ bukan klaim bahwa seluruh pengujian sudah lulus.
 - Gate source terakhir lulus: 256 tes/37 berkas, lint, tipe, parser delapan migrasi dan verifikasi read-only, build, 132 layout beserta regresi pagination/offline, smoke publik 320/375/1366 dan PWA offline/reconnect nyata. Regresi tambahan membuktikan gagal memuat pesan lama tidak menghentikan sinkronisasi pesan baru atau menggeser posisi baca.
 - Pengulangan source final terhadap Supabase asli lulus 22 pemeriksaan: run `a856dc41-3368-49cd-be0d-1dc5a37ab309`, `failure=null`, warning kosong dan `cleaned=true`. Termasuk UI recovery dan perubahan password akun QA asli: password lama ditolak dan login baru berhasil, tanpa mengirim email. Frontend/Express yang diuji adalah versi lokal; ini bukan verifikasi deployment baru atau UAT perangkat fisik.
 - Audit production dependencies frontend/backend: nol kerentanan terlapor. Scan 18 bundle JavaScript akhir tidak menemukan service-role key.
-- Tidak ada perubahan skema/environment/deployment. Data asli pengguna tidak diubah; data QA sementara dibuat hanya dengan izin pemilik dan dibersihkan.
+- Tidak ada perubahan skema/environment. Kode sudah dipush dan penerapan online diverifikasi sesuai bukti di bawah. Data asli pengguna tidak diubah; data QA sementara dibuat hanya dengan izin pemilik dan dibersihkan.
 - README/dokumen proposal pribadi yang sudah berubah sebelumnya tetap di luar pekerjaan ini.
 
 ## Diagnostik Operasional
@@ -69,10 +69,17 @@ bukan bukti deployment Render/Vercel. Setelah push/deploy disetujui, ulangi mode
 backend. Flag `--diagnostics` memeriksa endpoint baru pada Render, bukan hanya
 menyimpulkan deployment backend dari kelulusan frontend.
 
-Pemilik telah menyetujui push ke `main` dan verifikasi online. Sebelum penerapan
-diverifikasi, baseline online tetap `6c4caef`. Tidak perlu menjalankan SQL migration
-baru. Pastikan `server/authentication.js` dan `server/diagnostics.js` ikut commit
-bersama `server/app.js`.
+Pemilik menyetujui push ke `main` dan verifikasi online. Commit kode
+`168814e75ad544c3e828c6a5ecbef0b7327166ee` sudah dipush dan diperiksa:
+
+- [CI GitHub](https://github.com/GRX199/pedagang-keliling/actions/runs/38958704267) lulus untuk SHA tersebut, termasuk gate release dan kedua audit dependensi.
+- Status commit Vercel sukses; smoke [frontend production](https://pedagang-keliling.vercel.app/) lulus pada 320/375/1366 piksel.
+- [Backend Render](https://pedagang-keliling-api.onrender.com/) sudah melayani endpoint baru: request diagnostik tanpa token ditolak 401 `invalid_token`, dengan `requestId` body/header sesuai. Pengujian berakun juga lulus. SHA backend tidak dipaparkan oleh API publik; bukti ini memverifikasi perilaku rilis, bukan pembacaan SHA dari Render.
+- Mode `--allow-hosted-writes --deployed --browser-ui --diagnostics` lulus 22 pemeriksaan: run `b61723bf-9a67-45ad-bbe4-c24903b1f1cc`, `failure=null`, warning kosong, `cleaned=true`. Memakai frontend Vercel, API Render dan Supabase nyata, termasuk redirect recovery yang benar dan perubahan password QA tanpa pengiriman email.
+
+Tidak perlu SQL migration baru. `server/authentication.js` dan
+`server/diagnostics.js` sudah disertakan bersama `server/app.js`. Commit
+dokumentasi berikutnya tidak mengubah kode aplikasi yang telah diuji.
 
 ## Dokumentasi Dan UAT
 
@@ -92,12 +99,12 @@ hasilnya belum pasti. COD serta stok tetap diselesaikan secara atomik oleh SQL.
 
 | Persyaratan | Bukti saat ini | Status |
 | --- | --- | --- |
-| Pemuatan pesanan bertahap dan pencarian server | Unit batas/ownership/query, fixture 65 order bertimestamp sama, browser Supabase asli dengan join/filter/pencarian berkarakter khusus | Lulus lokal + hosted data |
-| Chat terbaru/riwayat dan pemulihan celah | Fixture 95 pesan + 90 pesan terlewat, scroll, ganti percakapan, respon awal terlambat; chat/foto dua konteks browser asli | Lulus lokal + hosted data |
+| Pemuatan pesanan bertahap dan pencarian server | Unit batas/ownership/query, fixture 65 order bertimestamp sama, browser Supabase asli dengan join/filter/pencarian berkarakter khusus | Lulus lokal + online |
+| Chat terbaru/riwayat dan pemulihan celah | Fixture 95 pesan + 90 pesan terlewat, scroll, ganti percakapan, respon awal terlambat; chat/foto dua konteks browser asli | Lulus lokal + online |
 | Offline, deadline dan mutasi tidak mengantre | Unit cancellation/timeout/guard sebelum mutationFn, fixture draft/offline/reconnect dan fallback subscription | Lulus otomatis; GPS fisik belum |
-| Log aman dan endpoint terproteksi | Unit allowlist/redaksi/throttle; API lokal auth, format, correlation ID terhadap sesi QA asli | Lulus; Render baru belum deploy |
+| Log aman dan endpoint terproteksi | Unit allowlist/redaksi/throttle; API lokal dan Render: auth, format, correlation ID terhadap sesi QA asli | Lulus lokal + online |
 | Dokumentasi skema/arsitektur/UAT | ERD sesuai FK SQL, alur tanpa PIN, kontrak data dan checklist perangkat diselaraskan | Tersedia; hasil UAT pemilik belum |
-| Penerapan online | Baseline online `6c4caef`; push dan verifikasi baru sudah disetujui | Menunggu bukti deployment baru |
+| Penerapan online | Commit kode `168814e`, CI/Vercel sukses, endpoint Render baru dan 22 pemeriksaan online dengan cleanup | Lulus; UAT fisik/inbox/admin tetap terpisah |
 
 Jangan menandai seluruh pekerjaan rilis selesai sebelum deployment baru dan
 bagian UAT yang memerlukan perangkat/inbox/akun resmi dibuktikan. Tidak ada

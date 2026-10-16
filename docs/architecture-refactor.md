@@ -2,10 +2,10 @@
 
 ## Status Terbaru 17 Oktober 2026
 
-Baseline refactor/Area Pesanan `6c4caef` telah diterapkan dan diperiksa pada
-Vercel/Render/Supabase asli: 19 pemeriksaan hosted lulus dan data QA dibersihkan.
-Peningkatan performa berikutnya sedang diverifikasi, belum dinyatakan sebagai
-deployment baru. Status pengerjaan terkini ada di
+Rilis performa/keandalan `168814e` telah dipush dan diperiksa pada
+Vercel/Render/Supabase asli: CI, smoke publik dan 22 pemeriksaan hosted lulus;
+seluruh data QA dibersihkan. UAT HP fisik, inbox email dan akun admin sah
+masih memerlukan pemilik. Bukti penerapan dan status pengerjaan terkini ada di
 [performa dan keandalan](performance-reliability.md), skema/ERD aktual di
 [model data](supabase-data-model.md), dan UAT fisik di
 [checklist perangkat](uat-perangkat.md). Bukti historis di bagian akhir tetap
