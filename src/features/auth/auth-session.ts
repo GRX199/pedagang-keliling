@@ -1,6 +1,7 @@
 import type { Session, User } from '@supabase/supabase-js'
 import type { Role, AccountStatus } from '../../types/domain.types'
 import { errorMessage } from '../../shared/lib/utils'
+import { reportError } from '../../shared/lib/error-reporting'
 
 export type AuthMeta = { role: Role; accountStatus: AccountStatus }
 export type AuthState = {
@@ -85,7 +86,7 @@ export function createAuthSessionController({
         publish({ ...meta, authError: '', loading: false })
       } catch (error) {
         if (disposed || requestId !== revision) return
-        console.error('syncAuthSession', error)
+        void reportError(error, 'auth')
         if (!background) {
           publish({
             role: null,

@@ -3,7 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Order, Review } from '../../../types/domain.types'
 import type { TablesInsert } from '../../../types/database.types'
 import type { OrderBundle } from '../api'
-import type { OrderListItem } from '../useOrders'
+import { updateOrderLists } from '../order-list'
+import { reportError } from '../../../shared/lib/error-reporting'
 import { errorMessage } from '../../../shared/lib/utils'
 import { useToast } from '../../../shared/components/ToastProvider'
 import { isSchemaCompatibilityError } from '../../../lib/orders'
@@ -73,10 +74,8 @@ export default function OrderReviewComposer({
       client.setQueryData<OrderBundle>(['order-details', viewerId, order.id], (previous) =>
         previous ? { ...previous, review } : undefined
       )
-      client.setQueriesData<OrderListItem[]>(
-        { queryKey: ['orders', viewerId, 'list'] },
-        (previous) => previous?.map((row) => (row.id === order.id ? { ...row, review } : row))
-      )
+      if (viewerId) updateOrderLists(client, viewerId,
+        rows => rows.map(row => row.id === order.id ? { ...row, review } : row))
       void client.invalidateQueries({ queryKey: ['vendor'] })
       void client.invalidateQueries({ queryKey: ['map-vendors'] })
     },
@@ -117,7 +116,7 @@ export default function OrderReviewComposer({
       setEditing(false)
       onSaved?.(data)
     } catch (error) {
-      console.error('saveReview', error)
+      void reportError(error, 'orders')
       if (isSchemaCompatibilityError(error)) {
         toast.push(
           'Database belum memuat tabel ulasan. Jalankan reviews-and-ratings.sql lalu coba lagi.',

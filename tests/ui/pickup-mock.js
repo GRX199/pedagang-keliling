@@ -20,18 +20,28 @@ const chatMessages = { first: [], second: [] }
 const initialChatRequests = []
 const pendingSends = []
 const messageListeners = new Set()
+const connectionListeners = new Set()
+let seededOrders = null
 window.chatFixture = {
-  sends: 0, subscriptions: 0,
+  sends: 0, subscriptions: 0, failHistory: false,
+  seed(count = 95) {
+    chatMessages.first = Array.from({ length: count }, (_, index) => ({
+      id: `00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+      chat_id: 'first', from_user: 'vendor', text: `Riwayat pesan ${index + 1}`,
+      created_at: '2026-01-01T00:00:00.123456+00:00',
+    }))
+  },
   releaseInitial() { for (const resolve of initialChatRequests.splice(0)) resolve() },
   releaseSends() { for (const resolve of pendingSends.splice(0)) resolve() },
-  incoming(chatId, text, createdAt = new Date().toISOString()) {
-    const message = { id: crypto.randomUUID(), chat_id: chatId, from_user: 'vendor', text, created_at: createdAt }
+  incoming(chatId, text, createdAt = new Date().toISOString(), deliver = true, fromUser = 'vendor') {
+    const message = { id: crypto.randomUUID(), chat_id: chatId, from_user: fromUser, text, created_at: createdAt }
     chatMessages[chatId].push(message)
-    for (const listener of messageListeners) if (listener.chatId === chatId) listener.handler({ new: message })
+    if (deliver) for (const listener of messageListeners) if (listener.chatId === chatId) listener.handler({ new: message })
   },
 }
 export async function sendChatMessage(chatId, fromUser, text) {
   window.chatFixture.sends++
+  if (!navigator.onLine) throw new TypeError('Failed to fetch')
   if (params.get('view') === 'chat') await new Promise(resolve => pendingSends.push(resolve))
   const message = { id: crypto.randomUUID(), chat_id: chatId, from_user: fromUser, text, created_at: new Date().toISOString() }
   if (chatMessages[chatId]) chatMessages[chatId].push(message)
@@ -52,6 +62,19 @@ window.pickupFixture = {
   moveVendor() { vendor.location = { lat: 1.476, lng: 124.850 }; vendor.last_seen_at = new Date().toISOString(); this.refresh() },
   setOrderStatus(status) { fixtureOrder = { ...fixtureOrder, status }; this.refresh() },
   setDemandOrder(value) { fixtureOrder = { ...fixtureOrder, ...value }; this.refresh() },
+  connection(status) { for (const callback of connectionListeners) callback(status) },
+  seedOrders() {
+    seededOrders = Array.from({ length: 65 }, (_, index) => ({ ...fixtureOrder,
+      id: `00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+      created_at: '2026-01-01T00:00:00.123456+00:00',
+      status: index < 25 ? 'pending' : 'completed', items: `Produk riwayat ${index + 1}`,
+    }))
+    this.refresh()
+  },
+}
+if (params.get('pagination') === '1') {
+  window.chatFixture.seed()
+  window.pickupFixture.seedOrders()
 }
 const notificationListeners = new Set()
 const notificationReads = []
@@ -76,6 +99,7 @@ export const supabase = {
   },
   channel() {
     const local = []
+    let statusCallback
     return {
       on(_event, filter, handler) {
         if (filter.table === 'notifications') {
@@ -87,8 +111,8 @@ export const supabase = {
         } else { local.push(handler); listeners.add(handler) }
         return this
       },
-      subscribe(callback) { if (params.get('view') === 'chat') window.chatFixture.subscriptions++; if (params.get('view') === 'notifications') window.notificationFixture.subscriptions++; callback?.('SUBSCRIBED'); return this },
-      unsubscribe() { for (const listener of local) { listeners.delete(listener); messageListeners.delete(listener); notificationListeners.delete(listener) } },
+      subscribe(callback) { statusCallback = callback; if (callback) connectionListeners.add(callback); if (params.get('view') === 'chat') window.chatFixture.subscriptions++; if (params.get('view') === 'notifications') window.notificationFixture.subscriptions++; callback?.('SUBSCRIBED'); return this },
+      unsubscribe() { connectionListeners.delete(statusCallback); for (const listener of local) { listeners.delete(listener); messageListeners.delete(listener); notificationListeners.delete(listener) } },
     }
   },
   removeChannel(channel) { channel.unsubscribe() },
@@ -101,9 +125,17 @@ export const supabase = {
     let incremental = false
     let idCursor = ''
     let includedIds
+    let statusFilter
+    let selected = ''
+    let limit = Infinity
+    let logic = ''
+    const ordering = []
     const query = {
-      select() { return this }, eq(field, value) { filters[field] = value; if (field === 'chat_id') chatId = value; return this }, order() { return this }, limit() { return this },
-      in(field, values) { if (field === 'id') includedIds = values; return this }, or() { return this }, contains() { return this },
+      select(columns = '*') { selected = columns; return this }, eq(field, value) { filters[field] = value; if (field === 'chat_id') chatId = value; return this },
+      order(field, options = {}) { ordering.push({ field, ascending: options.ascending !== false }); return this },
+      limit(value) { limit = value; return this },
+      in(field, values) { if (field === 'id') includedIds = values; if (field === 'status') statusFilter = values; return this },
+      or(value) { logic = value; return this }, contains() { return this },
       abortSignal() { return this },
       gte() { incremental = true; return this },
       gt(field, value) { if (field === 'id') idCursor = value; return this },
@@ -115,7 +147,7 @@ export const supabase = {
       maybeSingle() { single = true; return this.result() }, single() { single = true; return this.result() },
       then(resolve, reject) { return this.result().then(resolve, reject) },
       result() {
-        window.pickupFixture.requests.push({ table, filters: { ...filters } })
+        window.pickupFixture.requests.push({ table, filters: { ...filters }, selected, limit, ordering, logic, statusFilter })
         if (window.pickupFixture.failTables.includes(table)) return Promise.resolve({ data: null, error: { message: 'Simulated network error' } })
         if (table === 'admin_actions') { window.pickupFixture.auditWrites++; return Promise.resolve({ data: null, error: null }) }
         if (table === 'notifications') {
@@ -139,8 +171,17 @@ export const supabase = {
           return Promise.resolve({ data: favorites.filter(row => !filters.buyer_id || row.buyer_id === filters.buyer_id).map(row => ({ ...row })), error: null })
         }
         if (table === 'messages') {
-          const data = [...(chatMessages[chatId] || [])]
-          return incremental ? Promise.resolve({ data, error: null }) : new Promise(resolve => initialChatRequests.push(() => resolve({ data, error: null })))
+          if (window.chatFixture.failHistory && ordering[0]?.ascending === false && logic)
+            return Promise.resolve({ data: null, error: { message: 'Simulated older-message request failure' } })
+          let rows = [...(chatMessages[chatId] || [])]
+          const cursor = logic.match(/created_at\.(lt|gt)\.([^,]+),and\(created_at\.eq\.[^,]+,id\.(?:lt|gt)\.([^\)]+)/)
+          if (cursor) rows = rows.filter(row => cursor[1] === 'lt'
+            ? row.created_at < cursor[2] || (row.created_at === cursor[2] && row.id < cursor[3])
+            : row.created_at > cursor[2] || (row.created_at === cursor[2] && row.id > cursor[3]))
+          for (const { field, ascending } of [...ordering].reverse()) rows.sort((a, b) => String(a[field]).localeCompare(String(b[field])) * (ascending ? 1 : -1))
+          const data = rows.slice(0, limit)
+          return incremental || ordering[0]?.ascending || params.get('pagination') === '1' || cursor
+            ? Promise.resolve({ data, error: null }) : new Promise(resolve => initialChatRequests.push(() => resolve({ data, error: null })))
         }
         if (mutation && table === 'vendors') {
           if (filters.online && !vendor.online) return Promise.resolve({ data: null, error: null })
@@ -158,6 +199,15 @@ export const supabase = {
           if (profile.id === vendor.id && mutation.account_status && mutation.account_status !== 'active') Object.assign(vendor, { online: false, location: null, last_seen_at: null })
         }
         else if (mutation) { fixtureOrder = { ...fixtureOrder, ...mutation }; window.pickupFixture.updates++ }
+        if (table === 'orders' && !single && selected.includes('order_items(')) {
+          let rows = (seededOrders || [fixtureOrder]).filter(row => (!statusFilter || statusFilter.includes(row.status)) && (!filters.status || row.status === filters.status))
+          const cursor = logic.match(/created_at\.lt\.([^,]+),and\(created_at\.eq\.[^,]+,id\.lt\.([^\)]+)/)
+          if (cursor) rows = rows.filter(row => row.created_at < cursor[1] || (row.created_at === cursor[1] && row.id < cursor[2]))
+          const term = logic.match(/items\.ilike\."%([^%]*)%"/)?.[1]
+          if (term) rows = rows.filter(row => [row.vendor_name, row.buyer_name, row.items, row.customer_note, row.meeting_point_label].some(value => value?.toLowerCase().includes(term.toLowerCase())))
+          for (const { field, ascending } of [...ordering].reverse()) rows = [...rows].sort((a, b) => String(a[field]).localeCompare(String(b[field])) * (ascending ? 1 : -1))
+          return Promise.resolve({ data: rows.slice(0, limit).map(row => ({ ...row, order_items: [], reviews: review ? [review] : [] })), error: null })
+        }
         const data = table === 'orders' ? (single ? { ...fixtureOrder } : [{ ...fixtureOrder }])
           : table === 'vendors' ? (single ? { ...vendor, ...(filters.id === 'other' ? { id: 'other', name: 'Toko Lain' } : {}) } : [{ ...vendor }])
           : table === 'pickup_codes' ? (fixtureOrder.status === 'ready' ? { code: 'A1B2C3D4E5' } : null)

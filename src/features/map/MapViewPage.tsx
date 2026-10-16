@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Coordinates, MapFilters, VendorMapItem } from '../../types/domain.types'
 import { errorMessage } from '../../shared/lib/utils'
 import { usePresenceClock } from '../../shared/hooks/usePresenceClock'
+import { SyncStatus } from '../../shared/components/SyncStatus'
 import { useVendorOperations } from '../vendor/useVendorOperations'
 import LeafletMap from './LeafletMap'
 import { useVendorMarkers } from './useVendorMarkers'
@@ -648,6 +649,9 @@ function MapViewContent() {
               </button>
             </div>
 
+            {myVendorRow?.online && myVendorPresenceTone === 'stale' && <p role="status" className="mt-2 text-xs text-amber-200">
+              Lokasi belum aktif. Toko belum terlihat di peta pelanggan; coba Sinkron Lokasi.
+            </p>}
             <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 sm:flex sm:flex-wrap">
               <button
                 onClick={syncStoreLocationNow}
@@ -1083,8 +1087,9 @@ function MapViewContent() {
               <h1 className="text-sm font-semibold text-slate-900 sm:text-base">
                 Peta pedagang sekitar
               </h1>
-              <div className="text-xs text-slate-500">
-                {loading ? 'Memuat...' : `${filteredVendorCount} toko`}
+              <div className="shrink-0 text-right text-xs text-slate-500">
+                <div>{loading ? 'Memuat...' : `${filteredVendorCount} toko`}</div>
+                <SyncStatus failed={vendorQuery.isError} updatedAt={vendorQuery.dataUpdatedAt} connection={vendorQuery.connection} />
               </div>
             </div>
             <LeafletMap

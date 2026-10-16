@@ -156,7 +156,7 @@ async function startLocalApi() {
       ...(appOrigin ? { CORS_ORIGIN: appOrigin } : {}),
     },
     windowsHide: true,
-    stdio: ['ignore', 'pipe', 'ignore'],
+    stdio: ['ignore', 'pipe', 'pipe'],
   })
   let listening = false
   apiProcess.stdout.on('data', (data) => {
@@ -164,13 +164,16 @@ async function startLocalApi() {
   })
   let startError
   let healthStatus
+  let startupDiagnostics = ''
+  apiProcess.stderr.on('data', data => { startupDiagnostics = redact(`${startupDiagnostics}${String(data)}`).slice(-2000) })
   apiProcess.once('error', (error) => {
     startError = error
   })
-  for (let attempt = 0; attempt < 100; attempt++) {
+  const deadline = Date.now() + 60_000
+  while (Date.now() < deadline) {
     if (startError) throw startError
     if (apiProcess.exitCode !== null)
-      throw new Error('Local API could not start')
+      throw new Error(`Local API could not start: ${startupDiagnostics}`)
     const health = await fetch(apiOrigin, {
       signal: AbortSignal.timeout(1000),
     }).catch((error) => {
@@ -182,7 +185,7 @@ async function startLocalApi() {
     await new Promise((done) => setTimeout(done, 200))
   }
   throw new Error(
-    `Local API startup timeout (listening=${listening}; health=${healthStatus})`,
+    `Local API startup timeout (listening=${listening}; health=${healthStatus}; diagnostics=${startupDiagnostics})`,
   )
 }
 
@@ -510,6 +513,20 @@ async function run() {
       }),
     )
   }
+  if (apiOrigin && (!deployedMode || process.argv.includes('--diagnostics'))) await check('authenticated diagnostic endpoint strips private context and returns correlation IDs', async () => {
+    const endpoint = `${apiOrigin}/client-errors`
+    const payload = { eventId: randomUUID(), area: 'chat', category: 'network', source: 'handled', message: 'QA private context must not be stored' }
+    assert.equal((await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })).status, 401)
+    const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${buyer.token}` }, body: JSON.stringify(payload) })
+    assert.equal(response.status, 202)
+    const body = await response.json()
+    assert.equal(body.ok, true)
+    assert.match(response.headers.get('x-request-id'), /^[0-9a-f-]{36}$/)
+    assert.equal(body.requestId, response.headers.get('x-request-id'))
+    assert.equal(JSON.stringify(body).includes('private'), false)
+    const invalid = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${buyer.token}` }, body: JSON.stringify({ ...payload, area: 'not-allowed' }) })
+    assert.equal(invalid.status, 400)
+  })
   if (apiOrigin)
     await check(
       `authenticated ${deployedMode ? 'deployed' : 'local'} API presence, ownership checks and real Storage upload`,
@@ -990,6 +1007,41 @@ async function run() {
           .eq('id', orderId).eq('buyer_id', freshBuyer.id).eq('vendor_id', vendor.id)
           .eq('status', 'completed').select('id').single())
         assert.equal(updated.id, orderId)
+      },
+      async prepareRecovery() {
+        assert.ok(state.users.some(entry => entry.id === freshBuyer.id && entry.email === freshBuyer.email), 'Unjournalled recovery account')
+        const { user } = unwrap(await admin.auth.admin.getUserById(freshBuyer.id))
+        assert.equal(user.user_metadata.qa_run_id, state.runId, 'Refuse recovery on an unrelated account')
+        const generated = unwrap(await admin.auth.admin.generateLink({
+          type: 'recovery', email: freshBuyer.email,
+          options: { redirectTo: `${appOrigin}/login?reset=password` },
+        }))
+        assert.equal(generated.user.id, freshBuyer.id)
+        secrets.push(...[generated.properties.action_link, generated.properties.hashed_token, generated.properties.email_otp].filter(value => typeof value === 'string' && value.length > 0))
+        const action = new URL(generated.properties.action_link)
+        assert.equal(action.origin, new URL(url).origin, 'Unexpected recovery token origin')
+        assert.equal(action.pathname, '/auth/v1/verify', 'Unexpected recovery token endpoint')
+        // generateLink does not deliver email. Consume only this run's QA link;
+        // transfer its genuine recovery fragment to our controlled test frontend.
+        const response = await fetch(generated.properties.action_link, { redirect: 'manual', signal: AbortSignal.timeout(30_000) })
+        assert([302, 303].includes(response.status), 'QA recovery link did not redirect')
+        const destination = response.headers.get('location')
+        assert(destination, 'QA recovery redirect missing')
+        secrets.push(destination)
+        const target = new URL(destination)
+        const params = new URLSearchParams(target.hash.slice(1))
+        secrets.push(...[params.get('access_token'), params.get('refresh_token')].filter(value => typeof value === 'string' && value.length > 0))
+        assert(params.get('access_token') && params.get('refresh_token') && params.get('type') === 'recovery', 'No valid QA recovery session')
+        if (deployedMode) assert.equal(`${target.origin}${target.pathname}${target.search}`, `${appOrigin}/login?reset=password`, 'Hosted Auth recovery redirect configuration differs from the deployed frontend')
+        const newPassword = randomBytes(30).toString('base64url')
+        secrets.push(newPassword)
+        return { fragment: target.hash, newPassword }
+      },
+      async verifyOldPasswordRejected() {
+        const probe = createClient(url, publicKey, options)
+        clients.push(probe)
+        const result = await probe.auth.signInWithPassword({ email: freshBuyer.email, password: freshBuyer.password })
+        assert(result.error && result.data.session === null, 'Old QA password remains usable after recovery')
       },
       registerUpload(owner) {
         state.uploadOwners = [

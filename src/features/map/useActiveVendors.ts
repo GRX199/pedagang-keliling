@@ -11,7 +11,7 @@ export function useActiveVendors() {
   const client = useQueryClient()
   const viewer = user?.id || ''
   const key = ['map-vendors', viewer]
-  useRealtimeQuerySync(key, [
+  const connection = useRealtimeQuerySync(key, [
     { table: 'vendors' },
     { table: 'products' },
     { table: 'reviews' },
@@ -77,5 +77,5 @@ export function useActiveVendors() {
     },
     [client, viewer]
   )
-  return { ...query, vendors: query.data || EMPTY, setVendors }
+  return { ...query, connection, vendors: query.data || EMPTY, setVendors }
 }

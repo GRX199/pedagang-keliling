@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQueryClient, onlineManager } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { ToastProvider } from '../../src/shared/components/ToastProvider'
@@ -19,6 +19,7 @@ import { ChatThread } from '../../src/features/chat/ChatWorkspace'
 import { user } from './pickup-mock'
 import { useRealtimeNotifications } from '../../src/features/notifications/useNotifications'
 import { useToast } from '../../src/shared/components/ToastProvider'
+import { ConnectionNotice } from '../../src/shared/components/SyncStatus'
 import '../../src/styles/index.css'
 
 const storeMode = ['store', 'shop-flow'].includes(new URLSearchParams(location.search).get('view'))
@@ -44,7 +45,7 @@ function ChatFixture() {
   const [chatId, setChatId] = useState('first')
   const [activity, setActivity] = useState(0)
   const onActivity = useCallback(() => setActivity(value => value + 1), [])
-  return <ToastProvider><main className="mx-auto h-[600px] max-w-lg p-3">
+  return <ToastProvider><ConnectionNotice /><main style={{ height: 600, maxWidth: 512, display: 'flex', flexDirection: 'column' }} className="mx-auto p-3">
     <button onClick={() => setChatId(value => value === 'first' ? 'second' : 'first')}>Ganti percakapan</button>
     <p>Aktivitas: {activity}</p>
     <ChatThread key={`${user.id}:${chatId}`} chatId={chatId} currentUser={user} onMessageActivity={onActivity} />
@@ -75,7 +76,16 @@ function PwaFixture() {
   const [role, setRole] = useState('customer')
   return <><h1>PWA fixture</h1><button onClick={() => setRole('vendor')}>Masuk sebagai pedagang</button><PwaInstallPrompt role={role} /></>
 }
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false, networkMode: 'always' } } })
+window.performanceFixture = {
+  refreshChat() { return queryClient.invalidateQueries({ queryKey: ['chat-messages', user.id, 'first', 'v2', 'updates'] }) },
+  setOnline(value) {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => value })
+    onlineManager.setOnline(value)
+    window.dispatchEvent(new Event(value ? 'online' : 'offline'))
+  },
+}
+if (new URLSearchParams(location.search).get('offline') === '1') window.performanceFixture.setOnline(false)
 createRoot(document.getElementById('root')).render(<React.StrictMode><QueryClientProvider client={queryClient}>{view === 'pwa' ? <PwaFixture /> : view === 'notifications' ? <ToastProvider><NotificationFixture /></ToastProvider> : view === 'profile' ? <ToastProvider><ProfileFixture /></ToastProvider> : isolated ? <BrowserRouter><ToastProvider>{isolated}</ToastProvider></BrowserRouter> : new URLSearchParams(location.search).get('view') === 'chat' ? <ChatFixture /> : storeMode ? <MemoryRouter initialEntries={['/vendors/vendor']}><ToastProvider><FixtureNavigation /><Routes>
   <Route path="/vendors/:id" element={<VendorStorePage />} />
   <Route path="/map" element={<MapViewPage />} />

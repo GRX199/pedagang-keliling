@@ -62,10 +62,12 @@ export function formatVendorPresenceAge(
   if (!vendor?.online) return 'Offline'
 
   const presenceTime = getVendorPresenceTime(vendor)
-  if (!presenceTime) return 'Belum ada update lokasi'
+  if (!presenceTime || !getVendorCoordinates(vendor.location)) return 'Lokasi belum tersedia'
+  if (presenceTime > now + 30000) return 'Waktu lokasi tidak valid'
 
   const ageMs = Math.max(0, now - presenceTime)
-  if (ageMs < 30000) return 'Live sekarang'
+  if (ageMs > VENDOR_PRESENCE_MAX_AGE_MS) return 'Lokasi kedaluwarsa'
+  if (ageMs < 30000) return 'Lokasi baru diperbarui'
   if (ageMs < 60000) return 'Update <1 menit lalu'
 
   const minutes = Math.floor(ageMs / 60000)

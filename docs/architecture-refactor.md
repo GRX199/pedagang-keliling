@@ -1,5 +1,16 @@
 # Refactor Adaptif Kelilingku
 
+## Status Terbaru 17 Oktober 2026
+
+Baseline refactor/Area Pesanan `6c4caef` telah diterapkan dan diperiksa pada
+Vercel/Render/Supabase asli: 19 pemeriksaan hosted lulus dan data QA dibersihkan.
+Peningkatan performa berikutnya sedang diverifikasi, belum dinyatakan sebagai
+deployment baru. Status pengerjaan terkini ada di
+[performa dan keandalan](performance-reliability.md), skema/ERD aktual di
+[model data](supabase-data-model.md), dan UAT fisik di
+[checklist perangkat](uat-perangkat.md). Bukti historis di bagian akhir tetap
+merujuk run/tanggal yang tertulis, bukan status deployment terbaru.
+
 Tanggal pemeriksaan: 15-16 Oktober 2026. Perubahan dibuat di repositori yang sama, tanpa migrasi ke Next.js dan tanpa mengubah skema database production. Penulisan sementara hanya dilakukan untuk data QA yang diizinkan dan kemudian dibersihkan.
 
 ## Fakta Hasil Inspeksi
@@ -31,7 +42,26 @@ UI memanggil hook fitur. Hook membaca atau memutasi data melalui klien Supabase 
 
 Cache diberi identitas pengguna, dibersihkan saat identitas berubah/logout, serta tidak dipersistensikan ke localStorage. Penggantian token untuk akun yang sama tidak membongkar halaman. Mutasi tidak diulang otomatis ketika hasil jaringan belum pasti.
 
-Ruang chat menggabungkan hasil HTTP dengan cache terbaru berdasarkan ID pesan. Ini mencegah respons awal yang lambat menghapus pesan realtime atau pesan yang baru dikirim. Polling memakai batas timestamp inklusif; timestamp sama tidak menyebabkan pesan terlewat. State caption dan preview tetap lokal per percakapan.
+Ruang chat menggabungkan hasil HTTP dengan cache terbaru berdasarkan ID pesan. Ini mencegah respons awal yang lambat menghapus pesan realtime atau pesan yang baru dikirim. Implementasi terbaru membuka 40 pesan terakhir, menyediakan halaman pesan sebelumnya, dan memakai cursor `(created_at,id)` untuk timestamp sama. Cursor kemajuan HTTP terpisah dari event realtime sehingga pesan terbaru tidak melewati celah koneksi. State caption dan preview tetap lokal per percakapan.
+
+Daftar pesanan membuka maksimal 20 pesanan aktif dan memuat riwayat hanya saat
+dibuka. Join detail/ulasan hanya untuk halaman terpilih. Filter identitas dan
+status, pencarian snapshot order, serta cursor dilakukan di server. Hitungan
+halaman yang belum lengkap diberi `+`, bukan diklaim sebagai total seluruh toko.
+
+Status sinkronisasi tidak lagi berlabel Realtime tanpa konteks. Data terakhir
+dipertahankan ketika pembaruan gagal; browser offline dan koneksi fallback
+ditandai ringkas. Mutasi memakai `networkMode=always` dan `retry=false` agar tidak
+mengantre transaksi yang kemudian terkirim sendiri saat reconnect. Deadline
+request tidak membuktikan bahwa transaksi server dibatalkan; hasil yang belum
+pasti harus diperiksa pada order sebelum mencoba ulang.
+
+Query/mutation error dan kegagalan runtime dilaporkan secara best-effort ke
+endpoint Express `/client-errors` yang membutuhkan sesi valid dan rate limit.
+Payload hanya area/kategori/source/event UUID; tidak berisi query key, pesan
+error mentah, stack, email, lokasi, token atau isi chat. Log server berupa JSON
+aman dengan `requestId` untuk korelasi. Pelaporan tidak disimpan offline dan
+kegagalannya tidak memblokir aksi pengguna. Log Render bukan tabel transaksi.
 
 Express masih digunakan untuk upload terautentikasi dan endpoint operasional pedagang. `shared/lib/media.ts` menjadi abstraction layer bertipe untuk upload, termasuk pembaruan token. Tidak memindahkan upload langsung ke Storage tanpa audit kebijakan bucket. Service-role key tidak boleh berada di bundle frontend.
 
@@ -125,7 +155,7 @@ Generator sengaja terkunci ke loopback/port lokal dan gagal bila menemukan tipe 
 
 Pada cluster lokal yang sama, tes transaksi dan race stok dapat dijalankan dengan `supabase/tests/pickup-cod-progress.sql` dan `scripts/test-pickup-concurrency.mjs`. `supabase/tests/admin-moderation.sql` memeriksa hak admin, penolakan pemalsuan audit oleh vendor, penghapusan presence saat diblokir/dicabut verifikasinya, serta bahwa aktivasi akun tidak otomatis membuat pedagang online. Ketiganya sudah dijalankan kembali setelah migrasi TypeScript. Tes SQL berjalan dalam transaksi rollback; tes concurrency membersihkan fixture miliknya. Regenerasi tipe dari katalog lokal menghasilkan berkas identik.
 
-## Verifikasi dan Penerapan
+## Bukti Historis Refactor 16 Oktober
 
 Hasil pemeriksaan terbaru: 219 tes dalam 30 berkas, 102 berkas produksi frontend TypeScript strict, 132 kombinasi layout/regresi UI beserta regresi Area Pesanan, halaman publik/redirect pada lebar 320/375/1366, service worker offline/reconnect nyata, serta transaksi COD, perebutan stok terakhir, dan moderasi/RLS pada PostgreSQL lokal lulus. Pemeriksaan bundle terbaru tidak menemukan service-role key. Audit npm frontend/backend melaporkan nol kerentanan pada sesi refactor; penambahan Playwright juga melaporkan nol kerentanan. Tidak ada migrasi skema production atau perubahan `.env` yang perlu diterapkan. `pickup-verification.sql` kini juga memeriksa RPC penyelesaian tanpa kode, grants, dan penutupan akses tabel kode; ini query read-only, bukan migrasi.
 

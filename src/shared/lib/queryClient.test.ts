@@ -1,7 +1,32 @@
 import { describe, expect, it, vi } from 'vitest'
+import { onlineManager } from '@tanstack/react-query'
 import { createQueryClient } from './queryClient'
 
 describe('query defaults', () => {
+  it('blocks offline mutations before tokens, uploads or transaction callbacks are touched', async () => {
+    vi.stubGlobal('navigator', { onLine: false })
+    const client = createQueryClient()
+    const write = vi.fn().mockResolvedValue('must not run')
+    try {
+      const mutation = client.getMutationCache().build(client, { mutationFn: write })
+      await expect(mutation.execute(undefined)).rejects.toThrow('Tidak ada koneksi')
+      expect(write).not.toHaveBeenCalled()
+      expect(mutation.state.isPaused).toBe(false)
+    } finally { client.clear(); vi.unstubAllGlobals() }
+  })
+  it('fails offline writes immediately instead of queuing a transaction for reconnect', async () => {
+    onlineManager.setOnline(false)
+    const client = createQueryClient()
+    const write = vi.fn().mockRejectedValue(new Error('Offline'))
+    try {
+      const mutation = client.getMutationCache().build(client, { mutationFn: write })
+      await expect(mutation.execute(undefined)).rejects.toThrow('Offline')
+      expect(mutation.state.isPaused).toBe(false)
+      onlineManager.setOnline(true)
+      await client.resumePausedMutations()
+      expect(write).toHaveBeenCalledTimes(1)
+    } finally { onlineManager.setOnline(true); client.clear() }
+  })
   it('never retries an uncertain mutation', async () => {
     const client = createQueryClient()
     const write = vi.fn().mockRejectedValue(new Error('Connection interrupted after write'))

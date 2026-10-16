@@ -1,4 +1,5 @@
 import { supabase } from '../shared/lib/supabase'
+import { reportError } from '../shared/lib/error-reporting'
 
 export async function findOrCreateDirectChat(
   userId: string,
@@ -75,7 +76,7 @@ export async function sendChatMessage(
     .eq('id', chatId)
 
   if (chatError) {
-    console.warn('updateChatActivity', chatError)
+    void reportError(chatError, 'chat')
   }
 
   return data

@@ -52,7 +52,10 @@ describe('vendor presence', () => {
       last_seen_at: new Date(now - 90000).toISOString(),
     }
 
-    expect(formatVendorPresenceAge(liveVendor, now)).toBe('Live sekarang')
+    expect(formatVendorPresenceAge(liveVendor, now)).toBe('Lokasi baru diperbarui')
+    expect(formatVendorPresenceAge({ ...liveVendor, last_seen_at: new Date(now - 120001).toISOString() }, now)).toBe('Lokasi kedaluwarsa')
+    expect(formatVendorPresenceAge({ ...liveVendor, last_seen_at: new Date(now + 31000).toISOString() }, now)).toBe('Waktu lokasi tidak valid')
+    expect(formatVendorPresenceAge({ ...liveVendor, location: null }, now)).toBe('Lokasi belum tersedia')
     expect(getVendorPresenceTone(liveVendor, now)).toBe('fresh')
     expect(formatVendorPresenceAge(agingVendor, now)).toBe('Update 1 menit lalu')
     expect(getVendorPresenceTone(agingVendor, now)).toBe('aging')

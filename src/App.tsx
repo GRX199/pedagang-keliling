@@ -6,6 +6,7 @@ import { useAuth } from './features/auth/AuthProvider'
 
 import AppNavigation from './shared/components/AppNavigation'
 import ProtectedRoute from './features/auth/ProtectedRoute'
+import { ConnectionNotice } from './shared/components/SyncStatus'
 
 const DashboardPage = lazy(() => import('./features/vendor/DashboardScreen'))
 const MapPage = lazy(() => import('./features/map/MapViewPage'))
@@ -55,6 +56,7 @@ export default function App() {
   return (
     <>
       <AppNavigation />
+      {user ? <ConnectionNotice /> : null}
       {user && role === 'vendor' ? <VendorLiveLocationSync /> : null}
       <PwaInstallPrompt role={role} />
       <main className={`min-h-[calc(100vh-73px)] ${user ? 'pb-28 lg:pb-0' : ''}`}>

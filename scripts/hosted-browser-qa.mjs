@@ -27,6 +27,8 @@ export async function runHostedBrowserQA({
   check,
   registerUpload,
   prepareDemandHistory,
+  prepareRecovery,
+  verifyOldPasswordRejected,
   runId,
   redact,
   inspectQueryCache = true,
@@ -277,6 +279,34 @@ export async function runHostedBrowserQA({
         },
       )
     }
+    await check('browser: merchant order history uses bounded joins and escaped server search', async () => {
+      const requests = []
+      const record = request => {
+        const url = new URL(request.url())
+        if (url.pathname === '/rest/v1/orders' && url.searchParams.get('select')?.includes('order_items(')) requests.push(url.searchParams)
+      }
+      vendorPage.on('request', record)
+      try {
+        await vendorPage.goto(`${appOrigin}/dashboard?tab=orders`)
+        await vendorPage.getByRole('heading', { name: 'Order Aktif', exact: true }).waitFor()
+        assert(requests.length > 0 && requests.every(params => !params.get('status').includes('completed')), 'history was fetched while collapsed')
+        const section = vendorPage.locator('section').filter({ has: vendorPage.getByRole('heading', { name: 'Riwayat', exact: true }) })
+        await section.getByRole('button', { name: 'Buka', exact: true }).click()
+        const search = vendorPage.getByLabel('Cari riwayat', { exact: true })
+        await vendorPage.locator(`[data-order-id="${orderId}"]`).waitFor()
+        await search.fill('tidakada"),status.neq.completed')
+        await vendorPage.getByText('Tidak ada riwayat yang cocok dengan pencarian atau filter ini.', { exact: true }).waitFor()
+        assert.equal(await vendorPage.getByRole('alert').count(), 0, 'quoted search caused a backend parser error')
+        await search.fill(product.name)
+        await vendorPage.locator(`[data-order-id="${orderId}"]`).waitFor()
+        assert(requests.every(params => params.get('limit') === '21' && params.get('vendor_id') === `eq.${vendor.id}`), 'order list is unbounded or unscoped')
+        await vendorPage.setViewportSize({ width: 375, height: 850 })
+        assert(await vendorPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'history overflows mobile')
+        await vendorPage.screenshot({ path: `${folder}/vendor-order-history-375.png`, fullPage: true })
+        await vendorPage.setViewportSize({ width: 1366, height: 900 })
+        await vendorPage.goto(`${appOrigin}/map`)
+      } finally { vendorPage.off('request', record) }
+    })
     const text = `QA UI ping ${runId}`
     let chatId
     await check(
@@ -454,6 +484,32 @@ export async function runHostedBrowserQA({
         await logout(buyerPage)
       },
     )
+    if (prepareRecovery && verifyOldPasswordRejected) {
+      await check('browser: QA recovery session updates password, rejects the old password and permits a new login (no email delivery)', async () => {
+        const recovery = await prepareRecovery()
+        await buyerPage.goto(`${appOrigin}/login?reset=password${recovery.fragment}`)
+        await buyerPage.getByLabel('Password baru', { exact: true }).fill(recovery.newPassword)
+        await buyerPage.getByLabel('Konfirmasi password', { exact: true }).fill('QA mismatch - not the new password')
+        let writes = 0
+        const record = request => {
+          if (new URL(request.url()).pathname === '/auth/v1/user' && request.method() === 'PUT') writes++
+        }
+        buyerPage.on('request', record)
+        try {
+          await buyerPage.getByRole('button', { name: 'Simpan Password', exact: true }).click()
+          await buyerPage.getByText('Konfirmasi password belum sama.', { exact: true }).first().waitFor()
+          assert.equal(writes, 0, 'mismatched confirmation must not update credentials')
+          await buyerPage.getByLabel('Konfirmasi password', { exact: true }).fill(recovery.newPassword)
+          await buyerPage.getByRole('button', { name: 'Simpan Password', exact: true }).click()
+          await buyerPage.waitForURL(`${appOrigin}/map`)
+          assert.equal(writes, 1, 'one successful password update')
+          await verifyOldPasswordRejected()
+          await logout(buyerPage)
+          await login(buyerPage, { ...buyer, password: recovery.newPassword })
+          await logout(buyerPage)
+        } finally { buyerPage.off('request', record) }
+      })
+    }
     assert.deepEqual(runtimeErrors, [], 'browser runtime errors')
   } catch (error) {
     await buyerPage

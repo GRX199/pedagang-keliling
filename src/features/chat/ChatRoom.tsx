@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent
+} from 'react'
 import type { User } from '@supabase/supabase-js'
 import type { Message } from '../../types/domain.types'
 import { useToast } from '../../shared/components/ToastProvider'
@@ -8,6 +14,8 @@ import { useChat } from './useChat'
 import { buildImageMessageText } from './messages'
 import { MessageList } from './MessageList'
 import { useChatVisibility } from './useChatVisibility'
+import { SyncStatus } from '../../shared/components/SyncStatus'
+import { reportError } from '../../shared/lib/error-reporting'
 
 type Props = {
   chatId: string
@@ -20,7 +28,7 @@ export function ChatThread({
   chatId,
   currentUser,
   onMessageActivity,
-  paymentProofMode = false,
+  paymentProofMode = false
 }: Props) {
   const toast = useToast()
   const chat = useChat(chatId, currentUser.id, onMessageActivity)
@@ -37,15 +45,35 @@ export function ChatThread({
   } | null>(null)
   const messageListRef = useRef<HTMLDivElement>(null)
   const nearBottomRef = useRef(true)
+  const latestMessageIdRef = useRef<string>()
+  const prependRef = useRef<{
+    height: number
+    top: number
+    firstId: string | undefined
+  } | null>(null)
   const sendLock = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const list = messageListRef.current
-    if (list && (nearBottomRef.current || messages.at(-1)?.from_user === currentUser?.id)) {
+    const latest = messages.at(-1)
+    const newOwnMessage =
+      latest?.id !== latestMessageIdRef.current &&
+      latest?.from_user === currentUser.id
+    latestMessageIdRef.current = latest?.id
+    if (list && newOwnMessage) {
+      prependRef.current = null
+      nearBottomRef.current = true
+      list.scrollTo({ top: list.scrollHeight, behavior: 'auto' })
+    } else if (list && prependRef.current) {
+      if (messages[0]?.id === prependRef.current.firstId) return
+      list.scrollTop =
+        prependRef.current.top + list.scrollHeight - prependRef.current.height
+      prependRef.current = null
+    } else if (list && nearBottomRef.current) {
       nearBottomRef.current = true
       list.scrollTo({ top: list.scrollHeight, behavior: 'auto' })
     }
-  }, [messages])
+  }, [messages, currentUser?.id])
 
   useEffect(() => {
     return () => {
@@ -67,8 +95,10 @@ export function ChatThread({
       await chat.send(text.trim())
       setText('')
     } catch (error) {
-      console.error('sendMessage', error)
-      toast.push(errorMessage(error) || 'Gagal mengirim pesan', { type: 'error' })
+      void reportError(error, 'chat')
+      toast.push(errorMessage(error) || 'Gagal mengirim pesan', {
+        type: 'error'
+      })
     } finally {
       sendLock.current = false
       setSending(false)
@@ -76,7 +106,8 @@ export function ChatThread({
   }
 
   async function sendImageMessage() {
-    if (sendLock.current || !chatId || !currentUser || !pendingImage?.file) return
+    if (sendLock.current || !chatId || !currentUser || !pendingImage?.file)
+      return
 
     const caption = text.trim()
     sendLock.current = true
@@ -86,7 +117,7 @@ export function ChatThread({
       const imageUrl = await uploadImageFile({
         file: pendingImage.file,
         vendorId: currentUser.id,
-        folder: 'chat',
+        folder: 'chat'
       })
       if (!imageUrl) throw new Error('Gagal mendapatkan URL foto')
 
@@ -95,8 +126,10 @@ export function ChatThread({
       setPendingImage(null)
       toast.push('Foto berhasil dikirim', { type: 'success' })
     } catch (error) {
-      console.error('sendImageMessage', error)
-      toast.push(errorMessage(error) || 'Gagal mengirim foto', { type: 'error' })
+      void reportError(error, 'media')
+      toast.push(errorMessage(error) || 'Gagal mengirim foto', {
+        type: 'error'
+      })
     } finally {
       sendLock.current = false
       setUploadingImage(false)
@@ -116,23 +149,36 @@ export function ChatThread({
     setPendingImage({
       file,
       previewUrl: URL.createObjectURL(file),
-      name: file.name,
+      name: file.name
     })
   }
 
   return (
     <div ref={roomRef} className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="mb-1 text-right">
+        <SyncStatus
+          failed={!!chat.error}
+          updatedAt={chat.dataUpdatedAt}
+          connection={chat.connection}
+          catchingUp={chat.catchingUp}
+        />
+      </div>
       <div
         ref={messageListRef}
         onLoadCapture={(event) => {
           const list = messageListRef.current
-          if (list && nearBottomRef.current && event.target instanceof HTMLImageElement)
+          if (
+            list &&
+            nearBottomRef.current &&
+            event.target instanceof HTMLImageElement
+          )
             list.scrollTo({ top: list.scrollHeight, behavior: 'auto' })
         }}
         onScroll={() => {
           const list = messageListRef.current
           if (!list) return
-          nearBottomRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 80
+          nearBottomRef.current =
+            list.scrollHeight - list.scrollTop - list.clientHeight < 80
         }}
         className="min-h-0 flex-1 space-y-3 overflow-auto rounded-2xl border border-slate-100 bg-slate-50 p-3"
       >
@@ -149,9 +195,37 @@ export function ChatThread({
             </button>
           </div>
         ) : null}
-        {chat.isPending ? (
+        {chat.olderError && (
+          <p role="alert" className="text-sm text-amber-800">
+            Pesan lama belum dapat dimuat. Coba Pesan sebelumnya lagi.
+          </p>
+        )}
+        {chat.hasOlder && (
+          <button
+            type="button"
+            className="min-h-11 w-full rounded-xl text-sm font-medium text-slate-600"
+            disabled={chat.fetching}
+            onClick={async () => {
+              const list = messageListRef.current
+              if (!list || chat.fetching) return
+              prependRef.current = {
+                height: list.scrollHeight,
+                top: list.scrollTop,
+                firstId: messages[0]?.id
+              }
+              nearBottomRef.current = false
+              const result = await chat.loadOlder()
+              if (result.isError) prependRef.current = null
+            }}
+          >
+            {chat.loadingOlder ? 'Memuat...' : 'Pesan sebelumnya'}
+          </button>
+        )}
+        {chat.isPending && !messages.length ? (
           <div role="status" className="text-sm text-slate-500">
-            Memuat pesan...
+            {chat.paused
+              ? 'Sambungkan koneksi untuk memuat percakapan.'
+              : 'Memuat pesan...'}
           </div>
         ) : (
           <MessageList messages={messages} currentUserId={currentUser.id} />
@@ -169,8 +243,12 @@ export function ChatThread({
               />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-slate-900">Foto siap dikirim</div>
-              <div className="mt-1 truncate text-xs text-slate-500">{pendingImage.name}</div>
+              <div className="text-sm font-semibold text-slate-900">
+                Foto siap dikirim
+              </div>
+              <div className="mt-1 truncate text-xs text-slate-500">
+                {pendingImage.name}
+              </div>
               <p className="mt-2 text-xs leading-5 text-slate-500">
                 Tambahkan caption opsional sebelum kirim.
               </p>
@@ -200,7 +278,11 @@ export function ChatThread({
           disabled={sending}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+            if (
+              event.key === 'Enter' &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
               event.preventDefault()
               sendMessage()
             }

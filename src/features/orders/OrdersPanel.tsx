@@ -7,6 +7,9 @@ import { useToast } from '../../shared/components/ToastProvider'
 import { Button } from '../../shared/components/Button'
 import { Card } from '../../shared/components/Card'
 import { errorMessage } from '../../shared/lib/utils'
+import { useDebounce } from '../../shared/hooks/useDebounce'
+import { SyncStatus } from '../../shared/components/SyncStatus'
+import { reportError } from '../../shared/lib/error-reporting'
 import OrderReviewComposer from './components/OrderReviewComposer'
 import { isPickupOrder } from '../../lib/pickup'
 import {
@@ -23,15 +26,13 @@ import {
   getNextVendorStatusActions,
   getOrderOperationalNotice,
   getOrderStatusTone,
-  isActiveOrderStatus,
-  isHistoryOrderStatus,
+  isActiveOrderStatus
 } from '../../lib/orders'
-import { getReviewSummary } from '../../lib/reviews'
 
 function HistoryFilterButton({
   active,
   onClick,
-  children,
+  children
 }: {
   active: boolean
   onClick: () => void
@@ -40,6 +41,7 @@ function HistoryFilterButton({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`rounded-full px-4 py-2 text-sm font-medium transition ${
         active
@@ -52,25 +54,36 @@ function HistoryFilterButton({
   )
 }
 
-const EMPTY_ORDERS: OrderListItem[] = []
-
-export default function OrdersPanel({ currentUser, role }: { currentUser: User; role: Role }) {
+export default function OrdersPanel({
+  currentUser,
+  role
+}: {
+  currentUser: User
+  role: Role
+}) {
   const toast = useToast()
   const navigate = useNavigate()
-  const orderQuery = useOrders(currentUser?.id, role)
-  const orders = orderQuery.data || EMPTY_ORDERS
-  const { setOrders } = orderQuery
-  const loading = orderQuery.isPending
-  const refreshing = orderQuery.isFetching && !loading
   const [historyFilter, setHistoryFilter] = useState('all')
   const [historyQuery, setHistoryQuery] = useState('')
   const [showHistory, setShowHistory] = useState(false)
+  const search = useDebounce(historyQuery.trim(), 350)
+  const orderQuery = useOrders(currentUser?.id, role)
+  const history = useOrders(currentUser?.id, role, {
+    scope: 'history',
+    status: historyFilter,
+    search,
+    enabled: showHistory
+  })
+  const orders = [...orderQuery.orders, ...history.orders]
+  const { setOrders } = orderQuery
+  const loading = orderQuery.isPending
   const [expandedOrderIds, setExpandedOrderIds] = useState<string[]>([])
   const [busyOrderIds, setBusyOrderIds] = useState<string[]>([])
   const pendingOrdersRef = useRef(new Set<string>())
 
   const isVendor = role === 'vendor'
-  const customerName = currentUser?.user_metadata?.full_name || currentUser?.email || 'Pelanggan'
+  const customerName =
+    currentUser?.user_metadata?.full_name || currentUser?.email || 'Pelanggan'
 
   function isOrderExpanded(orderId: string) {
     return expandedOrderIds.includes(orderId)
@@ -78,7 +91,9 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
 
   function toggleOrderDetails(orderId: string) {
     setExpandedOrderIds((current) =>
-      current.includes(orderId) ? current.filter((item) => item !== orderId) : [...current, orderId]
+      current.includes(orderId)
+        ? current.filter((item) => item !== orderId)
+        : [...current, orderId]
     )
   }
 
@@ -104,27 +119,6 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
     return `Diperbarui pada ${formattedDate}`
   }
 
-  function getOrderSearchText(order: OrderListItem) {
-    const itemText =
-      Array.isArray(order.order_items) && order.order_items.length > 0
-        ? order.order_items
-            .map((item) => `${item.product_name_snapshot || ''} ${item.item_note || ''}`)
-            .join(' ')
-        : String(order.items || '')
-
-    return [
-      order.vendor_name,
-      order.buyer_name,
-      order.order_timing,
-      order.requested_fulfillment_at,
-      order.meeting_point_label,
-      order.customer_note,
-      itemText,
-    ]
-      .join(' ')
-      .toLowerCase()
-  }
-
   async function fetchOrders() {
     await orderQuery.refetch()
   }
@@ -140,16 +134,22 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
     try {
       await orderQuery.updateOrder({ order, action: { kind: field, value } })
       toast.push(
-        field === 'payment_status' ? 'Status pembayaran diperbarui' : 'Status pesanan diperbarui',
+        field === 'payment_status'
+          ? 'Status pembayaran diperbarui'
+          : 'Status pesanan diperbarui',
         { type: 'success' }
       )
     } catch (error) {
-      console.error('mutateOrder', error)
-      toast.push(errorMessage(error) || 'Gagal memperbarui pesanan', { type: 'error' })
+      void reportError(error, 'orders')
+      toast.push(errorMessage(error) || 'Gagal memperbarui pesanan', {
+        type: 'error'
+      })
     } finally {
       await fetchOrders()
       pendingOrdersRef.current.delete(order.id)
-      setBusyOrderIds((current) => current.filter((orderId) => orderId !== order.id))
+      setBusyOrderIds((current) =>
+        current.filter((orderId) => orderId !== order.id)
+      )
     }
   }
 
@@ -179,7 +179,9 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
             </div>
           ))}
           {hiddenItemsCount > 0 && (
-            <div className="text-xs font-medium text-slate-400">+{hiddenItemsCount} item lain</div>
+            <div className="text-xs font-medium text-slate-400">
+              +{hiddenItemsCount} item lain
+            </div>
           )}
         </div>
       )
@@ -192,16 +194,29 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
     )
   }
 
-  function renderOrderCard(order: OrderListItem, variant: 'active' | 'history' = 'active') {
-    const title = isVendor ? order.buyer_name || 'Pelanggan' : order.vendor_name || 'Pedagang'
+  function renderOrderCard(
+    order: OrderListItem,
+    variant: 'active' | 'history' = 'active'
+  ) {
+    const title = isVendor
+      ? order.buyer_name || 'Pelanggan'
+      : order.vendor_name || 'Pedagang'
     const isHighlighted = variant === 'active'
     const isHistoryCard = variant === 'history'
     const isExpanded = isOrderExpanded(order.id)
     const vendorPaymentActions = isVendor ? getVendorPaymentActions(order) : []
     const buyerPaymentActions = !isVendor ? getBuyerPaymentActions(order) : []
-    const vendorStatusActions = isVendor ? getNextVendorStatusActions(order) : []
-    const paymentGuidance = getPaymentGuidance(order, isVendor ? 'vendor' : 'customer')
-    const operationalNotice = getOrderOperationalNotice(order, isVendor ? 'vendor' : 'customer')
+    const vendorStatusActions = isVendor
+      ? getNextVendorStatusActions(order)
+      : []
+    const paymentGuidance = getPaymentGuidance(
+      order,
+      isVendor ? 'vendor' : 'customer'
+    )
+    const operationalNotice = getOrderOperationalNotice(
+      order,
+      isVendor ? 'vendor' : 'customer'
+    )
     const historyLabel = isHistoryCard ? formatOrderHistoryLabel(order) : ''
     const primaryActionLabel = isHistoryCard
       ? 'Buka'
@@ -230,8 +245,11 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
     return (
       <div
         key={order.id}
+        data-order-id={order.id}
         className={`min-w-0 max-w-full overflow-hidden rounded-[20px] border p-3 transition sm:rounded-[24px] sm:p-4 ${
-          isHighlighted ? 'border-slate-900/10 bg-white shadow-sm' : 'border-slate-200 bg-white'
+          isHighlighted
+            ? 'border-slate-900/10 bg-white shadow-sm'
+            : 'border-slate-200 bg-white'
         }`}
       >
         <div className="space-y-3">
@@ -240,7 +258,9 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
               <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                 {isVendor ? 'Pelanggan' : 'Pedagang'}
               </div>
-              <div className="mt-1 truncate text-base font-semibold text-slate-900">{title}</div>
+              <div className="mt-1 truncate text-base font-semibold text-slate-900">
+                {title}
+              </div>
             </div>
             <span
               className={`shrink-0 rounded-full px-3 py-1 text-center text-[11px] font-semibold uppercase leading-tight tracking-wide ${getOrderStatusTone(order.status)}`}
@@ -275,7 +295,9 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
             {order.order_timing && (
               <span
                 className={`max-w-full break-words rounded-full px-3 py-1 leading-tight ${
-                  isPreorder ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'
+                  isPreorder
+                    ? 'bg-sky-50 text-sky-700'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
                 {formatOrderTimingLabel(order.order_timing)}
@@ -332,7 +354,9 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
                   vendorStatusActions.map((action) => (
                     <button
                       key={action.value}
-                      disabled={action.disabled || busyOrderIds.includes(order.id)}
+                      disabled={
+                        action.disabled || busyOrderIds.includes(order.id)
+                      }
                       onClick={() => updateStatus(order, action.value)}
                       title={action.disabledReason || action.label}
                       className={`${detailActionButtonBase} ${
@@ -387,9 +411,13 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
               </div>
 
               {historyLabel && (
-                <div className="break-words font-medium text-slate-700">{historyLabel}</div>
+                <div className="break-words font-medium text-slate-700">
+                  {historyLabel}
+                </div>
               )}
-              {paymentGuidance && <div className="break-words">Pembayaran: {paymentGuidance}</div>}
+              {paymentGuidance && (
+                <div className="break-words">Pembayaran: {paymentGuidance}</div>
+              )}
               {operationalNotice && (
                 <div className="break-words rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-amber-800">
                   {operationalNotice}
@@ -397,7 +425,10 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
               )}
               {order.requested_fulfillment_at && (
                 <div className="break-words">
-                  Jadwal: sekitar {formatRequestedFulfillmentLabel(order.requested_fulfillment_at)}
+                  Jadwal: sekitar{' '}
+                  {formatRequestedFulfillmentLabel(
+                    order.requested_fulfillment_at
+                  )}
                 </div>
               )}
               {order.meeting_point_label && (
@@ -407,11 +438,15 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
                 </div>
               )}
               {order.customer_note && (
-                <div className="break-words">Catatan: {order.customer_note}</div>
+                <div className="break-words">
+                  Catatan: {order.customer_note}
+                </div>
               )}
               <div className="text-xs text-slate-400">
                 Dibuat:{' '}
-                {order.created_at ? new Date(order.created_at).toLocaleString('id-ID') : '-'}
+                {order.created_at
+                  ? new Date(order.created_at).toLocaleString('id-ID')
+                  : '-'}
               </div>
 
               {!isVendor && order.status === 'completed' && (
@@ -422,7 +457,9 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
                   buyerName={customerName}
                   onSaved={(review) => {
                     setOrders((current) =>
-                      current.map((item) => (item.id === order.id ? { ...item, review } : item))
+                      current.map((item) =>
+                        item.id === order.id ? { ...item, review } : item
+                      )
                     )
                   }}
                 />
@@ -437,7 +474,9 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
   if (loading) {
     return (
       <div className="rounded-[28px] bg-white p-5 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200/80">
-        Memuat pesanan...
+        {orderQuery.fetchStatus === 'paused'
+          ? 'Sambungkan koneksi untuk memuat pesanan.'
+          : 'Memuat pesanan...'}
       </div>
     )
   }
@@ -459,34 +498,18 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
     )
   }
 
-  const activeOrders = orders.filter((order) => isActiveOrderStatus(order.status))
-  const historyOrders = orders.filter((order) => isHistoryOrderStatus(order.status))
-  const pendingOrders = orders.filter((order) => order.status === 'pending')
-  const completedOrders = orders.filter((order) => order.status === 'completed')
-  const completedReviewSummary = getReviewSummary(
-    completedOrders.map((order) => order.review).filter(Boolean)
+  const activeOrders = orderQuery.orders.filter((order) =>
+    isActiveOrderStatus(order.status)
   )
-  const cancelledOrders = historyOrders.filter((order) => order.status === 'cancelled')
-  const rejectedOrders = historyOrders.filter((order) => order.status === 'rejected')
-  const pendingReviewCount = completedOrders.filter((order) => !order.review).length
+  const historyOrders = history.orders.filter(
+    (order) => !isActiveOrderStatus(order.status)
+  )
   const historyFilterOptions = [
     { value: 'all', label: 'Semua' },
     { value: 'completed', label: 'Selesai' },
     { value: 'cancelled', label: 'Dibatalkan' },
-    { value: 'rejected', label: 'Ditolak' },
+    { value: 'rejected', label: 'Ditolak' }
   ]
-  const normalizedHistoryQuery = historyQuery.trim().toLowerCase()
-  const filteredHistoryOrders = historyOrders
-    .filter((order) => {
-      if (historyFilter !== 'all' && order.status !== historyFilter) return false
-      if (!normalizedHistoryQuery) return true
-      return getOrderSearchText(order).includes(normalizedHistoryQuery)
-    })
-    .sort((left, right) => {
-      const leftValue = new Date(getOrderHistoryTimestamp(left) || 0).getTime()
-      const rightValue = new Date(getOrderHistoryTimestamp(right) || 0).getTime()
-      return rightValue - leftValue
-    })
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
       {orderQuery.error ? (
@@ -498,33 +521,32 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
         <div>
           <h3 className="text-base font-semibold text-slate-900">Pesanan</h3>
           <p className="text-sm leading-5 text-slate-500 sm:block">
-            {isVendor ? 'Order masuk dan status transaksi.' : 'Order aktif dan riwayat transaksi.'}
+            {isVendor
+              ? 'Order masuk dan status transaksi.'
+              : 'Order aktif dan riwayat transaksi.'}
           </p>
         </div>
 
         <div className="shrink-0 rounded-full bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
-          {refreshing ? 'Update...' : 'Realtime'}
+          <SyncStatus
+            failed={orderQuery.isError}
+            updatedAt={orderQuery.dataUpdatedAt}
+            connection={orderQuery.connection}
+          />
         </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1 text-sm">
         <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-slate-900 px-3 py-2 font-medium text-white">
-          Aktif <strong>{activeOrders.length}</strong>
-        </div>
-        <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-slate-100 px-3 py-2 font-medium text-slate-700">
-          {isVendor ? 'Baru' : 'Pending'} <strong>{pendingOrders.length}</strong>
-        </div>
-        <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 font-medium text-emerald-700">
-          {isVendor ? 'Selesai' : 'Ulasan'}{' '}
-          <strong>{isVendor ? completedOrders.length : completedReviewSummary.count}</strong>
+          Aktif{' '}
+          <strong>
+            {activeOrders.length}
+            {orderQuery.hasNextPage ? '+' : ''}
+          </strong>
         </div>
       </div>
 
-      {orders.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-          Belum ada pesanan.
-        </div>
-      ) : (
+      {
         <div className="mt-5 space-y-6">
           <section>
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -534,17 +556,30 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
                 </h4>
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                {activeOrders.length} aktif
+                {activeOrders.length}
+                {orderQuery.hasNextPage ? '+' : ''} aktif
               </span>
             </div>
 
             {activeOrders.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                {isVendor ? 'Tidak ada order aktif saat ini.' : 'Tidak ada pesanan aktif saat ini.'}
+                {isVendor
+                  ? 'Tidak ada order aktif saat ini.'
+                  : 'Tidak ada pesanan aktif saat ini.'}
               </div>
             ) : (
               <div className="space-y-3">
                 {activeOrders.map((order) => renderOrderCard(order, 'active'))}
+                {orderQuery.hasNextPage && (
+                  <Button
+                    disabled={orderQuery.isFetching}
+                    onClick={() => void orderQuery.fetchNextPage()}
+                  >
+                    {orderQuery.isFetchingNextPage
+                      ? 'Memuat...'
+                      : 'Pesanan aktif lainnya'}
+                  </Button>
+                )}
               </div>
             )}
           </section>
@@ -557,9 +592,6 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
                 </h4>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                  {historyOrders.length} riwayat
-                </span>
                 <button
                   type="button"
                   onClick={() => setShowHistory((current) => !current)}
@@ -570,40 +602,32 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
               </div>
             </div>
 
-            {historyOrders.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                Belum ada riwayat pesanan.
-              </div>
-            ) : !showHistory ? null : (
+            {!showHistory ? null : (
               <div className="space-y-4">
-                <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-600">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-100">
-                    {completedOrders.length} selesai
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">
-                    {cancelledOrders.length} batal
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">
-                    {isVendor
-                      ? `${rejectedOrders.length} ditolak`
-                      : `${pendingReviewCount} belum diulas`}
-                  </span>
-                </div>
-
                 <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-3">
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                     <div>
-                      <label className="text-sm font-medium text-slate-700">Cari riwayat</label>
+                      <label
+                        htmlFor="order-history-search"
+                        className="text-sm font-medium text-slate-700"
+                      >
+                        Cari riwayat
+                      </label>
                       <input
+                        id="order-history-search"
                         value={historyQuery}
-                        onChange={(event) => setHistoryQuery(event.target.value)}
+                        onChange={(event) =>
+                          setHistoryQuery(event.target.value)
+                        }
                         placeholder="Cari riwayat..."
                         className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
                       />
                     </div>
 
                     <div>
-                      <div className="text-sm font-medium text-slate-700">Filter hasil akhir</div>
+                      <div className="text-sm font-medium text-slate-700">
+                        Filter hasil akhir
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {historyFilterOptions.map((option) => (
                           <HistoryFilterButton
@@ -619,20 +643,50 @@ export default function OrdersPanel({ currentUser, role }: { currentUser: User; 
                   </div>
                 </div>
 
-                {filteredHistoryOrders.length === 0 ? (
+                {history.error && (
+                  <p role="alert" className="text-sm text-amber-800">
+                    Riwayat belum diperbarui.{' '}
+                    <button
+                      className="min-h-11 underline"
+                      onClick={() => void history.refetch()}
+                    >
+                      Coba lagi
+                    </button>
+                  </p>
+                )}
+                {history.isPending ? (
+                  <p role="status" className="text-sm text-slate-500">
+                    {history.fetchStatus === 'paused'
+                      ? 'Sambungkan koneksi untuk memuat riwayat.'
+                      : 'Memuat riwayat...'}
+                  </p>
+                ) : historyOrders.length === 0 && !history.error ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                    Tidak ada riwayat yang cocok dengan pencarian atau filter ini.
+                    Tidak ada riwayat yang cocok dengan pencarian atau filter
+                    ini.
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {filteredHistoryOrders.map((order) => renderOrderCard(order, 'history'))}
+                    {historyOrders.map((order) =>
+                      renderOrderCard(order, 'history')
+                    )}
+                    {history.hasNextPage && (
+                      <Button
+                        disabled={history.isFetching}
+                        onClick={() => void history.fetchNextPage()}
+                      >
+                        {history.isFetchingNextPage
+                          ? 'Memuat...'
+                          : 'Riwayat lainnya'}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
             )}
           </section>
         </div>
-      )}
+      }
     </div>
   )
 }

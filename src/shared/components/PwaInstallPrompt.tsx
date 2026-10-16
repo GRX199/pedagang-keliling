@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { isStandaloneApp } from '../../lib/pwa'
+import { reportError } from '../lib/error-reporting'
 import type { Role } from '../../types/domain.types'
 
 interface InstallPromptEvent extends Event {
@@ -78,7 +79,7 @@ export default function PwaInstallPrompt({ role }: { role: Role | null }) {
         setDismissed(true)
       }
     } catch (error) {
-      console.warn('handlePwaInstall', error)
+      void reportError(error, 'application')
     } finally {
       setInstallPrompt(null)
       setInstalling(false)

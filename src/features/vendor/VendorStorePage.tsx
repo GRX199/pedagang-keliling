@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { PaymentMethod, Product } from '../../types/domain.types'
 import { errorMessage } from '../../shared/lib/utils'
+import { reportError } from '../../shared/lib/error-reporting'
 import {
   getCartEntries,
   getCartTotals,
@@ -430,7 +431,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
           }),
         )
       } catch (messageError) {
-        console.error('submitOrder.chat', messageError)
+        void reportError(messageError, 'chat')
         notes.push(
           'Pesanan tersimpan, tetapi ringkasan otomatis di chat belum terkirim.',
         )
@@ -446,7 +447,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
       })
       navigate(`/orders/${createdOrder.id}`)
     } catch (error) {
-      console.error('submitOrder', error)
+      void reportError(error, 'orders')
       if (version === lifecycle.current)
         toast.push(errorMessage(error) || 'Gagal mengirim pesanan', {
           type: 'error',

@@ -4,6 +4,8 @@ import express from 'express'
 import rateLimit from 'express-rate-limit'
 import multer from 'multer'
 import { createClient } from '@supabase/supabase-js'
+import { clientDiagnostic, diagnosticRequests, recordDiagnostic } from './diagnostics.js'
+import { createAuthenticator } from './authentication.js'
 
 dotenv.config()
 
@@ -32,7 +34,9 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
+  global: { fetch: (input, init) => fetch(input, { ...init, signal: init?.signal || AbortSignal.timeout(30_000) }) },
 })
+const getAuthenticatedUser = createAuthenticator(supabaseAdmin)
 
 const rawAllowedOrigins = process.env.CORS_ORIGIN || 'http://localhost:5173'
 const allowedOrigins = rawAllowedOrigins === '*'
@@ -55,8 +59,10 @@ const upload = multer({
 })
 
 app.disable('x-powered-by')
+app.use(diagnosticRequests)
 
 app.use(cors({
+  exposedHeaders: ['X-Request-ID'],
   origin(origin, callback) {
     if (allowedOrigins === '*' || !origin || allowedOrigins.includes(origin)) {
       callback(null, true)
@@ -101,36 +107,6 @@ function normalizeUploadFolder(folder) {
   }
 
   return normalizedFolder
-}
-
-function extractAccessToken(req) {
-  const authorizationHeader = req.headers?.authorization || req.headers?.Authorization
-  if (!authorizationHeader) return null
-
-  const [scheme, token] = authorizationHeader.split(' ')
-  if (!/^Bearer$/i.test(scheme) || !token) return null
-
-  return token
-}
-
-async function getAuthenticatedUser(req, res) {
-  const token = extractAccessToken(req)
-  if (!token) {
-    res.status(401).json({ error: 'Missing authorization token' })
-    return null
-  }
-
-  const { data, error } = await supabaseAdmin.auth.getUser(token)
-  if (error || !data?.user) {
-    console.error('auth.getUser failed', error)
-    res.status(401).json({
-      code: 'invalid_token',
-      error: 'Sesi login tidak valid atau sudah kedaluwarsa. Logout lalu login ulang, dan pastikan backend memakai Supabase project yang sama dengan frontend.',
-    })
-    return null
-  }
-
-  return data.user
 }
 
 async function getUserAccessContext(userId) {
@@ -212,6 +188,26 @@ app.get('/', (_req, res) => {
   res.json({ ok: true })
 })
 
+app.post('/client-errors', rateLimit({ windowMs: 5 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }), async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req, res)
+    if (!user) return
+    const diagnostic = clientDiagnostic(req.body)
+    if (!diagnostic) { res.status(400).json({ error: 'Format diagnostik tidak valid' }); return }
+    recordDiagnostic('client.error', { requestId: res.locals.requestId, client: diagnostic })
+    res.status(202).json({ ok: true, requestId: res.locals.requestId })
+  } catch (error) { sendFailure(res, 'diagnostic', error) }
+})
+
+function sendFailure(res, area, error) {
+  const status = [400, 403, 404, 413, 415, 422].includes(error?.statusCode) ? error.statusCode : 500
+  recordDiagnostic(`${area}.failed`, { requestId: res.locals.requestId, status, code: error?.code })
+  res.status(status).json({
+    error: status < 500 ? error.message : 'Layanan belum dapat memproses permintaan. Coba lagi.',
+    requestId: res.locals.requestId,
+  })
+}
+
 app.post('/upload-only', upload.single('file'), async (req, res) => {
   try {
     const user = await getAuthenticatedUser(req, res)
@@ -244,8 +240,7 @@ app.post('/upload-only', upload.single('file'), async (req, res) => {
       imageUrl: payload.imageUrl,
     })
   } catch (error) {
-    console.error('upload-only unexpected', error)
-    res.status(error.statusCode || 500).json({ error: error.message || 'Gagal mengunggah file' })
+    sendFailure(res, 'upload', error)
   }
 })
 
@@ -297,8 +292,7 @@ app.post('/upload-product', upload.single('file'), async (req, res) => {
       imageUrl,
     })
   } catch (error) {
-    console.error('upload-product unexpected', error)
-    res.status(error.statusCode || 500).json({ error: error.message || 'Gagal membuat produk' })
+    sendFailure(res, 'product_upload', error)
   }
 })
 
@@ -358,12 +352,11 @@ app.post(['/vendor/:id/online', '/api/vendor/:id/online'], async (req, res) => {
       vendor: data,
     })
   } catch (error) {
-    console.error('vendor online unexpected', error)
-    res.status(500).json({ error: error.message || 'Gagal memperbarui status toko' })
+    sendFailure(res, 'presence', error)
   }
 })
 
-app.use((error, _req, res, next) => {
+app.use((error, _req, res, _next) => {
   if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
     res.status(400).json({ error: `Ukuran gambar maksimal ${Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))} MB` })
     return
@@ -379,7 +372,8 @@ app.use((error, _req, res, next) => {
     return
   }
 
-  next(error)
+  recordDiagnostic('http.unhandled', { requestId: res.locals.requestId, status: error?.status === 400 ? 400 : 500, code: error?.code })
+  res.status(error?.status === 400 ? 400 : 500).json({ error: 'Permintaan belum dapat diproses.', requestId: res.locals.requestId })
 })
 
 app.listen(PORT, () => {

@@ -1,6 +1,7 @@
 import type { User } from '@supabase/supabase-js'
 import type { Role } from '../types/domain.types'
 import { supabase } from '../shared/lib/supabase'
+import { reportError } from '../shared/lib/error-reporting'
 import { getDisplayName } from './vendor'
 
 function normalizeRole(value: unknown): Role {
@@ -29,7 +30,7 @@ export async function syncCurrentProfile(user: User | null, role: Role = 'custom
     if (error) throw error
     return data
   } catch (error) {
-    console.warn('syncCurrentProfile', error)
+    void reportError(error, 'profile')
     return null
   }
 }
@@ -59,7 +60,7 @@ export async function loadIdentityMap(ids: string[] = []): Promise<Record<string
       }
     }
   } catch (error) {
-    console.warn('loadIdentityMap.vendors', error)
+    void reportError(error, 'profile')
   }
 
   const missingIds = uniqueIds.filter((id) => !identityMap[id])
@@ -82,7 +83,7 @@ export async function loadIdentityMap(ids: string[] = []): Promise<Record<string
       }
     }
   } catch (error) {
-    console.warn('loadIdentityMap.profiles', error)
+    void reportError(error, 'profile')
   }
 
   return identityMap

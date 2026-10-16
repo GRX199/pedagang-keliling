@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
-import { getFriendlyFetchErrorMessage, requireServerOrigin } from '../../lib/network'
+import { assertOnlineForWrite, getFriendlyFetchErrorMessage, requireServerOrigin } from '../../lib/network'
+import { fetchWithDeadline } from './fetchWithDeadline'
 
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg',
@@ -60,13 +61,13 @@ async function uploadWithToken({
 }) {
   let response
   try {
-    response = await fetch(`${serverOrigin}/upload-only`, {
+    response = await fetchWithDeadline(`${serverOrigin}/upload-only`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
       body: formData,
-    })
+    }, 60_000)
   } catch (error) {
     throw new Error(getFriendlyFetchErrorMessage(error, 'Gagal upload gambar.'), { cause: error })
   }
@@ -94,6 +95,7 @@ export async function uploadImageFile({
 }): Promise<string | null> {
   if (!file) return null
   if (!vendorId) throw new Error('Vendor tidak terdeteksi')
+  assertOnlineForWrite()
 
   const validationError = validateImageFile(file)
   if (validationError) throw new Error(validationError)

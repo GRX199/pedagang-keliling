@@ -20,6 +20,7 @@ import {
 } from '../../lib/network'
 import { useRealtimeNotifications } from '../../features/notifications/useNotifications'
 import { errorMessage } from '../lib/utils'
+import { reportError } from '../lib/error-reporting'
 type NavItem = { to: string; label: string; count: number; active: boolean }
 
 export default function AppNavigation() {
@@ -85,7 +86,7 @@ export default function AppNavigation() {
       if (!response.ok)
         throw new Error(payload?.error || `HTTP ${response.status}`)
     } catch (error) {
-      console.warn('setVendorOfflineBeforeLogout.backend', error)
+      void reportError(error, 'profile')
       try {
         const { error: updateError } = await supabase
           .from('vendors')
@@ -94,7 +95,7 @@ export default function AppNavigation() {
 
         if (updateError) throw updateError
       } catch (fallbackError) {
-        console.warn('setVendorOfflineBeforeLogout.fallback', fallbackError)
+        void reportError(fallbackError, 'profile')
         toast.push(
           getFriendlyFetchErrorMessage(
             error,
@@ -117,7 +118,7 @@ export default function AppNavigation() {
       if (error) throw error
       navigate('/login', { replace: true })
     } catch (e) {
-      console.error('Logout error', e)
+      void reportError(e, 'auth')
       toast.push(errorMessage(e, 'Gagal logout. Coba lagi.'), { type: 'error' })
     } finally {
       setLogoutBusy(false)

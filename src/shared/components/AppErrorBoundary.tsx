@@ -1,4 +1,5 @@
 import React from 'react'
+import { reportError } from '../lib/error-reporting'
 
 export default class AppErrorBoundary extends React.Component<
   React.PropsWithChildren,
@@ -13,8 +14,8 @@ export default class AppErrorBoundary extends React.Component<
     return { hasError: true }
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('Uncaught application error', error, info)
+  componentDidCatch(error: Error) {
+    void reportError(error, 'application', 'runtime')
   }
 
   render() {

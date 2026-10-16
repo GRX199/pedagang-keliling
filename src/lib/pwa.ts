@@ -1,3 +1,5 @@
+import { reportError } from '../shared/lib/error-reporting'
+
 export function isStandaloneApp() {
   if (typeof window === 'undefined') return false
 
@@ -19,7 +21,7 @@ export function registerServiceWorker() {
   const register = () => {
     navigator.serviceWorker
       .register('/sw.js', { updateViaCache: 'none' })
-      .catch((error) => console.warn('registerServiceWorker', error))
+      .catch((error) => { void reportError(error, 'application') })
   }
   if (document.readyState === 'complete') register()
   else window.addEventListener('load', register, { once: true })

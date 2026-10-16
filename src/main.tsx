@@ -9,11 +9,13 @@ import { AuthProvider } from './features/auth/AuthProvider'
 import { registerServiceWorker } from './lib/pwa'
 import { ToastProvider } from './shared/components/ToastProvider'
 import AppErrorBoundary from './shared/components/AppErrorBoundary'
+import { installErrorReporting } from './shared/lib/error-reporting'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 
 const root = document.getElementById('root')
+installErrorReporting()
 if (!root) throw new Error('Root aplikasi tidak ditemukan.')
 createRoot(root).render(
   <React.StrictMode>

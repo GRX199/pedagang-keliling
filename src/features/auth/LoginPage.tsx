@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { errorMessage } from '../../shared/lib/utils'
+import { reportError } from '../../shared/lib/error-reporting'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   setRememberSessionPreference,
@@ -208,7 +209,7 @@ export default function LoginPage() {
         })
 
         if (error) {
-          console.error('signUp error', error)
+          void reportError(error, 'auth')
           toast.push(error.message || 'Gagal daftar', { type: 'error' })
           setInlineMsg(error.message || 'Gagal membuat akun baru')
           return
@@ -254,7 +255,7 @@ export default function LoginPage() {
       }
       navigate('/')
     } catch (error) {
-      console.error('auth unexpected error', error)
+      void reportError(error, 'auth')
       toast.push(errorMessage(error), { type: 'error' })
       setInlineMsg(errorMessage(error))
     } finally {
@@ -280,7 +281,7 @@ export default function LoginPage() {
       if (error) throw error
       toast.push('Email verifikasi berhasil dikirim ulang', { type: 'success' })
     } catch (error) {
-      console.error('handleResendVerification', error)
+      void reportError(error, 'auth')
       toast.push(errorMessage(error, 'Gagal mengirim ulang email verifikasi'), {
         type: 'error',
       })

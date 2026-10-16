@@ -45,6 +45,8 @@ try {
   // No production APIs, accounts, tiles, or third-party data are contacted by this test.
   await page.route('**/*', route => route.request().url().startsWith('http://127.0.0.1:5197/') ? route.continue() : route.abort())
   await mkdir('test-results/pickup', { recursive: true })
+  let refactorLayouts = 0
+  if (!process.argv.includes('--performance-only')) {
   for (const width of [320, 375, 768, 1366]) {
     await page.setViewportSize({ width, height: 850 })
     for (const role of ['buyer', 'vendor']) {
@@ -208,7 +210,6 @@ try {
   await page.evaluate(() => window.chatFixture.incoming('second', 'Pesan saat membaca riwayat'))
   await page.getByText('Pesan saat membaca riwayat', { exact: true }).waitFor({ state: 'attached' })
   assert.equal(await messagePane.evaluate(element => element.scrollTop), 0, 'incoming message does not pull a reader away from older history')
-  let refactorLayouts = 0
   for (const width of [320, 375, 1366]) {
     await page.setViewportSize({ width, height: 850 })
     for (const role of ['buyer', 'vendor']) {
@@ -239,6 +240,103 @@ try {
   assert.equal(await page.getByPlaceholder('Contoh: pedagang ramah, datang tepat waktu, atau produk sesuai harapan').inputValue(), 'Ulasan tes refactor', 'background refresh preserves review draft')
   await page.getByRole('button', { name: 'Kirim', exact: true }).click()
   await page.getByText('Ulasan tes refactor', { exact: true }).waitFor()
+  }
+  console.log('UI: checking bounded order pages, global history search and chat catch-up')
+  await page.setViewportSize({ width: 375, height: 850 })
+  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=orders&role=vendor&pagination=1')
+  await page.locator('[data-order-id]').first().waitFor()
+  assert.equal(await page.locator('[data-order-id]').count(), 20, 'only first active order page is rendered')
+  assert.equal(await page.evaluate(() => window.pickupFixture.requests.filter(request => request.table === 'orders' && request.statusFilter?.includes('completed')).length), 0, 'collapsed history does not fetch old orders')
+  await page.getByRole('button', { name: 'Pesanan aktif lainnya', exact: true }).click()
+  await page.waitForFunction(() => document.querySelectorAll('[data-order-id]').length === 25)
+  await page.getByRole('button', { name: 'Buka', exact: true }).click()
+  await page.getByLabel('Cari riwayat').waitFor()
+  await page.waitForFunction(() => document.querySelectorAll('[data-order-id]').length === 45)
+  await page.getByLabel('Cari riwayat').fill('Produk riwayat 26')
+  await page.waitForFunction(() => document.querySelectorAll('[data-order-id]').length === 26)
+  assert.equal(await page.locator('[data-order-id$="000026"]').count(), 1, 'server search finds a record outside the first history page')
+  await page.getByLabel('Cari riwayat').fill('')
+  await page.getByRole('button', { name: 'Riwayat lainnya', exact: true }).click()
+  await page.waitForFunction(() => document.querySelectorAll('[data-order-id]').length === 65)
+  assert.equal(await page.evaluate(() => new Set([...document.querySelectorAll('[data-order-id]')].map(element => element.dataset.orderId)).size), 65, 'tied timestamps produce no missing or duplicate orders')
+  assert(await page.evaluate(() => window.pickupFixture.requests.filter(request => request.selected?.includes('order_items(')).every(request => request.limit === 21 && request.filters.vendor_id === 'vendor')), 'order list requests are bounded and owned')
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'paginated orders fit mobile')
+  await page.screenshot({ path: 'test-results/pickup/orders-pagination-375.png', fullPage: true })
+  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=chat&role=buyer&pagination=1')
+  await page.getByText('Riwayat pesan 95', { exact: true }).waitFor()
+  assert.equal(await page.getByText(/^Riwayat pesan \d+$/).count(), 40, 'chat initially loads the newest 40 messages')
+  assert.equal(await page.getByText('Riwayat pesan 1', { exact: true }).count(), 0)
+  await page.getByRole('button', { name: 'Pesan sebelumnya', exact: true }).click()
+  await page.getByText('Riwayat pesan 16', { exact: true }).waitFor()
+  assert.equal(await page.getByText(/^Riwayat pesan \d+$/).count(), 80)
+  await page.screenshot({ path: 'test-results/pickup/chat-pagination-375.png', fullPage: true })
+  await page.waitForFunction(() => document.querySelector('.overflow-auto').scrollTop > 0)
+  await page.getByRole('button', { name: 'Pesan sebelumnya', exact: true }).click()
+  await page.getByText('Riwayat pesan 1', { exact: true }).waitFor()
+  assert.equal(await page.getByText(/^Riwayat pesan \d+$/).count(), 95)
+  await page.evaluate(() => {
+    for (let index = 1; index <= 90; index++) window.chatFixture.incoming('first', `Celah koneksi ${index}`, new Date(Date.UTC(2026, 1, 1, 0, 0, index)).toISOString(), false)
+    window.chatFixture.incoming('first', 'Pesan realtime terbaru', '2026-03-01T00:00:00.000Z')
+    window.performanceFixture.refreshChat()
+  })
+  await page.getByText('Pesan realtime terbaru', { exact: true }).waitFor()
+  await page.getByText('Celah koneksi 90', { exact: true }).waitFor()
+  assert.equal(await page.getByText(/^Celah koneksi \d+$/).count(), 90, 'HTTP cursor catches every missed message even after a newer realtime insert')
+  assert(await page.evaluate(() => window.pickupFixture.requests.filter(request => request.table === 'messages').every(request => request.limit === 41 && request.filters.chat_id === 'first')), 'all message page requests are bounded and scoped')
+  await page.evaluate(() => window.pickupFixture.connection('CHANNEL_ERROR'))
+  await page.getByText('Sinkronisasi berkala', { exact: true }).waitFor()
+  await page.evaluate(() => window.pickupFixture.connection('SUBSCRIBED'))
+  await page.getByText(/^Diperbarui /).waitFor()
+  await page.getByPlaceholder('Ketik pesan...').fill('Draft yang gagal saat offline')
+  await page.evaluate(() => window.performanceFixture.setOnline(false))
+  await page.getByText('Tidak ada koneksi. Data terakhir tetap terlihat; transaksi tidak dikirim otomatis.', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Kirim', exact: true }).click()
+  await page.waitForFunction(() => window.chatFixture.sends === 1)
+  await page.getByRole('button', { name: 'Kirim', exact: true }).waitFor({ state: 'visible' })
+  assert.equal(await page.getByPlaceholder('Ketik pesan...').inputValue(), 'Draft yang gagal saat offline', 'failed offline send keeps the draft')
+  await page.evaluate(() => window.performanceFixture.setOnline(true))
+  await page.getByText(/^Diperbarui /).waitFor()
+  assert.equal(await page.evaluate(() => window.chatFixture.sends), 1, 'reconnect does not replay a failed send')
+  assert.equal(await page.locator('[data-message-id]').filter({ hasText: 'Draft yang gagal saat offline' }).count(), 0, 'the retained draft is not rendered as a sent message')
+  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=chat&role=buyer&pagination=1&offline=1')
+  await page.getByText('Sambungkan koneksi untuk memuat percakapan.', { exact: true }).waitFor()
+  await page.evaluate(() => window.performanceFixture.setOnline(true))
+  await page.getByText('Riwayat pesan 95', { exact: true }).waitFor()
+
+  console.log('UI: checking independent live sync after older-page failure and stable reading position')
+  await page.evaluate(() => window.performanceFixture.refreshChat())
+  await page.evaluate(() => { window.chatFixture.failHistory = true })
+  await page.getByRole('button', { name: 'Pesan sebelumnya', exact: true }).click()
+  await page.getByRole('alert').waitFor()
+  await page.evaluate(() => {
+    window.chatFixture.incoming('first', 'Pesan baru setelah riwayat gagal', '2026-02-01T00:00:00.000Z', false)
+    return window.performanceFixture.refreshChat()
+  })
+  await page.getByText('Pesan baru setelah riwayat gagal', { exact: true }).waitFor()
+  await page.evaluate(() => { window.chatFixture.failHistory = false })
+  await page.getByRole('button', { name: 'Pesan sebelumnya', exact: true }).click()
+  await page.getByText('Riwayat pesan 16', { exact: true }).waitFor()
+
+  await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=chat&role=buyer&pagination=1')
+  await page.getByText('Riwayat pesan 95', { exact: true }).waitFor()
+  await page.evaluate(() => window.performanceFixture.refreshChat())
+  await page.evaluate(() => window.chatFixture.incoming('first', 'Pesan saya terakhir', '2026-03-01T00:00:00.000Z', true, 'buyer'))
+  await page.getByText('Pesan saya terakhir', { exact: true }).waitFor()
+  const readingOffset = await page.getByText('Riwayat pesan 56', { exact: true }).evaluate(element => {
+    const list = element.closest('.overflow-auto')
+    list.scrollTop = 0
+    list.dispatchEvent(new Event('scroll'))
+    return element.getBoundingClientRect().top - list.getBoundingClientRect().top
+  })
+  await page.evaluate(() => {
+    for (let index = 1; index <= 90; index++) window.chatFixture.incoming('first', `Pulih tanpa lompat ${index}`, new Date(Date.UTC(2026, 1, 1, 0, 0, index)).toISOString(), false)
+    return window.performanceFixture.refreshChat()
+  })
+  await page.getByText('Pulih tanpa lompat 90', { exact: true }).waitFor()
+  const restoredOffset = await page.getByText('Riwayat pesan 56', { exact: true }).evaluate(element => element.getBoundingClientRect().top - element.closest('.overflow-auto').getBoundingClientRect().top)
+  assert(Math.abs(restoredOffset - readingOffset) <= 2, 'catch-up must not force a reader to the bottom just because the latest existing message is theirs')
+
+  if (!process.argv.includes('--performance-only')) {
   console.log('UI: checking profile drafts, saves, cancellation and delayed GPS')
   let profileLayouts = 0
   for (const width of [320, 375, 1366]) {
@@ -510,6 +608,10 @@ try {
   assert.equal(await page.evaluate(() => window.pickupFixture.auditWrites), 2, 'audit failure is reported honestly without replaying moderation')
   assert.deepEqual(errors, [], 'no page runtime errors')
   console.log(`PASS: ${48 + refactorLayouts + profileLayouts + legacyLayouts + 2} layouts, profile drafts, favorites/cache, GPS/offline cleanup, checkout, pickup/legacy tracking, COD, chat/notification races and PWA transitions. Mock services, not hosted UAT.`)
+  } else {
+    assert.deepEqual(errors, [], 'no page runtime errors')
+    console.log('PASS: bounded order/chat pagination, global history search, stable cursors and disconnected message catch-up. Mock services only.')
+  }
 } finally {
   await browser?.close()
   await server.close()

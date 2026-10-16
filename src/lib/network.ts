@@ -1,5 +1,10 @@
 import { errorMessage } from '../shared/lib/utils'
 
+export function assertOnlineForWrite() {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false)
+    throw new Error('Tidak ada koneksi. Sambungkan internet lalu coba lagi.')
+}
+
 function isLoopbackHost(hostname: string) {
   return (
     hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'

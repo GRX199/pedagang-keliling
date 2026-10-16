@@ -1,4 +1,5 @@
 import type { Message } from '../../types/domain.types'
+import { compareCreatedRows } from '../../shared/lib/keyset'
 
 const IMAGE_MESSAGE_PREFIX = '[kelilingku:image] '
 
@@ -30,10 +31,7 @@ export function parseImageMessageText(text: string | null) {
 export function mergeMessages(current: readonly Message[], incoming: readonly Message[]) {
   const rows = new Map(current.map((message) => [message.id, message]))
   for (const message of incoming) rows.set(message.id, message)
-  return [...rows.values()].sort((left, right) => {
-    const delta = Date.parse(left.created_at) - Date.parse(right.created_at)
-    return delta || left.id.localeCompare(right.id)
-  })
+  return [...rows.values()].sort(compareCreatedRows)
 }
 
 export function formatChatTimestamp(value: string | null) {

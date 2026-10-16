@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { Coordinates } from '../../types/domain.types'
 import { errorMessage } from '../../shared/lib/utils'
+import { reportError } from '../../shared/lib/error-reporting'
 import { useVendorPresence, useSyncVendorLocation } from './useVendorPresence'
 import { useToast } from '../../shared/components/ToastProvider'
 import { useAuth } from '../auth/AuthProvider'
@@ -54,18 +55,15 @@ export default function VendorLiveLocationSync() {
   const lastSyncedCoordinatesRef = useRef<Coordinates | null>(null)
   const lastSyncedAtRef = useRef(0)
   const lastErrorKeyRef = useRef('')
-  const announcedOnlineRef = useRef(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
 
   useEffect(() => {
     lastSyncedCoordinatesRef.current = null
     lastSyncedAtRef.current = 0
-    announcedOnlineRef.current = false
   }, [vendorId])
 
   useEffect(() => {
     if (!isVendor || !vendorId || !vendorOnline) {
-      announcedOnlineRef.current = false
       if (watchIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current)
       }
@@ -81,17 +79,10 @@ export default function VendorLiveLocationSync() {
       return undefined
     }
 
-    if (!announcedOnlineRef.current) {
-      announcedOnlineRef.current = true
-      toast.push('Mode online aktif. Lokasi toko akan diperbarui otomatis saat Anda bergerak.', {
-        type: 'info',
-      })
-    }
-
     let active = true
     let inFlight = false
     async function syncPosition(position: GeolocationPosition) {
-      if (!active || !vendorId || inFlight) return
+      if (!active || !vendorId || inFlight || !navigator.onLine) return
 
       const nextCoordinates = {
         lat: position.coords.latitude,
@@ -123,7 +114,7 @@ export default function VendorLiveLocationSync() {
         lastSyncedAtRef.current = Date.now()
         lastErrorKeyRef.current = ''
       } catch (error) {
-        console.error('syncVendorLiveLocation', error)
+        void reportError(error, 'map')
         if (lastErrorKeyRef.current !== 'sync-failed') {
           lastErrorKeyRef.current = 'sync-failed'
           if (active)
@@ -151,7 +142,7 @@ export default function VendorLiveLocationSync() {
     }
 
     function requestCurrentPositionSync() {
-      if (!active || document.visibilityState === 'hidden') return
+      if (!active || !navigator.onLine || document.visibilityState === 'hidden') return
       navigator.geolocation.getCurrentPosition(
         (position) => {
           void syncPosition(position)
@@ -168,6 +159,7 @@ export default function VendorLiveLocationSync() {
     }
 
     requestCurrentPositionSync()
+    window.addEventListener('online', requestCurrentPositionSync)
 
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -188,6 +180,7 @@ export default function VendorLiveLocationSync() {
     const heartbeat = window.setInterval(requestCurrentPositionSync, LOCATION_SYNC_INTERVAL_MS)
     return () => {
       active = false
+      window.removeEventListener('online', requestCurrentPositionSync)
       window.clearInterval(heartbeat)
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -205,7 +198,7 @@ export default function VendorLiveLocationSync() {
       wakeLockRef.current = null
       if (currentWakeLock && !currentWakeLock.released) {
         void currentWakeLock.release().catch((error) => {
-          console.warn('releaseVendorWakeLock', error)
+          void reportError(error, 'application')
         })
       }
       return undefined
@@ -228,7 +221,7 @@ export default function VendorLiveLocationSync() {
         const wakeLock = await navigator.wakeLock.request('screen')
         if (cancelled) {
           await wakeLock.release().catch((error) => {
-            console.warn('releaseCancelledVendorWakeLock', error)
+            void reportError(error, 'application')
           })
           return
         }
@@ -240,7 +233,7 @@ export default function VendorLiveLocationSync() {
           }
         })
       } catch (error) {
-        console.warn('requestVendorWakeLock', error)
+        void reportError(error, 'application')
       }
     }
 
@@ -263,7 +256,7 @@ export default function VendorLiveLocationSync() {
       wakeLockRef.current = null
       if (currentWakeLock && !currentWakeLock.released) {
         void currentWakeLock.release().catch((error) => {
-          console.warn('releaseVendorWakeLockCleanup', error)
+          void reportError(error, 'application')
         })
       }
     }

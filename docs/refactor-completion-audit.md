@@ -1,5 +1,11 @@
 # Audit Penyelesaian Refactor
 
+Catatan 17 Oktober 2026: dokumen ini adalah audit historis refactor 16 Oktober.
+Rilis `6c4caef` kemudian berhasil diterapkan dan lulus 19 pemeriksaan pada
+deployment asli dengan cleanup. Pekerjaan performa terbaru dilacak terpisah di
+[performance-reliability.md](performance-reliability.md); batas UAT fisik tetap
+berlaku. Pernyataan belum deploy di bawah menggambarkan saat audit awal dibuat.
+
 Tanggal: 16 Oktober 2026. Cakupan: permintaan refactor adaptif Tahap 0-3, bukan migrasi Next.js atau sertifikasi bahwa aplikasi tidak mungkin memiliki bug di masa depan.
 
 ## Kesesuaian Permintaan

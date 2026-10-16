@@ -1,5 +1,11 @@
 # Pemeriksaan Rilis Kelilingku
 
+Status 17 Oktober: baseline online terakhir `6c4caef` lulus CI, smoke publik
+320/375/1366 dan 19 pemeriksaan hosted; semua fixture dibersihkan. Peningkatan
+performa berikutnya sedang diperiksa dan belum dinyatakan deployed. Lihat
+[status performa](performance-reliability.md). Tabel baseline lama di bawah
+bukan daftar error yang masih aktif.
+
 Diperbarui 16 Oktober 2026. Dokumen ini memisahkan baseline sebelum rilis, gate lokal dan UAT yang masih perlu dilakukan. Refactor ini tidak memerlukan perubahan environment atau migrasi database production. Status penerapan harus dicocokkan dengan SHA commit dan hasil deployment, bukan hanya build lokal.
 
 ## Yang Diselesaikan

@@ -2,6 +2,7 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import type { Product } from '../../../types/domain.types'
 import type { TablesUpdate } from '../../../types/database.types'
 import { errorMessage } from '../../../shared/lib/utils'
+import { reportError } from '../../../shared/lib/error-reporting'
 import { useProducts, useProductMutation } from '../useProducts'
 import { useAuth } from '../../auth/AuthProvider'
 import { uploadImageFile } from '../../../shared/lib/media'
@@ -188,7 +189,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
       toast.push('Produk berhasil ditambahkan', { type: 'success' })
       resetCreateForm()
     } catch (error) {
-      console.error('addProduct', error)
+      void reportError(error, 'products')
       if (isSchemaCompatibilityError(error)) {
         toast.push(
           'Database belum memuat field stok, kategori, dan availability terbaru. Jalankan phase1-foundation.sql lalu coba lagi.',
@@ -231,7 +232,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
       toast.push('Perubahan produk disimpan', { type: 'success' })
       closeEditModal()
     } catch (error) {
-      console.error('saveEdit', error)
+      void reportError(error, 'products')
       if (isSchemaCompatibilityError(error)) {
         toast.push(
           'Database belum memuat field operasional produk terbaru. Jalankan phase1-foundation.sql lalu coba lagi.',
@@ -254,7 +255,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
 
       toast.push('Produk berhasil dihapus', { type: 'success' })
     } catch (error) {
-      console.error('deleteProduct', error)
+      void reportError(error, 'products')
       toast.push(errorMessage(error) || 'Gagal menghapus produk', { type: 'error' })
     } finally {
       setDeletingId(null)
@@ -280,7 +281,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
         type: 'success',
       })
     } catch (error) {
-      console.error('toggleProductSoldOut', error)
+      void reportError(error, 'products')
       toast.push(errorMessage(error) || 'Gagal memperbarui ketersediaan produk', { type: 'error' })
     } finally {
       setAvailabilityId(null)

@@ -11,6 +11,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { PropsWithChildren } from 'react'
 import type { AuthMeta, AuthState } from './auth-session'
 import { syncCurrentProfile } from '../../lib/profiles'
+import { reportError } from '../../shared/lib/error-reporting'
 import { supabase } from '../../shared/lib/supabase'
 import { createAuthSessionController, INITIAL_AUTH_STATE } from './auth-session'
 
@@ -94,7 +95,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
                   : 'active',
             }
           } catch (error) {
-            console.error('determineAuthMeta', error)
+            void reportError(error, 'auth')
             throw new Error(
               'Gagal memverifikasi role dan status akun. Periksa koneksi lalu coba lagi.',
               { cause: error }
