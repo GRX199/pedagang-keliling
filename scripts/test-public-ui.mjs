@@ -35,12 +35,23 @@ try {
         assert.equal(await password.getAttribute('type'), 'text')
         await page.getByRole('button', { name: 'Sembunyikan password', exact: true }).click()
         assert.equal(await password.getAttribute('type'), 'password')
+        await page.getByRole('button', { name: 'Daftar', exact: true }).click()
+        await page.getByLabel('Konfirmasi password', { exact: true }).waitFor()
+        assert.equal(await page.getByLabel('Konfirmasi password', { exact: true }).getAttribute('autocomplete'), 'new-password')
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `register overflow ${width}`)
+        await page.getByRole('button', { name: 'Masuk', exact: true }).click()
+        await page.getByRole('button', { name: 'Lupa password?', exact: true }).click()
+        await page.getByRole('button', { name: 'Kirim Link Reset', exact: true }).waitFor()
+        assert.equal(await page.getByLabel('Password', { exact: true }).count(), 0, 'reset request only asks for email')
+        await page.getByRole('button', { name: 'Masuk akun', exact: true }).click()
+        await page.locator('summary').filter({ hasText: 'Belum menerima verifikasi?' }).click()
+        await page.getByRole('button', { name: 'Kirim ulang verifikasi', exact: true }).waitFor()
       }
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `overflow ${width}/${path}`)
     }
   }
   assert.deepEqual(errors, [], 'no production entry/provider/runtime errors')
-  console.log(`PASS: production entry/providers, public pages and login redirect at 320/375/1366. Target: ${origin}. Cross-origin traffic blocked; no login/data writes.`)
+  console.log(`PASS: production entry/providers, public pages, login/register/reset forms and login redirect at 320/375/1366. Target: ${origin}. Cross-origin traffic blocked; no login/data writes.`)
 } finally {
   await browser?.close()
   if (server) await new Promise(resolve => server.httpServer.close(resolve))

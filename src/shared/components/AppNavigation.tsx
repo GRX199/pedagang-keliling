@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   MapPin,
@@ -9,14 +9,14 @@ import {
   ShieldCheck,
   ChevronDown,
   LogOut,
-  type LucideIcon,
+  type LucideIcon
 } from 'lucide-react'
 import { useAuth } from '../../features/auth/AuthProvider'
 import { useToast } from './ToastProvider'
 import { supabase } from '../lib/supabase'
 import {
   getFriendlyFetchErrorMessage,
-  requireServerOrigin,
+  requireServerOrigin
 } from '../../lib/network'
 import { useRealtimeNotifications } from '../../features/notifications/useNotifications'
 import { errorMessage } from '../lib/utils'
@@ -31,6 +31,8 @@ export default function AppNavigation() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [logoutBusy, setLogoutBusy] = useState(false)
   const accountMenuRef = useRef<HTMLDivElement>(null)
+  const accountButtonRef = useRef<HTMLButtonElement>(null)
+  const accountMenuId = useId()
 
   useEffect(() => {
     setAccountMenuOpen(false)
@@ -50,9 +52,17 @@ export default function AppNavigation() {
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setAccountMenuOpen(false)
+        accountButtonRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
 
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
     }
   }, [accountMenuOpen])
 
@@ -73,10 +83,10 @@ export default function AppNavigation() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken}`
           },
           body: JSON.stringify({ online: false }),
-          signal: controller.signal,
+          signal: controller.signal
         })
       } finally {
         window.clearTimeout(timeoutId)
@@ -99,9 +109,9 @@ export default function AppNavigation() {
         toast.push(
           getFriendlyFetchErrorMessage(
             error,
-            'Anda berhasil logout, tetapi status toko mungkin belum sempat diubah ke offline.',
+            'Anda berhasil logout, tetapi status toko mungkin belum sempat diubah ke offline.'
           ),
-          { type: 'warning' },
+          { type: 'warning' }
         )
       }
     }
@@ -131,7 +141,7 @@ export default function AppNavigation() {
     role,
     pathname: location.pathname,
     search: location.search,
-    toast,
+    toast
   })
 
   const isAdmin = role === 'admin'
@@ -153,21 +163,21 @@ export default function AppNavigation() {
             label: 'Admin',
             count: 0,
             active:
-              location.pathname === '/dashboard' && effectiveTab === 'admin',
+              location.pathname === '/dashboard' && effectiveTab === 'admin'
           },
           {
             to: '/map',
             label: 'Peta',
             count: 0,
-            active: location.pathname === '/map',
+            active: location.pathname === '/map'
           },
           {
             to: '/dashboard?tab=profile',
             label: 'Profil',
             count: 0,
             active:
-              location.pathname === '/dashboard' && effectiveTab === 'profile',
-          },
+              location.pathname === '/dashboard' && effectiveTab === 'profile'
+          }
         ]
       : isVendor
         ? [
@@ -175,20 +185,20 @@ export default function AppNavigation() {
               to: '/map',
               label: 'Peta',
               count: 0,
-              active: location.pathname === '/map',
+              active: location.pathname === '/map'
             },
             {
               to: '/dashboard?tab=orders',
               label: 'Pesanan',
               count: notificationCounts.orders,
               active:
-                location.pathname === '/dashboard' && effectiveTab === 'orders',
+                location.pathname === '/dashboard' && effectiveTab === 'orders'
             },
             {
               to: '/chat',
               label: 'Chat',
               count: notificationCounts.messages,
-              active: location.pathname.startsWith('/chat'),
+              active: location.pathname.startsWith('/chat')
             },
             {
               to: '/dashboard?tab=products',
@@ -196,45 +206,43 @@ export default function AppNavigation() {
               count: 0,
               active:
                 location.pathname === '/dashboard' &&
-                effectiveTab === 'products',
+                effectiveTab === 'products'
             },
             {
               to: '/dashboard?tab=profile',
               label: 'Profil',
               count: 0,
               active:
-                location.pathname === '/dashboard' &&
-                effectiveTab === 'profile',
-            },
+                location.pathname === '/dashboard' && effectiveTab === 'profile'
+            }
           ]
         : [
             {
               to: '/map',
               label: 'Peta',
               count: 0,
-              active: location.pathname === '/map',
+              active: location.pathname === '/map'
             },
             {
               to: '/dashboard?tab=orders',
               label: 'Pesanan',
               count: notificationCounts.orders,
               active:
-                location.pathname === '/dashboard' && effectiveTab === 'orders',
+                location.pathname === '/dashboard' && effectiveTab === 'orders'
             },
             {
               to: '/chat',
               label: 'Chat',
               count: notificationCounts.messages,
-              active: location.pathname.startsWith('/chat'),
+              active: location.pathname.startsWith('/chat')
             },
             {
               to: '/dashboard?tab=profile',
               label: 'Profil',
               count: 0,
               active:
-                location.pathname === '/dashboard' &&
-                effectiveTab === 'profile',
-            },
+                location.pathname === '/dashboard' && effectiveTab === 'profile'
+            }
           ]
     : []
 
@@ -249,7 +257,7 @@ export default function AppNavigation() {
       Chat: MessageCircle,
       Produk: Package,
       Profil: UserRound,
-      Admin: ShieldCheck,
+      Admin: ShieldCheck
     }
     const Icon = icons[label] || UserRound
     return <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
@@ -260,9 +268,10 @@ export default function AppNavigation() {
       <NavLink
         key={item.to}
         to={item.to}
+        aria-current={item.active ? 'page' : false}
         className={`rounded-full px-3 py-2 text-sm font-medium transition ${
           item.active
-            ? 'bg-slate-900 text-white shadow-sm'
+            ? 'bg-teal-50 text-teal-900'
             : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
@@ -272,7 +281,7 @@ export default function AppNavigation() {
             <span
               className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
                 item.active
-                  ? 'bg-white/15 text-white'
+                  ? 'bg-teal-700 text-white'
                   : 'bg-rose-500 text-white'
               }`}
             >
@@ -286,15 +295,15 @@ export default function AppNavigation() {
 
   return (
     <>
-      <header className="sticky top-0 z-[1300] border-b border-slate-200/80 bg-white/95 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-3 py-2 sm:px-4">
-          <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
+      <header className="app-header">
+        <div className="mx-auto flex h-full max-w-7xl items-center px-3 sm:px-5">
+          <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:gap-3">
             <div className="min-w-0 flex items-center gap-4">
               <Link
                 to={user ? (isAdmin ? '/dashboard?tab=admin' : '/map') : '/'}
-                className="inline-flex min-w-0 items-center gap-3"
+                className="inline-flex min-h-11 min-w-0 items-center gap-3"
               >
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white shadow-sm">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-800 text-sm font-bold text-white">
                   K
                 </span>
                 <span className="min-w-0">
@@ -308,7 +317,10 @@ export default function AppNavigation() {
               </Link>
 
               {user && (
-                <nav className="hidden gap-2 lg:flex">
+                <nav
+                  aria-label="Navigasi utama"
+                  className="hidden gap-1 lg:flex"
+                >
                   {navItems.map((item) => renderDesktopNavItem(item))}
                 </nav>
               )}
@@ -318,11 +330,13 @@ export default function AppNavigation() {
               {user ? (
                 <div ref={accountMenuRef} className="relative">
                   <button
+                    ref={accountButtonRef}
                     type="button"
-                    aria-haspopup="menu"
+                    aria-label="Menu akun"
+                    aria-controls={accountMenuOpen ? accountMenuId : undefined}
                     aria-expanded={accountMenuOpen}
                     onClick={() => setAccountMenuOpen((current) => !current)}
-                    className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-1 transition hover:bg-slate-50 sm:pr-3"
+                    className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white p-1 transition hover:bg-slate-50 sm:pr-3"
                   >
                     {avatarUrl ? (
                       <img
@@ -351,9 +365,17 @@ export default function AppNavigation() {
                   </button>
 
                   {accountMenuOpen ? (
-                    <div
-                      role="menu"
-                      className="absolute right-0 top-full z-[1700] mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
+                    <nav
+                      id={accountMenuId}
+                      aria-label="Pengaturan akun"
+                      onBlur={(event) => {
+                        if (
+                          event.relatedTarget instanceof Node &&
+                          !accountMenuRef.current?.contains(event.relatedTarget)
+                        )
+                          setAccountMenuOpen(false)
+                      }}
+                      className="absolute right-0 top-full z-[1700] mt-2 w-60 max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
                     >
                       <div className="border-b border-slate-100 px-3 py-2">
                         <div className="truncate text-sm font-medium text-slate-900">
@@ -365,16 +387,14 @@ export default function AppNavigation() {
                       </div>
                       <Link
                         to="/dashboard?tab=profile"
-                        role="menuitem"
                         onClick={() => setAccountMenuOpen(false)}
-                        className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                       >
                         <NavIcon label="Profil" />
                         Profil & pengaturan
                       </Link>
                       <button
                         type="button"
-                        role="menuitem"
                         disabled={logoutBusy}
                         onClick={() => void handleLogout()}
                         className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-70"
@@ -382,7 +402,7 @@ export default function AppNavigation() {
                         <LogOut aria-hidden="true" className="h-5 w-5" />
                         {logoutBusy ? 'Keluar...' : 'Keluar'}
                       </button>
-                    </div>
+                    </nav>
                   ) : null}
                 </div>
               ) : (
@@ -393,10 +413,7 @@ export default function AppNavigation() {
                   >
                     Cara Kerja
                   </a>
-                  <Link
-                    to="/login"
-                    className="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
+                  <Link to="/login" className="ui-primary">
                     <span className="sm:hidden">Masuk</span>
                     <span className="hidden sm:inline">Login / Daftar</span>
                   </Link>
@@ -408,21 +425,22 @@ export default function AppNavigation() {
       </header>
 
       {user && (
-        <nav className="fixed inset-x-3 bottom-3 z-[1200] lg:hidden">
+        <nav aria-label="Navigasi utama mobile" className="app-bottom-nav">
           <div
-            className="grid rounded-[22px] border border-slate-200/80 bg-white/95 p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur"
+            className="mx-auto grid max-w-xl gap-1"
             style={{
-              gridTemplateColumns: `repeat(${mobileNavItems.length || 1}, minmax(0, 1fr))`,
+              gridTemplateColumns: `repeat(${mobileNavItems.length || 1}, minmax(0, 1fr))`
             }}
           >
             {mobileNavItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
+                aria-current={item.active ? 'page' : false}
                 aria-label={item.label}
-                className={`relative min-w-0 rounded-[16px] px-1 py-2 text-center text-[11px] font-medium transition ${
+                className={`relative min-h-14 min-w-0 rounded-xl px-1 py-1.5 text-center text-xs font-semibold transition-colors ${
                   item.active
-                    ? 'bg-slate-900 text-white shadow-sm'
+                    ? 'bg-teal-50 text-teal-900'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
@@ -433,11 +451,11 @@ export default function AppNavigation() {
                     <span
                       className={`absolute right-[22%] top-1 inline-flex min-w-4 items-center justify-center rounded-full px-1 py-0.5 text-[9px] font-semibold ${
                         item.active
-                          ? 'bg-white/15 text-white'
+                          ? 'bg-teal-700 text-white'
                           : 'bg-rose-500 text-white'
                       }`}
                     >
-                      {item.count}
+                      {item.count > 99 ? '99+' : item.count}
                     </span>
                   ) : null}
                 </span>

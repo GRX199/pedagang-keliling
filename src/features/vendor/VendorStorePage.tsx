@@ -7,7 +7,7 @@ import {
   getCartTotals,
   getManagedStockNumber,
   isProductOrderable,
-  type Cart,
+  type Cart
 } from '../orders/cart'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useToast } from '../../shared/components/ToastProvider'
@@ -19,14 +19,14 @@ import { useCreatePickupOrder } from '../orders/useOrders'
 import { formatMobility, validatePickupRequest } from '../../lib/pickup'
 import {
   findOrCreateDirectChat,
-  sendChatMessage,
+  sendChatMessage
 } from '../../lib/conversations'
 
 import {
   buildOrderChatMessage,
   formatPriceLabel,
   formatPaymentMethodLabel,
-  getFulfillmentTypeHint,
+  getFulfillmentTypeHint
 } from '../../lib/orders'
 
 import {
@@ -40,7 +40,7 @@ import {
   getOperatingHoursText,
   getVendorPromoText,
   isVendorPresenceFresh,
-  isVendorPromoActive,
+  isVendorPromoActive
 } from '../../lib/vendor'
 import { formatReviewScore, getReviewSummary } from '../../lib/reviews'
 
@@ -60,16 +60,16 @@ function getCurrentLocationSnapshot() {
           createLocationPayload({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-          }),
+            accuracy: position.coords.accuracy
+          })
         )
       },
       () => resolve(null),
       {
         enableHighAccuracy: true,
         timeout: 12000,
-        maximumAge: 60000,
-      },
+        maximumAge: 60000
+      }
     )
   })
 }
@@ -135,8 +135,8 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
     const observer = new IntersectionObserver(
       ([entry]) => setSummaryVisible(entry.isIntersecting),
       {
-        rootMargin: '-72px 0px -96px 0px',
-      },
+        rootMargin: '-72px 0px -96px 0px'
+      }
     )
     observer.observe(summary)
     return () => observer.disconnect()
@@ -167,7 +167,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
 
         nextCart[product.id] = {
           ...currentEntry,
-          quantity: safeQuantity,
+          quantity: safeQuantity
         }
       }
 
@@ -177,28 +177,28 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
 
   const cartEntries = useMemo(
     () => getCartEntries(cart, products),
-    [cart, products],
+    [cart, products]
   )
   const cartTotals = useMemo(() => getCartTotals(cartEntries), [cartEntries])
   const availableProductsCount = useMemo(
     () => products.filter((product) => isProductOrderable(product)).length,
-    [products],
+    [products]
   )
   const reviewSummary = useMemo(() => getReviewSummary(reviews), [reviews])
   const availablePaymentMethods = useMemo(
     () => getVendorAvailablePaymentMethods(vendor?.payment_details),
-    [vendor?.payment_details],
+    [vendor?.payment_details]
   )
   const nonCashPaymentMethods = useMemo(
     () =>
       getVendorPaymentSetupSummary(vendor?.payment_details).filter(
-        (entry) => entry.ready,
+        (entry) => entry.ready
       ),
-    [vendor?.payment_details],
+    [vendor?.payment_details]
   )
   const selectedPaymentDetails = useMemo(
     () => getVendorPaymentMethodDetails(vendor?.payment_details, paymentMethod),
-    [paymentMethod, vendor?.payment_details],
+    [paymentMethod, vendor?.payment_details]
   )
   const productCards = useMemo(() => {
     if (isOwner) return products
@@ -258,8 +258,8 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
         ...current,
         [product.id]: {
           quantity: safeQuantity,
-          note: current[product.id]?.note || '',
-        },
+          note: current[product.id]?.note || ''
+        }
       }
     })
   }
@@ -269,15 +269,15 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
       ...current,
       [productId]: {
         quantity: current[productId]?.quantity || 1,
-        note,
-      },
+        note
+      }
     }))
   }
 
   function toggleProductNote(productId: string, isExpanded = false) {
     setExpandedProductNoteIds((current) => ({
       ...current,
-      [productId]: !isExpanded,
+      [productId]: !isExpanded
     }))
   }
 
@@ -299,12 +299,12 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
             ? 'Pedagang dihapus dari favorit'
             : 'Pedagang disimpan ke favorit',
           {
-            type: 'success',
-          },
+            type: 'success'
+          }
         )
     } catch {
       toast.push('Favorit belum dapat diperbarui. Coba lagi.', {
-        type: 'error',
+        type: 'error'
       })
     }
   }
@@ -314,14 +314,14 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
     if (submitLock.current || !id) return
     if (storeQuery.isError) {
       toast.push('Perbarui informasi toko sebelum mengirim pesanan.', {
-        type: 'error',
+        type: 'error'
       })
       return
     }
 
     if (!user) {
       toast.push('Silakan login terlebih dahulu untuk memesan', {
-        type: 'info',
+        type: 'info'
       })
       navigate('/login')
       return
@@ -341,8 +341,8 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
       toast.push(
         'Ada produk yang sudah tidak tersedia. Periksa kembali pilihan Anda.',
         {
-          type: 'error',
-        },
+          type: 'error'
+        }
       )
       return
     }
@@ -350,7 +350,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
     if (!availablePaymentMethods.includes(paymentMethod)) {
       toast.push(
         'Metode pembayaran ini belum disiapkan oleh pedagang. Pilih metode lain yang tersedia.',
-        { type: 'error' },
+        { type: 'error' }
       )
       return
     }
@@ -362,7 +362,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
           ? 'Lokasi pelanggan saat pengambilan'
           : 'Kurir mengambil di lokasi pedagang',
       collector: pickupContact,
-      courierConsent,
+      courierConsent
     })
     if (invalidPickup) {
       toast.push(invalidPickup, { type: 'error' })
@@ -388,7 +388,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
       if (fulfillmentType === 'self_pickup' && !currentLocation) {
         toast.push(
           'Lokasi belum terbaca. Pesanan tetap dikirim; koordinasikan pengambilan melalui chat.',
-          { type: 'info' },
+          { type: 'info' }
         )
       }
       const createdOrder = await createPickupOrder({
@@ -406,8 +406,8 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
         target_items: cartEntries.map((entry) => ({
           product_id: entry.product.id,
           quantity: entry.quantity,
-          note: entry.note || null,
-        })),
+          note: entry.note || null
+        }))
       })
       const notes = []
       let directChat = null
@@ -427,13 +427,13 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
             orderTiming: 'asap',
             requestedFulfillmentAt: null,
             meetingPointLabel: resolvedMeetingPointLabel,
-            customerNote,
-          }),
+            customerNote
+          })
         )
       } catch (messageError) {
         void reportError(messageError, 'chat')
         notes.push(
-          'Pesanan tersimpan, tetapi ringkasan otomatis di chat belum terkirim.',
+          'Pesanan tersimpan, tetapi ringkasan otomatis di chat belum terkirim.'
         )
       }
 
@@ -443,14 +443,14 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
         successMessage = `${successMessage} ${notes.join(' ')}`
       }
       toast.push(successMessage, {
-        type: notes.length > 0 ? 'info' : 'success',
+        type: notes.length > 0 ? 'info' : 'success'
       })
       navigate(`/orders/${createdOrder.id}`)
     } catch (error) {
       void reportError(error, 'orders')
       if (version === lifecycle.current)
         toast.push(errorMessage(error) || 'Gagal mengirim pesanan', {
-          type: 'error',
+          type: 'error'
         })
     } finally {
       submitLock.current = false
@@ -492,8 +492,8 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
   const vendorIsOnline = isVendorPresenceFresh(vendor)
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-transparent">
-      <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
+    <div>
+      <div className="ui-page max-w-6xl">
         {storeQuery.isError ? (
           <p role="alert" className="mb-3 text-sm text-amber-800">
             Informasi toko belum diperbarui.{' '}
@@ -622,7 +622,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
                   <>
                     <button
                       onClick={() => navigate('/dashboard?tab=products')}
-                      className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                      className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-teal-800"
                     >
                       Kelola Produk
                     </button>
@@ -664,7 +664,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
                           .getElementById('order-summary')
                           ?.scrollIntoView({ behavior: 'smooth' })
                       }
-                      className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
+                      className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-teal-800"
                     >
                       Lihat Ringkasan Pesanan
                     </button>
@@ -777,7 +777,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
                             onClick={() => setPaymentMethod(method)}
                             className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
                               paymentMethod === method
-                                ? 'bg-slate-900 text-white'
+                                ? 'bg-teal-700 text-white'
                                 : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                             }`}
                           >
@@ -855,7 +855,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
                           disabled={submittingOrder}
                           className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
                             fulfillmentType === 'self_pickup'
-                              ? 'bg-emerald-600 text-white'
+                              ? 'bg-teal-700 text-white'
                               : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                           }`}
                         >
@@ -867,7 +867,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
                           disabled={submittingOrder}
                           className={`rounded-2xl px-3 py-3 text-sm font-medium transition ${
                             fulfillmentType === 'customer_courier'
-                              ? 'bg-emerald-600 text-white'
+                              ? 'bg-teal-700 text-white'
                               : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                           }`}
                         >
@@ -1066,7 +1066,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     onClick={() => navigate('/dashboard?tab=products')}
-                    className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                    className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-teal-800"
                   >
                     Kelola Produk
                   </button>
@@ -1210,8 +1210,8 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
                               {
                                 day: 'numeric',
                                 month: 'long',
-                                year: 'numeric',
-                              },
+                                year: 'numeric'
+                              }
                             )}
                           </div>
                         </div>
@@ -1245,7 +1245,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
       </div>
 
       {!isOwner && cartEntries.length > 0 && !summaryVisible && (
-        <div className="fixed inset-x-4 bottom-24 z-30 lg:hidden">
+        <div className="fixed inset-x-3 bottom-[calc(var(--bottom-nav-space)+0.5rem)] z-30 lg:hidden">
           <button
             aria-label="Buka ringkasan pesanan"
             onClick={() =>
@@ -1253,7 +1253,7 @@ function VendorStoreContent({ id }: { id: string | undefined }) {
                 .getElementById('order-summary')
                 ?.scrollIntoView({ behavior: 'smooth' })
             }
-            className="flex w-full items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-left text-white shadow-xl shadow-slate-900/20"
+            className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl bg-teal-800 px-4 py-3 text-left text-white shadow-lg shadow-teal-900/15"
           >
             <span>
               <span className="block text-sm font-semibold">

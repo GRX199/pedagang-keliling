@@ -14,6 +14,8 @@ import MapViewPage from '../../src/features/map/MapViewPage'
 import AdminDashboard from '../../src/features/admin/AdminDashboard'
 import ProfilePanel from '../../src/features/vendor/ProfilePanel'
 import DashboardScreen from '../../src/features/vendor/DashboardScreen'
+import AppNavigation from '../../src/shared/components/AppNavigation'
+import ChatWorkspace from '../../src/features/chat/ChatWorkspace'
 import { fixtureOrder } from './pickup-mock'
 import { ChatThread } from '../../src/features/chat/ChatWorkspace'
 import { user } from './pickup-mock'
@@ -25,12 +27,25 @@ import '../../src/styles/index.css'
 const storeMode = ['store', 'shop-flow'].includes(new URLSearchParams(location.search).get('view'))
 const view = new URLSearchParams(location.search).get('view')
 const role = new URLSearchParams(location.search).get('role') === 'vendor' ? 'vendor' : 'customer'
-const isolated = view === 'dashboard' ? <DashboardScreen /> : view === 'orders' ? <OrdersPanel currentUser={user} role={role} />
+const mobileSurface = new URLSearchParams(location.search).get('surface')
+const mobileRoute = mobileSurface === 'map' ? '/map' : mobileSurface === 'chat' ? '/chat' : `/dashboard?tab=${mobileSurface}`
+const isolated = view === 'mobile-design' ? <MobileDesignFixture /> : view === 'dashboard' ? <DashboardScreen /> : view === 'orders' ? <OrdersPanel currentUser={user} role={role} />
   : view === 'legacy' ? <LegacyOrderTrackingPage initialOrder={fixtureOrder} />
   : view === 'products' ? <VendorProductsManager vendorId={user.id} />
   : view === 'presence' ? <><h1>Presence fixture</h1><VendorLiveLocationSync /></>
   : view === 'map' ? <MapViewPage />
   : view === 'admin' ? <AdminDashboard currentUser={user} /> : null
+function MobileDesignFixture() {
+  const surface = new URLSearchParams(location.search).get('surface')
+  return <div className="app-shell app-shell--authenticated"><AppNavigation /><PwaInstallPrompt role={role} /><main id="konten-utama" className="app-main">
+    {surface === 'map' ? <MapViewPage /> : <div className="ui-page max-w-5xl">
+      {surface === 'profile' ? <ProfilePanel currentUser={user} role={role} />
+        : surface === 'products' ? <VendorProductsManager vendorId={user.id} />
+        : surface === 'chat' ? <ChatWorkspace />
+        : <OrdersPanel currentUser={user} role={role} />}
+    </div>}
+  </main></div>
+}
 function ProfileFixture() {
   const [revision, setRevision] = useState(0)
   const [visible, setVisible] = useState(true)
@@ -86,7 +101,7 @@ window.performanceFixture = {
   },
 }
 if (new URLSearchParams(location.search).get('offline') === '1') window.performanceFixture.setOnline(false)
-createRoot(document.getElementById('root')).render(<React.StrictMode><QueryClientProvider client={queryClient}>{view === 'pwa' ? <PwaFixture /> : view === 'notifications' ? <ToastProvider><NotificationFixture /></ToastProvider> : view === 'profile' ? <ToastProvider><ProfileFixture /></ToastProvider> : isolated ? <BrowserRouter><ToastProvider>{isolated}</ToastProvider></BrowserRouter> : new URLSearchParams(location.search).get('view') === 'chat' ? <ChatFixture /> : storeMode ? <MemoryRouter initialEntries={['/vendors/vendor']}><ToastProvider><FixtureNavigation /><Routes>
+createRoot(document.getElementById('root')).render(<React.StrictMode><QueryClientProvider client={queryClient}>{view === 'pwa' ? <PwaFixture /> : view === 'notifications' ? <ToastProvider><NotificationFixture /></ToastProvider> : view === 'profile' ? <ToastProvider><ProfileFixture /></ToastProvider> : view === 'mobile-design' ? <MemoryRouter initialEntries={[mobileRoute]}><ToastProvider>{isolated}</ToastProvider></MemoryRouter> : isolated ? <BrowserRouter><ToastProvider>{isolated}</ToastProvider></BrowserRouter> : new URLSearchParams(location.search).get('view') === 'chat' ? <ChatFixture /> : storeMode ? <MemoryRouter initialEntries={['/vendors/vendor']}><ToastProvider><FixtureNavigation /><Routes>
   <Route path="/vendors/:id" element={<VendorStorePage />} />
   <Route path="/map" element={<MapViewPage />} />
   <Route path="/orders/:id" element={<h1>Permintaan tersimpan</h1>} />

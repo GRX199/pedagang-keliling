@@ -1,7 +1,11 @@
 import { useId, useState } from 'react'
-import { Search, ChevronDown } from 'lucide-react'
+import { Search, SlidersHorizontal } from 'lucide-react'
 import type { MapFilters } from '../../../types/domain.types'
 import { Input } from '../../../shared/components/Input'
+import { Modal } from '../../../shared/components/Modal'
+import { formatVendorCategoryLabel } from '../../../lib/vendor'
+import { MOBILITY_OPTIONS } from '../../../lib/pickup'
+
 type Props = {
   filters: MapFilters
   onChange: <K extends keyof MapFilters>(name: K, value: MapFilters[K]) => void
@@ -15,8 +19,6 @@ type Props = {
   nearbyCount: number
   locationAvailable: boolean
 }
-import { formatVendorCategoryLabel } from '../../../lib/vendor'
-import { MOBILITY_OPTIONS } from '../../../lib/pickup'
 
 export default function MapSearchFilters({
   filters,
@@ -29,32 +31,37 @@ export default function MapSearchFilters({
   totalCount,
   resultCount,
   nearbyCount,
-  locationAvailable,
+  locationAvailable
 }: Props) {
   const [expanded, setExpanded] = useState(false)
-  const panelId = useId()
-  const extraFilterCount = [
+  const categoryId = useId()
+  const count = [
     filters.rating !== 'all',
     filters.mobility && filters.mobility !== 'all',
     filters.withinRadius,
     filters.promo,
-    filters.favorites,
+    filters.favorites
   ].filter(Boolean).length
   const hasFilters =
-    Boolean(filters.query.trim()) || filters.category !== 'all' || extraFilterCount > 0
+    !!filters.query.trim() || filters.category !== 'all' || count > 0
 
-  function toggle(label: string, name: 'withinRadius' | 'promo' | 'favorites', disabled = false) {
+  function toggle(
+    label: string,
+    name: 'withinRadius' | 'promo' | 'favorites',
+    disabled = false
+  ) {
     return (
       <button
         type="button"
         aria-pressed={filters[name]}
         disabled={disabled}
         onClick={() => onChange(name, !filters[name])}
-        className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-          filters[name]
-            ? 'border-teal-700 bg-teal-700 text-white'
-            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-        }`}
+        className={
+          'min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ' +
+          (filters[name]
+            ? 'border-teal-700 bg-teal-50 text-teal-900'
+            : 'border-slate-200 bg-white text-slate-700')
+        }
       >
         {label}
       </button>
@@ -62,62 +69,137 @@ export default function MapSearchFilters({
   }
 
   return (
-    <div className="min-w-0 rounded-[22px] border border-slate-200/80 bg-white p-3 shadow-sm sm:p-4">
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
-        <label className="relative min-w-0">
+    <div className="ui-surface p-3">
+      <div className="flex min-w-0 gap-2">
+        <label className="relative min-w-0 flex-1">
           <span className="sr-only">Cari pedagang atau produk</span>
           <Search
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400"
+            className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400"
           />
           <Input
             type="search"
             value={filters.query}
             onChange={(event) => onChange('query', event.target.value)}
-            placeholder="Cari toko, barang, atau area"
-            className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-base text-slate-900 transition focus:border-teal-600 focus:bg-white sm:text-sm"
+            placeholder="Cari toko atau barang"
+            className="min-h-11 py-2.5 pl-9 pr-2"
           />
         </label>
         <button
           type="button"
+          aria-haspopup="dialog"
           aria-expanded={expanded}
-          aria-controls={panelId}
-          onClick={() => setExpanded((current) => !current)}
-          className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-medium ${expanded ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+          onClick={() => setExpanded(true)}
+          className="ui-secondary gap-1.5 px-3"
         >
-          Filter{extraFilterCount > 0 ? ` (${extraFilterCount})` : ''}
-          <ChevronDown
-            aria-hidden="true"
-            className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
-          />
+          <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
+          Filter{count > 0 ? ' (' + count + ')' : ''}
         </button>
-        <label className="col-span-2 flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 px-3">
-          <span className="text-sm text-slate-500">Kategori</span>
-          <select
-            value={filters.category}
-            onChange={(event) => onChange('category', event.target.value)}
-            className="min-h-11 min-w-0 flex-1 bg-transparent py-2 text-base font-medium text-slate-800 sm:text-sm"
-          >
-            <option value="all">Semua kategori</option>
-            {categories.map((option) => (
-              <option key={option.value} value={option.value}>
-                {formatVendorCategoryLabel(option.label)}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
+      <div className="mt-2 flex min-w-0 items-center gap-2">
+        <label htmlFor={categoryId} className="sr-only">
+          Kategori
+        </label>
+        <select
+          id={categoryId}
+          value={filters.category}
+          onChange={(event) => onChange('category', event.target.value)}
+          className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
+        >
+          <option value="all">Semua kategori</option>
+          {categories.map((option) => (
+            <option key={option.value} value={option.value}>
+              {formatVendorCategoryLabel(option.label)}
+            </option>
+          ))}
+        </select>
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="min-h-11 px-2 text-sm font-semibold text-teal-800"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+      <p role="status" className="mt-2 text-xs leading-5 text-slate-500">
+        <strong className="font-medium text-slate-700">
+          {resultCount} dari {totalCount} toko online
+        </strong>
+        {locationAvailable && <span> · {nearbyCount} dalam radius</span>}
+      </p>
 
-      <div id={panelId} hidden={!expanded}>
-        <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
-          <label className="block text-sm text-slate-600">
+      <Modal
+        open={expanded}
+        title="Filter pedagang"
+        onClose={() => setExpanded(false)}
+        presentation="sheet"
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {toggle(
+              'Dalam radius',
+              'withinRadius',
+              !locationAvailable && !filters.withinRadius
+            )}
+            {customer && toggle('Promo', 'promo')}
+            {customer &&
+              favoritesEnabled &&
+              toggle(
+                'Favorit',
+                'favorites',
+                !favoritesCount && !filters.favorites
+              )}
+          </div>
+          <label className="block text-sm font-medium text-slate-700">
+            Radius (km)
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0.1"
+              step="0.1"
+              value={filters.radius}
+              onChange={(event) => {
+                const radius = event.target.valueAsNumber
+                if (Number.isFinite(radius) && radius >= 0.1)
+                  onChange('radius', radius)
+              }}
+              className="ui-field mt-1.5"
+            />
+          </label>
+          {!locationAvailable && (
+            <p className="text-xs text-slate-500">
+              Aktifkan lokasi untuk mencari dalam radius.
+            </p>
+          )}
+          <label className="block text-sm font-medium text-slate-700">
+            Rating
+            <select
+              aria-label="Rating"
+              value={filters.rating}
+              onChange={(event) =>
+                onChange('rating', event.target.value as MapFilters['rating'])
+              }
+              className="ui-field mt-1.5"
+            >
+              <option value="all">Semua rating</option>
+              <option value="4">4.0 ke atas</option>
+              <option value="4.5">4.5 ke atas</option>
+            </select>
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
             Cara berkeliling
             <select
+              aria-label="Cara berkeliling"
               value={filters.mobility || 'all'}
               onChange={(event) =>
-                onChange('mobility', event.target.value as MapFilters['mobility'])
+                onChange(
+                  'mobility',
+                  event.target.value as MapFilters['mobility']
+                )
               }
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-base sm:text-sm"
+              className="ui-field mt-1.5"
             >
               <option value="all">Semua mobilitas</option>
               {MOBILITY_OPTIONS.map((option) => (
@@ -127,71 +209,20 @@ export default function MapSearchFilters({
               ))}
             </select>
           </label>
-          <div className="flex flex-wrap gap-2">
-            {toggle('Dalam radius', 'withinRadius', !locationAvailable && !filters.withinRadius)}
-            {customer && toggle('Promo', 'promo')}
-            {customer &&
-              favoritesEnabled &&
-              toggle('Favorit', 'favorites', favoritesCount === 0 && !filters.favorites)}
+          <div className="grid grid-cols-[auto_1fr] gap-2 border-t border-slate-100 pt-4">
+            <button type="button" onClick={onReset} className="ui-secondary">
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="ui-primary"
+            >
+              Lihat {resultCount} toko
+            </button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="min-w-0 space-y-1 text-sm text-slate-600">
-              <span>Rating</span>
-              <select
-                value={filters.rating}
-                onChange={(event) => onChange('rating', event.target.value as MapFilters['rating'])}
-                className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-2 text-base sm:text-sm"
-              >
-                <option value="all">Semua rating</option>
-                <option value="4">4.0 ke atas</option>
-                <option value="4.5">4.5 ke atas</option>
-              </select>
-            </label>
-            <label className="min-w-0 space-y-1 text-sm text-slate-600">
-              <span>Radius (km)</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0.1"
-                step="0.1"
-                value={filters.radius}
-                onChange={(event) => {
-                  const radius = event.target.valueAsNumber
-                  if (Number.isFinite(radius) && radius >= 0.1) onChange('radius', radius)
-                }}
-                className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 text-base sm:text-sm"
-              />
-            </label>
-          </div>
-          {!locationAvailable && (
-            <p className="text-xs text-slate-500">Aktifkan lokasi untuk mencari dalam radius.</p>
-          )}
         </div>
-      </div>
-
-      <div
-        className="mt-2 flex min-h-11 min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500"
-        role="status"
-      >
-        <span className="min-w-0 flex-1">
-          <span className="font-semibold text-slate-700">
-            {resultCount} dari {totalCount} toko online
-          </span>
-          {locationAvailable && <span className="ml-2">{nearbyCount} dalam radius</span>}
-        </span>
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={() => {
-              onReset()
-              setExpanded(false)
-            }}
-            className="min-h-11 shrink-0 rounded-lg px-2 font-medium text-teal-700 hover:bg-teal-50"
-          >
-            Reset
-          </button>
-        )}
-      </div>
+      </Modal>
     </div>
   )
 }

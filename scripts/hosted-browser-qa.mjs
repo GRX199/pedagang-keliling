@@ -77,8 +77,9 @@ export async function runHostedBrowserQA({
       await page.locator('.leaflet-container').waitFor()
     }
     async function logout(page) {
-      await page.locator('button[aria-haspopup="menu"]').click()
-      await page.getByRole('menuitem', { name: 'Keluar', exact: true }).click()
+      // Support both the previous deployment and the accessible navigation UI.
+      await page.getByRole('button', { name: 'Menu akun', exact: true }).or(page.locator('button[aria-haspopup="menu"]')).first().click()
+      await page.getByRole('button', { name: 'Keluar', exact: true }).or(page.getByRole('menuitem', { name: 'Keluar', exact: true })).first().click()
       await page.waitForURL(`${appOrigin}/login`)
     }
     const currentStock = async () =>

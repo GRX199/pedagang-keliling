@@ -11,11 +11,13 @@ export function useVendorMarkers(
   map: L.Map | null,
   vendors: VendorMapItem[],
   createPopup: (vendor: VendorMapItem) => HTMLElement,
-  popupKey: string
+  popupKey: string,
+  onSelect?: (vendor: VendorMapItem) => void
 ) {
   const group = useRef<L.MarkerClusterGroup | null>(null)
   const markers = useRef(new Map<string, Entry>())
   const fitted = useRef(false)
+  const latest = useRef({ vendors, onSelect })
   useEffect(() => {
     if (!map) return undefined
     const layer = L.markerClusterGroup().addTo(map)
@@ -28,6 +30,7 @@ export function useVendorMarkers(
     }
   }, [map])
   useEffect(() => {
+    latest.current = { vendors, onSelect }
     if (!map || !group.current) return
     const visible = new Set<string>()
     const bounds: L.LatLngTuple[] = []
@@ -47,7 +50,7 @@ export function useVendorMarkers(
         vendor.review_count,
         vendor.promo_text,
         vendor.promo_expires_at,
-        popupKey,
+        popupKey
       ])
       const entry = markers.current.get(vendor.id)
       if (entry) {
@@ -56,15 +59,24 @@ export function useVendorMarkers(
           entry.marker.setLatLng([point.lat, point.lng])
         if (entry.category !== category)
           entry.marker.setIcon(L.divIcon(getVendorMarkerOptions(category)))
-        if (entry.signature !== signature) entry.marker.setPopupContent(createPopup(vendor))
+        if (!onSelect && entry.signature !== signature)
+          entry.marker.setPopupContent(createPopup(vendor))
         entry.signature = signature
         entry.category = category
       } else {
         const marker = L.marker([point.lat, point.lng], {
           icon: L.divIcon(getVendorMarkerOptions(category)),
           title: `${vendor.name} - ${category}`,
-          alt: `${vendor.name} - ${category}`,
-        }).bindPopup(createPopup(vendor), { maxWidth: 320 })
+          alt: `${vendor.name} - ${category}`
+        })
+        if (onSelect)
+          marker.on('click', () => {
+            const currentVendor = latest.current.vendors.find(
+              (row) => row.id === vendor.id
+            )
+            if (currentVendor) latest.current.onSelect?.(currentVendor)
+          })
+        else marker.bindPopup(createPopup(vendor), { maxWidth: 320 })
         group.current.addLayer(marker)
         markers.current.set(vendor.id, { marker, signature, category })
       }
@@ -75,8 +87,9 @@ export function useVendorMarkers(
         markers.current.delete(id)
       }
     if (!fitted.current && bounds.length) {
-      if (map.getZoom() === 5) map.fitBounds(bounds, { padding: [48, 48], maxZoom: 16 })
+      if (map.getZoom() === 5)
+        map.fitBounds(bounds, { padding: [48, 48], maxZoom: 16 })
       fitted.current = true
     }
-  }, [map, vendors, createPopup, popupKey])
+  }, [map, vendors, createPopup, popupKey, onSelect])
 }

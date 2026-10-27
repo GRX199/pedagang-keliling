@@ -209,6 +209,7 @@ export const supabase = {
           return Promise.resolve({ data: rows.slice(0, limit).map(row => ({ ...row, order_items: [], reviews: review ? [review] : [] })), error: null })
         }
         const data = table === 'orders' ? (single ? { ...fixtureOrder } : [{ ...fixtureOrder }])
+          : table === 'chats' && params.get('view') === 'mobile-design' ? [{ id: 'first', participants: ['vendor', 'buyer'], last_updated: new Date().toISOString() }]
           : table === 'vendors' ? (single ? { ...vendor, ...(filters.id === 'other' ? { id: 'other', name: 'Toko Lain' } : {}) } : [{ ...vendor }])
           : table === 'pickup_codes' ? (fixtureOrder.status === 'ready' ? { code: 'A1B2C3D4E5' } : null)
           : table === 'order_items' ? [{ id: 'item', product_name_snapshot: 'Tomat segar', quantity: 3, line_total: 15000 }]

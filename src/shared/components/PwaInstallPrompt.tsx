@@ -19,7 +19,7 @@ function saveDismissed() {
 
 export default function PwaInstallPrompt({ role }: { role: Role | null }) {
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
-    null,
+    null
   )
   const [installing, setInstalling] = useState(false)
   const installLock = useRef(false)
@@ -58,7 +58,7 @@ export default function PwaInstallPrompt({ role }: { role: Role | null }) {
     return () => {
       window.removeEventListener(
         'beforeinstallprompt',
-        handleBeforeInstallPrompt,
+        handleBeforeInstallPrompt
       )
       window.removeEventListener('appinstalled', handleAppInstalled)
     }
@@ -93,7 +93,7 @@ export default function PwaInstallPrompt({ role }: { role: Role | null }) {
   }
 
   return (
-    <div className="fixed inset-x-3 bottom-24 z-[1250] md:bottom-5">
+    <div className="fixed inset-x-3 bottom-[calc(var(--bottom-nav-space)+0.75rem)] z-[1250]">
       <div className="mx-auto flex max-w-md items-center gap-3 rounded-[22px] border border-emerald-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/15 backdrop-blur">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-950 text-sm font-bold text-white">
           K
@@ -103,7 +103,7 @@ export default function PwaInstallPrompt({ role }: { role: Role | null }) {
             Install Kelilingku
           </div>
           <div className="text-xs leading-snug text-slate-500">
-            Lebih cepat dibuka saat berdagang dan terasa seperti aplikasi HP.
+            Akses cepat dari layar utama.
           </div>
         </div>
         <button

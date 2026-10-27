@@ -1,236 +1,133 @@
-import React from 'react'
+import { ArrowRight, MapPin, ShoppingBag, Store, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
-
-const categories = [
-  'Sayur segar',
-  'Bakso & mie',
-  'Kopi keliling',
-  'Roti & jajanan',
-  'Gas & kebutuhan rumah',
-  'Minuman dingin',
-]
 
 const steps = [
   {
-    title: 'Buka peta',
-    body: 'Lihat pedagang yang sedang berjualan di sekitar Anda.',
+    icon: MapPin,
+    title: 'Temukan di peta',
+    text: 'Lihat pedagang yang sedang online di sekitar Anda.'
   },
   {
-    title: 'Kenali pedagang',
-    body: 'Cek barang, harga, stok, dan area berjualan.',
+    icon: ShoppingBag,
+    title: 'Pilih barang',
+    text: 'Pesan dari katalog dan koordinasikan lewat chat.'
   },
   {
-    title: 'Sepakati titik temu',
-    body: 'Kirim permintaan dengan titik yang sesuai rute pedagang.',
-  },
-  {
-    title: 'Ambil setelah disetujui',
-    body: 'Konfirmasi kesiapan barang dan pengambilan melalui percakapan.',
-  },
+    icon: Check,
+    title: 'Ambil saat siap',
+    text: 'Ambil sendiri atau gunakan kurir pilihan Anda.'
+  }
 ]
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,#dbeafe_0%,#eff6ff_24%,#f8fafc_52%,#e2e8f0_100%)]">
-      <section className="border-b border-slate-200/80">
-        <div className="mx-auto grid max-w-6xl gap-6 px-4 py-7 sm:gap-8 sm:py-14 lg:grid-cols-[minmax(0,1.1fr)_420px] lg:items-center lg:py-20">
-          <div className="min-w-0">
-            <div className="inline-flex max-w-full rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold uppercase leading-5 tracking-[0.14em] text-emerald-700 sm:px-4 sm:py-2 sm:text-xs sm:tracking-[0.22em]">
-              Peta Pedagang Keliling
-            </div>
+    <div className="overflow-x-clip">
+      <section className="relative mx-auto grid max-w-6xl items-center gap-10 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:py-24">
+        <div className="relative z-10 min-w-0">
+          <p className="mb-5 flex items-center gap-2 text-sm font-semibold text-teal-800">
+            <span
+              className="h-2 w-2 rounded-full bg-teal-600"
+              aria-hidden="true"
+            />
+            Pedagang sekitar, lebih dekat
+          </p>
+          <h1 className="max-w-xl text-[clamp(2.5rem,7vw,4.25rem)] font-bold leading-[1.08] tracking-[-0.045em] text-slate-900">
+            Belanja dekat.
+            <br />
+            <span className="text-teal-700">Terhubung langsung.</span>
+          </h1>
+          <p className="mt-5 max-w-md text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
+            Temukan pedagang keliling di peta, pilih barang, lalu ambil saat
+            pesanan siap.
+          </p>
+          <Link
+            to="/login"
+            className="ui-primary mt-7 w-full gap-3 py-3.5 sm:w-auto sm:px-6"
+          >
+            Mulai Sekarang <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </Link>
+          <p className="mt-4 text-sm text-slate-500">
+            Untuk pelanggan dan pedagang keliling.
+          </p>
+          {import.meta.env.DEV && (
+            <a
+              href="/wireframe/index.html"
+              className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-teal-800 underline underline-offset-4"
+            >
+              Coba rancangan alur pengambilan langsung atau melalui kurir
+            </a>
+          )}
+        </div>
 
-            <h1 className="mt-4 max-w-3xl text-3xl font-black tracking-tight text-slate-950 sm:mt-6 sm:text-5xl lg:text-6xl">
-              Temukan pedagang yang sedang keliling, lalu sepakati titik temu.
-            </h1>
-
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:mt-5 sm:text-lg sm:leading-8">
-              Cari pedagang aktif, lihat barang yang tersedia, dan koordinasikan
-              pengambilan sesuai rute berjualannya. Kelilingku adalah aplikasi
-              web yang bisa dibuka melalui peramban ponsel dan komputer.
-            </p>
-
-            <div className="mt-5 flex flex-col gap-3 sm:mt-8 sm:flex-row">
-              <Link
-                to="/login"
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/15 transition hover:bg-slate-800"
-              >
-                Mulai Sekarang
-              </Link>
-              <a
-                href="#cara-kerja"
-                className="hidden items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
-              >
-                Lihat Cara Kerja
-              </a>
-            </div>
-
-            {import.meta.env.DEV && (
-              <a
-                href="/wireframe/index.html"
-                className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-slate-700 underline underline-offset-4"
-              >
-                Coba rancangan alur pengambilan langsung atau melalui kurir
-              </a>
-            )}
-
-            <div className="mt-5 flex flex-wrap gap-2 sm:mt-10">
-              {categories.map((category, index) => (
-                <span
-                  key={category}
-                  className={`rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm sm:px-4 sm:py-2 sm:text-sm ${
-                    index >= 3 ? 'hidden sm:inline-flex' : ''
-                  }`}
-                >
-                  {category}
-                </span>
-              ))}
-            </div>
+        <div
+          className="relative hidden aspect-[1.1] overflow-hidden rounded-[36px] border border-teal-900/10 bg-[#e7efe5] sm:block"
+          aria-label="Ilustrasi peta pedagang, bukan data lokasi langsung"
+          role="img"
+        >
+          <div className="absolute inset-0 bg-[linear-gradient(35deg,transparent_46%,#fff_46%,#fff_52%,transparent_52%),linear-gradient(110deg,transparent_38%,#fff_38%,#fff_45%,transparent_45%)]" />
+          <div className="absolute -left-12 top-12 h-24 w-[140%] -rotate-[24deg] rounded-full border-[10px] border-white bg-[#c9e4dc]" />
+          <div className="absolute -bottom-12 right-4 h-60 w-32 rotate-[22deg] rounded-full bg-[#b9d9d4] ring-8 ring-white/70" />
+          <div className="absolute left-6 top-6 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-teal-900">
+            Ilustrasi peta
           </div>
-
-          <div className="relative hidden lg:block">
-            <div className="absolute -left-6 top-6 hidden h-36 w-36 rounded-full bg-emerald-200/50 blur-3xl lg:block" />
-            <div className="absolute -bottom-4 right-0 hidden h-40 w-40 rounded-full bg-sky-200/50 blur-3xl lg:block" />
-
-            <div className="relative overflow-hidden rounded-[34px] border border-slate-200/80 bg-slate-950 p-5 text-white shadow-2xl shadow-slate-900/20">
-              <div className="rounded-[28px] bg-[linear-gradient(135deg,#0f172a_0%,#0f766e_55%,#022c22_100%)] p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.2em] text-emerald-100/80">
-                      Peta Utama
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold">
-                      Pedagang online sekitar
-                    </div>
-                  </div>
-                  <div className="rounded-full bg-white/12 px-3 py-1 text-xs font-medium text-emerald-50">
-                    Realtime aktif
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                    <div className="text-xs uppercase tracking-[0.18em] text-slate-200">
-                      Online
-                    </div>
-                    <div className="mt-2 text-3xl font-semibold">18</div>
-                    <div className="mt-1 text-sm text-slate-200/80">
-                      Pedagang siap melayani
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                    <div className="text-xs uppercase tracking-[0.18em] text-slate-200">
-                      Radius dekat
-                    </div>
-                    <div className="mt-2 text-3xl font-semibold">7</div>
-                    <div className="mt-1 text-sm text-slate-200/80">
-                      Cocok untuk pesanan cepat
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                    <div className="text-xs uppercase tracking-[0.18em] text-slate-200">
-                      Tracking
-                    </div>
-                    <div className="mt-2 text-3xl font-semibold">Live</div>
-                    <div className="mt-1 text-sm text-slate-200/80">
-                      Status dan rute terhubung
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/40 p-4 backdrop-blur">
-                  <div className="grid gap-3">
-                    <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold">
-                            Bakso Mas Ridho
-                          </div>
-                          <div className="mt-1 text-xs text-slate-300">
-                            Bakso & mie • 320 m • Ambil di titik disepakati
-                          </div>
-                        </div>
-                        <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-medium text-emerald-100">
-                          Online
-                        </span>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold">
-                            Sayur Bu Ani
-                          </div>
-                          <div className="mt-1 text-xs text-slate-300">
-                            Sayur segar • 540 m • COD / Titik temu
-                          </div>
-                        </div>
-                        <span className="rounded-full bg-sky-400/20 px-3 py-1 text-xs font-medium text-sky-100">
-                          Pesan dulu
-                        </span>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold">
-                            Kopi Sore Keliling
-                          </div>
-                          <div className="mt-1 text-xs text-slate-300">
-                            Kopi keliling • 1,1 km • Tracking aktif
-                          </div>
-                        </div>
-                        <span className="rounded-full bg-amber-400/20 px-3 py-1 text-xs font-medium text-amber-100">
-                          Dalam perjalanan
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="absolute right-[18%] top-[24%] flex h-16 w-16 -rotate-6 items-center justify-center rounded-[22px] bg-teal-700 text-white shadow-lg shadow-teal-900/15">
+            <Store aria-hidden="true" className="h-8 w-8" strokeWidth={1.6} />
+          </div>
+          <div className="absolute bottom-[34%] left-[20%] flex h-12 w-12 rotate-6 items-center justify-center rounded-2xl bg-amber-100 text-amber-800 shadow-md">
+            <ShoppingBag aria-hidden="true" className="h-6 w-6" />
+          </div>
+          <div className="absolute left-[48%] top-[47%] flex h-8 w-8 items-center justify-center rounded-full border-[6px] border-white bg-sky-600 shadow-md" />
+          <div className="absolute inset-x-5 bottom-5 flex items-center gap-3 rounded-2xl border border-white bg-white/95 p-4 shadow-sm">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+              <MapPin aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-semibold text-slate-900">
+                Mulai dari sekitar Anda
+              </span>
+              <span className="text-sm text-slate-500">
+                Sayur, makanan, kopi, dan lainnya.
+              </span>
+            </span>
           </div>
         </div>
       </section>
 
       <section
         id="cara-kerja"
-        className="border-y border-slate-200/80 bg-white/70"
+        className="border-y border-teal-900/10 bg-white/75"
       >
-        <div className="mx-auto max-w-6xl px-4 py-7 sm:py-14">
-          <div className="max-w-2xl">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:tracking-[0.22em]">
-              Cara Kerja
-            </div>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-              Alur sederhana
-            </h2>
-            <p className="mt-4 hidden text-sm leading-7 text-slate-600 sm:block">
-              Kami menjaga pengalaman tetap sederhana: peta sebagai pintu masuk,
-              toko sebagai tempat memilih menu, lalu order, chat, dan tracking
-              berjalan sebagai satu rangkaian.
-            </p>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:mt-8 lg:grid-cols-4">
-            {steps.map((step, index) => (
-              <div
-                key={step.title}
-                className="rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm sm:rounded-[28px] sm:p-5"
-              >
-                <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-sm font-bold text-white sm:h-11 sm:w-11">
-                  {index + 1}
+        <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-2xl">
+            Sesederhana belanja di sekitar rumah.
+          </h2>
+          <div className="mt-6 grid gap-6 sm:grid-cols-3 sm:gap-8">
+            {steps.map(({ icon: Icon, title, text }, index) => (
+              <div key={title} className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-800">
+                  <Icon
+                    aria-hidden="true"
+                    className="h-5 w-5"
+                    strokeWidth={1.8}
+                  />
+                </span>
+                <div>
+                  <h3 className="font-semibold text-slate-900">
+                    <span className="mr-1 text-teal-700">{index + 1}.</span>{' '}
+                    {title}
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    {text}
+                  </p>
                 </div>
-                <h3 className="mt-3 text-base font-semibold text-slate-900 sm:mt-4 sm:text-lg">
-                  {step.title}
-                </h3>
-                <p className="mt-1.5 text-sm leading-6 text-slate-600 sm:mt-2 sm:leading-7">
-                  {step.body}
-                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
+      <footer className="px-5 py-5 text-center text-xs text-slate-500">
+        Kelilingku · Belanja sekitar, langsung terhubung.
+      </footer>
     </div>
   )
 }

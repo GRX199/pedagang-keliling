@@ -3,7 +3,7 @@ import { parseImageMessageText, formatChatTimestamp } from './messages'
 
 export function MessageList({
   messages,
-  currentUserId,
+  currentUserId
 }: {
   messages: Message[]
   currentUserId: string
@@ -19,11 +19,15 @@ export function MessageList({
           const mine = message.from_user === currentUserId
           const imageMessage = parseImageMessageText(message.text)
           return (
-            <div key={message.id} data-message-id={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+            <div
+              key={message.id}
+              data-message-id={message.id}
+              className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
+            >
               <div
                 className={`max-w-[88%] overflow-hidden rounded-2xl px-3 py-2 text-sm sm:max-w-[85%] ${
                   mine
-                    ? 'bg-slate-900 text-white'
+                    ? 'bg-teal-800 text-white'
                     : 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
                 }`}
               >
@@ -43,14 +47,18 @@ export function MessageList({
                       />
                     </a>
                     {imageMessage.caption ? (
-                      <div className="whitespace-pre-wrap break-words">{imageMessage.caption}</div>
+                      <div className="whitespace-pre-wrap break-words">
+                        {imageMessage.caption}
+                      </div>
                     ) : null}
                   </div>
                 ) : (
-                  <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                  <div className="whitespace-pre-wrap break-words">
+                    {message.text}
+                  </div>
                 )}
                 <div
-                  className={`mt-1 break-words text-right text-[11px] ${mine ? 'text-slate-300' : 'text-slate-400'}`}
+                  className={`mt-1 break-words text-right text-[11px] ${mine ? 'text-teal-100' : 'text-slate-500'}`}
                 >
                   {formatChatTimestamp(message.created_at)}
                 </div>

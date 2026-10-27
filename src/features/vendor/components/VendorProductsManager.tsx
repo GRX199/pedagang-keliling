@@ -1,4 +1,10 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useState,
+  type ChangeEvent,
+  type FormEvent
+} from 'react'
 import type { Product } from '../../../types/domain.types'
 import type { TablesUpdate } from '../../../types/database.types'
 import { errorMessage } from '../../../shared/lib/utils'
@@ -8,9 +14,12 @@ import { useAuth } from '../../auth/AuthProvider'
 import { uploadImageFile } from '../../../shared/lib/media'
 import { isSchemaCompatibilityError } from '../../../lib/orders'
 import { useToast } from '../../../shared/components/ToastProvider'
+import { Modal } from '../../../shared/components/Modal'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 
 function formatPrice(price: number | null) {
-  if (price === null || typeof price === 'undefined') return 'Harga belum diatur'
+  if (price === null || typeof price === 'undefined')
+    return 'Harga belum diatur'
   return `Rp ${Number(price).toLocaleString('id-ID')}`
 }
 
@@ -29,7 +38,9 @@ function getProductStockLabel(product: Product) {
   if (stock === null) return 'Stok fleksibel'
   if (stock <= 0) return 'Stok habis'
   const reservedStock = Number(product?.reserved_stock || 0)
-  return reservedStock > 0 ? `Stok: ${stock} • Dipesan: ${reservedStock}` : `Stok: ${stock}`
+  return reservedStock > 0
+    ? `Stok: ${stock} • Dipesan: ${reservedStock}`
+    : `Stok: ${stock}`
 }
 
 function isProductOrderable(product: Product) {
@@ -41,9 +52,14 @@ function isProductOrderable(product: Product) {
 
 const EMPTY_PRODUCTS: Product[] = []
 
-export default function VendorProductsManager({ vendorId: propVendorId }: { vendorId?: string }) {
+export default function VendorProductsManager({
+  vendorId: propVendorId
+}: {
+  vendorId?: string
+}) {
   const { user } = useAuth()
   const toast = useToast()
+  const fieldId = useId()
   const vendorId = propVendorId || user?.id
 
   const productQuery = useProducts(vendorId)
@@ -171,7 +187,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
 
     setSubmitting(true)
     try {
-      const imageUrl = file ? await uploadImageFile({ file, vendorId, folder: 'products' }) : null
+      const imageUrl = file
+        ? await uploadImageFile({ file, vendorId, folder: 'products' })
+        : null
 
       const payload = {
         vendor_id: vendorId,
@@ -181,7 +199,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
         stock: stock === '' ? null : Number(stock),
         category_name: categoryName.trim() || null,
         is_available: isAvailable,
-        image_url: imageUrl,
+        image_url: imageUrl
       }
 
       await mutateProduct({ kind: 'create', payload })
@@ -197,7 +215,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
         )
         return
       }
-      toast.push(errorMessage(error) || 'Gagal menambahkan produk', { type: 'error' })
+      toast.push(errorMessage(error) || 'Gagal menambahkan produk', {
+        type: 'error'
+      })
     } finally {
       setSubmitting(false)
     }
@@ -216,14 +236,14 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
         price: editPrice === '' ? null : Number(editPrice),
         stock: editStock === '' ? null : Number(editStock),
         category_name: editCategoryName.trim() || null,
-        is_available: editIsAvailable,
+        is_available: editIsAvailable
       }
 
       if (editFile) {
         payload.image_url = await uploadImageFile({
           file: editFile,
           vendorId,
-          folder: 'products',
+          folder: 'products'
         })
       }
 
@@ -240,7 +260,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
         )
         return
       }
-      toast.push(errorMessage(error) || 'Gagal menyimpan perubahan produk', { type: 'error' })
+      toast.push(errorMessage(error) || 'Gagal menyimpan perubahan produk', {
+        type: 'error'
+      })
     } finally {
       setSubmitting(false)
     }
@@ -256,7 +278,9 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
       toast.push('Produk berhasil dihapus', { type: 'success' })
     } catch (error) {
       void reportError(error, 'products')
-      toast.push(errorMessage(error) || 'Gagal menghapus produk', { type: 'error' })
+      toast.push(errorMessage(error) || 'Gagal menghapus produk', {
+        type: 'error'
+      })
     } finally {
       setDeletingId(null)
     }
@@ -271,24 +295,36 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
       ? { is_available: false }
       : {
           is_available: true,
-          stock: stock !== null && stock <= 0 ? null : product.stock,
+          stock: stock !== null && stock <= 0 ? null : product.stock
         }
 
     setAvailabilityId(product.id)
     try {
-      await mutateProduct({ kind: 'update', id: product.id, payload: nextPayload })
-      toast.push(productIsOrderable ? 'Produk ditandai habis' : 'Produk tersedia lagi', {
-        type: 'success',
+      await mutateProduct({
+        kind: 'update',
+        id: product.id,
+        payload: nextPayload
       })
+      toast.push(
+        productIsOrderable ? 'Produk ditandai habis' : 'Produk tersedia lagi',
+        {
+          type: 'success'
+        }
+      )
     } catch (error) {
       void reportError(error, 'products')
-      toast.push(errorMessage(error) || 'Gagal memperbarui ketersediaan produk', { type: 'error' })
+      toast.push(
+        errorMessage(error) || 'Gagal memperbarui ketersediaan produk',
+        { type: 'error' }
+      )
     } finally {
       setAvailabilityId(null)
     }
   }
 
-  const availableProductCount = products.filter((product) => isProductOrderable(product)).length
+  const availableProductCount = products.filter((product) =>
+    isProductOrderable(product)
+  ).length
   const unavailableProductCount = products.length - availableProductCount
 
   return (
@@ -306,80 +342,129 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
           </button>
         </p>
       ) : null}
-      <div className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="ui-surface p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Produk Saya</h2>
-            <p className="mt-1 hidden text-sm leading-6 text-slate-500 sm:block">
-              Kelola menu, harga, foto, dan stok opsional. Kosongkan stok jika jumlahnya fleksibel.
-            </p>
+            <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+              Produk Saya
+            </h2>
           </div>
           <button
             type="button"
             onClick={() => setShowCreateForm((current) => !current)}
-            className="rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+            aria-expanded={showCreateForm}
+            aria-controls={showCreateForm ? `${fieldId}-create` : undefined}
+            className="ui-primary shrink-0 px-3"
           >
+            {!showCreateForm && <Plus aria-hidden="true" className="h-4 w-4" />}
             {showCreateForm ? 'Tutup' : 'Tambah Produk'}
           </button>
         </div>
 
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-sm">
-          <span className="shrink-0 rounded-full bg-slate-100 px-3 py-2 font-medium text-slate-700">
-            Total <strong>{products.length}</strong>
+        <p className="mt-2 text-sm text-slate-500">
+          {products.length} produk ·{' '}
+          <span className="text-teal-800">
+            {availableProductCount} tersedia
           </span>
-          <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-2 font-medium text-emerald-700">
-            Aktif <strong>{availableProductCount}</strong>
-          </span>
-          <span className="shrink-0 rounded-full bg-rose-50 px-3 py-2 font-medium text-rose-700">
-            Habis <strong>{unavailableProductCount}</strong>
-          </span>
-        </div>
+          {unavailableProductCount > 0 && (
+            <span> · {unavailableProductCount} habis</span>
+          )}
+        </p>
 
         {showCreateForm && (
-          <form onSubmit={addProduct} className="mt-4 space-y-3">
-            <input
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Nama produk"
-              required
-            />
-
-            <textarea
-              className="min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Deskripsi produk"
-            />
-
-            <input
-              type="number"
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-              value={price}
-              onChange={(event) => setPrice(event.target.value)}
-              placeholder="Harga (Rp)"
-            />
-
-            <div className="grid gap-3 sm:grid-cols-2">
+          <form
+            id={`${fieldId}-create`}
+            onSubmit={addProduct}
+            className="mt-4 space-y-3"
+          >
+            <div>
+              <label
+                htmlFor={`${fieldId}-name`}
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                Nama produk
+              </label>
               <input
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-                value={categoryName}
-                onChange={(event) => setCategoryName(event.target.value)}
-                placeholder="Kategori produk, misalnya sayur atau minuman"
-              />
-              <input
-                type="number"
-                min="0"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-                value={stock}
-                onChange={(event) => setStock(event.target.value)}
-                placeholder="Stok (opsional)"
+                id={`${fieldId}-name`}
+                className="ui-field"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Nama produk"
+                required
               />
             </div>
 
+            <div>
+              <label
+                htmlFor={`${fieldId}-description`}
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                Deskripsi produk
+              </label>
+              <textarea
+                id={`${fieldId}-description`}
+                className="ui-field min-h-24"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Deskripsi produk"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor={`${fieldId}-price`}
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                Harga (Rp)
+              </label>
+              <input
+                id={`${fieldId}-price`}
+                type="number"
+                className="ui-field"
+                value={price}
+                onChange={(event) => setPrice(event.target.value)}
+                placeholder="Harga (Rp)"
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor={`${fieldId}-categoryName`}
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
+                  Kategori produk
+                </label>
+                <input
+                  id={`${fieldId}-categoryName`}
+                  className="ui-field"
+                  value={categoryName}
+                  onChange={(event) => setCategoryName(event.target.value)}
+                  placeholder="Kategori produk, misalnya sayur atau minuman"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor={`${fieldId}-stock`}
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
+                  Stok (opsional)
+                </label>
+                <input
+                  id={`${fieldId}-stock`}
+                  type="number"
+                  min="0"
+                  className="ui-field"
+                  value={stock}
+                  onChange={(event) => setStock(event.target.value)}
+                  placeholder="Stok (opsional)"
+                />
+              </div>
+            </div>
+
             <div className="hidden rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500 sm:block">
-              Stok boleh dikosongkan untuk produk fleksibel seperti sayur timbang, jajanan campur,
-              atau menu yang jumlahnya tidak tetap.
+              Stok boleh dikosongkan untuk produk fleksibel seperti sayur
+              timbang, jajanan campur, atau menu yang jumlahnya tidak tetap.
             </div>
 
             <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
@@ -392,9 +477,15 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
             </label>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700">Foto produk</label>
+              <label
+                htmlFor={`${fieldId}-photo`}
+                className="block text-sm font-medium text-slate-700"
+              >
+                Foto produk
+              </label>
               <input
                 type="file"
+                id={`${fieldId}-photo`}
                 accept="image/*"
                 className="mt-2 max-w-full text-sm"
                 onChange={onFileChange}
@@ -412,7 +503,7 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:bg-slate-400"
+                className="ui-primary"
               >
                 {submitting ? 'Menyimpan...' : 'Tambah Produk'}
               </button>
@@ -428,13 +519,10 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
         )}
       </div>
 
-      <div className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
+      <div className="@container ui-surface p-3 sm:p-4">
         <div className="mb-4">
           <div>
             <h3 className="font-semibold text-slate-900">Daftar Produk</h3>
-            <p className="hidden text-sm text-slate-500 sm:block">
-              Produk aktif akan tampil di profil toko dan checkout pelanggan.
-            </p>
           </div>
         </div>
 
@@ -445,31 +533,30 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
             Belum ada produk.
           </div>
         ) : (
-          <div className="grid min-w-0 gap-3 md:grid-cols-2">
+          <div className="grid min-w-0 gap-3 @2xl:grid-cols-2">
             {products.map((product) => {
               const orderable = isProductOrderable(product)
 
               return (
                 <div
                   key={product.id}
-                  className="flex min-w-0 gap-3 overflow-hidden rounded-[18px] border border-slate-200 bg-white p-3 sm:block sm:rounded-[24px] sm:p-0"
+                  className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] gap-3 rounded-2xl border border-slate-200 bg-white p-3"
                 >
                   {product.image_url ? (
                     <img
                       src={product.image_url}
                       alt={product.name}
-                      className="h-20 w-20 shrink-0 rounded-xl object-cover sm:h-44 sm:w-full sm:rounded-none"
+                      className="h-16 w-16 rounded-xl object-cover"
                     />
                   ) : (
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-center text-xs text-slate-400 sm:h-44 sm:w-full sm:rounded-none sm:text-sm">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-teal-50 text-center text-xs text-slate-500">
                       Tanpa foto
                     </div>
                   )}
 
-                  <div className="min-w-0 flex-1 space-y-2 sm:p-4">
-                    <div className="break-words font-semibold text-slate-900">{product.name}</div>
-                    <div className="hidden break-words text-sm leading-6 text-slate-600 sm:line-clamp-2">
-                      {product.description || 'Tanpa deskripsi'}
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="break-words font-semibold text-slate-900">
+                      {product.name}
                     </div>
                     <div className="text-sm font-medium text-slate-900">
                       {formatPrice(product.price)}
@@ -499,38 +586,51 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
                         </span>
                       )}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void toggleProductSoldOut(product)}
-                        disabled={availabilityId === product.id}
-                        className={`col-span-2 rounded-xl px-2 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm ${
-                          orderable
-                            ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                        }`}
-                      >
-                        {availabilityId === product.id
-                          ? 'Menyimpan...'
-                          : orderable
-                            ? 'Tandai Habis'
-                            : 'Tersedia Lagi'}
-                      </button>
-                      <button
-                        onClick={() => openEditModal(product)}
-                        className="rounded-xl border border-slate-200 px-2 py-2 text-xs font-medium text-slate-700 sm:text-sm"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => deleteProduct(product.id)}
-                        disabled={deletingId === product.id}
-                        className="rounded-xl border border-red-200 bg-red-50 px-2 py-2 text-xs font-medium text-red-600 disabled:opacity-60 sm:text-sm"
-                      >
-                        {deletingId === product.id ? 'Menghapus...' : 'Hapus'}
-                      </button>
-                    </div>
+                  </div>
+                  <div className="col-span-2 flex gap-2 border-t border-slate-100 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => void toggleProductSoldOut(product)}
+                      disabled={availabilityId === product.id}
+                      className={`min-h-11 min-w-0 flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        orderable
+                          ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                          : 'bg-teal-700 text-white hover:bg-teal-800'
+                      }`}
+                    >
+                      {availabilityId === product.id
+                        ? 'Menyimpan...'
+                        : orderable
+                          ? 'Tandai Habis'
+                          : 'Tersedia Lagi'}
+                    </button>
+                    <button
+                      onClick={() => openEditModal(product)}
+                      aria-label="Edit"
+                      title="Edit produk"
+                      className="ui-secondary shrink-0 px-3"
+                    >
+                      <Pencil
+                        aria-hidden="true"
+                        className="hidden h-4 w-4 sm:block"
+                      />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteProduct(product.id)}
+                      disabled={deletingId === product.id}
+                      aria-label={
+                        deletingId === product.id ? 'Menghapus...' : 'Hapus'
+                      }
+                      title="Hapus produk"
+                      className="ui-secondary shrink-0 px-3 text-rose-700"
+                    >
+                      <Trash2
+                        aria-hidden="true"
+                        className="hidden h-4 w-4 sm:block"
+                      />
+                      {deletingId === product.id ? '...' : 'Hapus'}
+                    </button>
                   </div>
                 </div>
               )
@@ -539,108 +639,150 @@ export default function VendorProductsManager({ vendorId: propVendorId }: { vend
         )}
       </div>
 
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-auto rounded-t-[24px] bg-white p-4 shadow-xl sm:rounded-[28px]">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Edit Produk</h3>
-              <button
-                onClick={closeEditModal}
-                className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
+      <Modal
+        open={editing}
+        onClose={closeEditModal}
+        title="Edit Produk"
+        presentation="sheet"
+      >
+        {editing && (
+          <form onSubmit={saveEdit} className="space-y-3">
+            <div>
+              <label
+                htmlFor={`${fieldId}-editName`}
+                className="mb-1.5 block text-sm font-medium text-slate-700"
               >
-                Tutup
-              </button>
-            </div>
-
-            <form onSubmit={saveEdit} className="space-y-3">
+                Nama produk
+              </label>
               <input
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                id={`${fieldId}-editName`}
+                className="ui-field"
                 value={editName}
                 onChange={(event) => setEditName(event.target.value)}
                 placeholder="Nama produk"
                 required
               />
+            </div>
 
+            <div>
+              <label
+                htmlFor={`${fieldId}-editDescription`}
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                Deskripsi produk
+              </label>
               <textarea
-                className="min-h-[96px] w-full rounded-2xl border border-slate-200 px-4 py-3"
+                id={`${fieldId}-editDescription`}
+                className="ui-field min-h-24"
                 value={editDescription}
                 onChange={(event) => setEditDescription(event.target.value)}
                 placeholder="Deskripsi produk"
               />
+            </div>
 
+            <div>
+              <label
+                htmlFor={`${fieldId}-editPrice`}
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                Harga (Rp)
+              </label>
               <input
+                id={`${fieldId}-editPrice`}
                 type="number"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                className="ui-field"
                 value={editPrice}
                 onChange={(event) => setEditPrice(event.target.value)}
                 placeholder="Harga (Rp)"
               />
+            </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor={`${fieldId}-editCategoryName`}
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
+                  Kategori produk
+                </label>
                 <input
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  id={`${fieldId}-editCategoryName`}
+                  className="ui-field"
                   value={editCategoryName}
                   onChange={(event) => setEditCategoryName(event.target.value)}
                   placeholder="Kategori produk"
                 />
+              </div>
+              <div>
+                <label
+                  htmlFor={`${fieldId}-editStock`}
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
+                  Stok (opsional)
+                </label>
                 <input
+                  id={`${fieldId}-editStock`}
                   type="number"
                   min="0"
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  className="ui-field"
                   value={editStock}
                   onChange={(event) => setEditStock(event.target.value)}
                   placeholder="Stok (opsional)"
                 />
               </div>
+            </div>
 
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={editIsAvailable}
-                  onChange={(event) => setEditIsAvailable(event.target.checked)}
-                />
-                Produk ini sedang tersedia untuk dipesan
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={editIsAvailable}
+                onChange={(event) => setEditIsAvailable(event.target.checked)}
+              />
+              Produk ini sedang tersedia untuk dipesan
+            </label>
+
+            <div>
+              <label
+                htmlFor={`${fieldId}-edit-photo`}
+                className="block text-sm font-medium text-slate-700"
+              >
+                Ganti foto produk
               </label>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700">
-                  Ganti foto produk
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="mt-2 max-w-full text-sm"
-                  onChange={onEditFileChange}
+              <input
+                type="file"
+                id={`${fieldId}-edit-photo`}
+                accept="image/*"
+                className="mt-2 max-w-full text-sm"
+                onChange={onEditFileChange}
+              />
+              {editPreview && (
+                <img
+                  src={editPreview}
+                  alt="preview"
+                  className="mt-3 h-28 w-28 rounded-xl object-cover sm:h-36 sm:w-36"
                 />
-                {editPreview && (
-                  <img
-                    src={editPreview}
-                    alt="preview"
-                    className="mt-3 h-28 w-28 rounded-xl object-cover sm:h-36 sm:w-36"
-                  />
-                )}
-              </div>
+              )}
+            </div>
 
-              <div className="flex flex-col justify-end gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:bg-slate-400"
-                >
-                  {submitting ? 'Menyimpan...' : 'Simpan Perubahan'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="flex flex-col justify-end gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="ui-primary"
+              >
+                {submitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   )
 }

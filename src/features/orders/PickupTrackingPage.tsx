@@ -19,7 +19,7 @@ import {
   getOrderOperationalNotice,
   getOrderPaymentDetails,
   getPaymentGuidance,
-  getVendorPaymentActions,
+  getVendorPaymentActions
 } from '../../lib/orders'
 import { getVendorPaymentMethodDetails } from '../../lib/vendor'
 import OrderStatusTimeline from './components/PickupTimeline'
@@ -27,13 +27,12 @@ import OrderReviewComposer from './components/OrderReviewComposer'
 import PickupLocationMap from '../map/components/PickupLocationMap'
 import HandoverModal from './HandoverModal'
 
-const panel =
-  'min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-4'
+const panel = 'ui-surface space-y-3 p-4'
 const button =
   'min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium disabled:opacity-50'
 
 export default function PickupTrackingPage({
-  initialOrder,
+  initialOrder
 }: {
   initialOrder: Order
 }) {
@@ -57,7 +56,7 @@ export default function PickupTrackingPage({
   const courierPickup = order.fulfillment_type === 'customer_courier'
   const payment = getVendorPaymentMethodDetails(
     getOrderPaymentDetails(order, vendor),
-    order.payment_method,
+    order.payment_method
   )
 
   async function run(action: OrderAction) {
@@ -70,7 +69,7 @@ export default function PickupTrackingPage({
       toast.push('Pesanan diperbarui', { type: 'success' })
     } catch (error) {
       toast.push(errorMessage(error, 'Perubahan belum tersimpan.'), {
-        type: 'error',
+        type: 'error'
       })
     }
   }
@@ -79,7 +78,7 @@ export default function PickupTrackingPage({
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-4 px-3 py-4 sm:px-5">
+    <article className="ui-page max-w-5xl space-y-4">
       <HandoverModal
         open={confirmingHandover && merchant && order.status === 'ready'}
         cash={order.payment_method === 'cod'}
@@ -131,7 +130,7 @@ export default function PickupTrackingPage({
               <p className="text-sm text-slate-600">
                 {getOrderOperationalNotice(
                   order,
-                  merchant ? 'vendor' : 'customer',
+                  merchant ? 'vendor' : 'customer'
                 )}
               </p>
             )}
@@ -212,7 +211,7 @@ export default function PickupTrackingPage({
               <p className="text-sm">
                 Waktu usulan:{' '}
                 {formatRequestedFulfillmentLabel(
-                  order.requested_fulfillment_at,
+                  order.requested_fulfillment_at
                 )}
               </p>
             )}
@@ -231,7 +230,7 @@ export default function PickupTrackingPage({
                       void run({
                         kind: 'details',
                         point: pointDraft ?? order.meeting_point_label ?? '',
-                        expectedPoint: order.meeting_point_label,
+                        expectedPoint: order.meeting_point_label
                       })
                     }}
                   >
@@ -282,7 +281,7 @@ export default function PickupTrackingPage({
                       event.preventDefault()
                       void run({
                         kind: 'details',
-                        collector: collectorDraft ?? order.collector_name ?? '',
+                        collector: collectorDraft ?? order.collector_name ?? ''
                       })
                     }}
                   >
@@ -318,7 +317,7 @@ export default function PickupTrackingPage({
                   client.setQueryData<OrderBundle>(
                     ['order-details', user?.id, order.id],
                     (previous) =>
-                      previous ? { ...previous, review: saved } : undefined,
+                      previous ? { ...previous, review: saved } : undefined
                   )
                 }
               />
@@ -416,6 +415,6 @@ export default function PickupTrackingPage({
           </div>
         )}
       </div>
-    </main>
+    </article>
   )
 }

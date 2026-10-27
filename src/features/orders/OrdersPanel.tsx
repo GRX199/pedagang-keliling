@@ -1,4 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useId, useRef, useState } from 'react'
+import { ChevronDown, Search } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import type { Order, Role } from '../../types/domain.types'
 import { useNavigate } from 'react-router-dom'
@@ -29,31 +30,6 @@ import {
   isActiveOrderStatus
 } from '../../lib/orders'
 
-function HistoryFilterButton({
-  active,
-  onClick,
-  children
-}: {
-  active: boolean
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-        active
-          ? 'bg-slate-900 text-white'
-          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
 export default function OrdersPanel({
   currentUser,
   role
@@ -66,6 +42,7 @@ export default function OrdersPanel({
   const [historyFilter, setHistoryFilter] = useState('all')
   const [historyQuery, setHistoryQuery] = useState('')
   const [showHistory, setShowHistory] = useState(false)
+  const historyId = useId()
   const search = useDebounce(historyQuery.trim(), 350)
   const orderQuery = useOrders(currentUser?.id, role)
   const history = useOrders(currentUser?.id, role, {
@@ -223,7 +200,9 @@ export default function OrdersPanel({
       : isPickupOrder(order)
         ? order.status === 'ready'
           ? 'Serah terima'
-          : 'Detail'
+          : isVendor
+            ? 'Proses pesanan'
+            : 'Detail pesanan'
         : 'Lacak (lama)'
     const isPreorder = order.order_timing === 'preorder'
     const totalAmount = Number(order.total_amount || 0)
@@ -236,17 +215,17 @@ export default function OrdersPanel({
         ? 'Ulasan'
         : hasFollowUpActions
           ? 'Aksi'
-          : 'Detail'
+          : 'Ringkasan'
     const actionButtonBase =
-      'rounded-full px-4 py-2.5 text-center text-sm font-medium leading-tight transition'
+      'min-h-11 rounded-xl px-3 py-2.5 text-center text-sm font-semibold leading-tight transition-colors'
     const detailActionButtonBase =
-      'w-full rounded-xl px-3 py-2 text-center text-sm font-medium leading-tight transition disabled:cursor-wait disabled:opacity-60 sm:w-auto'
+      'min-h-11 w-full rounded-xl px-3 py-2 text-center text-sm font-medium leading-tight transition disabled:cursor-wait disabled:opacity-60 sm:w-auto'
 
     return (
       <div
         key={order.id}
         data-order-id={order.id}
-        className={`min-w-0 max-w-full overflow-hidden rounded-[20px] border p-3 transition sm:rounded-[24px] sm:p-4 ${
+        className={`min-w-0 max-w-full rounded-2xl border p-3 sm:p-4 ${
           isHighlighted
             ? 'border-slate-900/10 bg-white shadow-sm'
             : 'border-slate-200 bg-white'
@@ -255,21 +234,18 @@ export default function OrdersPanel({
         <div className="space-y-3">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                {isVendor ? 'Pelanggan' : 'Pedagang'}
-              </div>
-              <div className="mt-1 truncate text-base font-semibold text-slate-900">
+              <div className="truncate text-base font-semibold text-slate-900">
                 {title}
               </div>
             </div>
             <span
-              className={`shrink-0 rounded-full px-3 py-1 text-center text-[11px] font-semibold uppercase leading-tight tracking-wide ${getOrderStatusTone(order.status)}`}
+              className={`max-w-[46%] shrink-0 rounded-lg px-2.5 py-1.5 text-center text-xs font-semibold leading-tight ${getOrderStatusTone(order.status)}`}
             >
               {formatOrderStatusLabel(order)}
             </span>
           </div>
 
-          <div className="rounded-2xl bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
+          <div>
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0 flex-1">{renderOrderItems(order)}</div>
               {totalAmount > 0 && (
@@ -280,19 +256,16 @@ export default function OrdersPanel({
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-wrap gap-2 text-xs text-slate-500">
-            <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1 leading-tight">
-              {formatPaymentMethodLabel(order.payment_method)}
-            </span>
-            <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1 leading-tight">
-              {formatPaymentStatusLabel(order.payment_status)}
-            </span>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-slate-500">
+            <span>{formatPaymentMethodLabel(order.payment_method)}</span>
+            <span aria-hidden="true">·</span>
+            <span>{formatPaymentStatusLabel(order.payment_status)}</span>
             {order.fulfillment_type && (
-              <span className="max-w-full break-words rounded-full bg-slate-100 px-3 py-1 leading-tight">
-                {formatFulfillmentTypeLabel(order.fulfillment_type)}
+              <span className="break-words">
+                · {formatFulfillmentTypeLabel(order.fulfillment_type)}
               </span>
             )}
-            {order.order_timing && (
+            {isPreorder && (
               <span
                 className={`max-w-full break-words rounded-full px-3 py-1 leading-tight ${
                   isPreorder
@@ -321,7 +294,7 @@ export default function OrdersPanel({
               onClick={() => navigate(`/orders/${order.id}`)}
               className={`${actionButtonBase} w-full sm:w-auto ${
                 isHighlighted
-                  ? 'bg-slate-900 text-white hover:bg-slate-800'
+                  ? 'bg-teal-700 text-white hover:bg-teal-800'
                   : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
@@ -330,6 +303,10 @@ export default function OrdersPanel({
             <button
               type="button"
               onClick={() => toggleOrderDetails(order.id)}
+              aria-expanded={isExpanded}
+              aria-controls={
+                isExpanded ? 'order-actions-' + order.id : undefined
+              }
               className={`${actionButtonBase} w-full border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 sm:w-auto`}
             >
               {detailsButtonLabel}
@@ -337,7 +314,10 @@ export default function OrdersPanel({
           </div>
 
           {isExpanded && (
-            <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+            <div
+              id={'order-actions-' + order.id}
+              className="space-y-3 border-t border-slate-100 pt-3 text-sm text-slate-600"
+            >
               <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <button
                   onClick={() =>
@@ -511,23 +491,20 @@ export default function OrdersPanel({
     { value: 'rejected', label: 'Ditolak' }
   ]
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-5">
+    <div className="min-w-0 max-w-full space-y-4">
       {orderQuery.error ? (
         <p role="alert" className="mb-3 text-sm text-amber-800">
           Pembaruan pesanan tertunda. Data terakhir tetap ditampilkan.
         </p>
       ) : null}
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Pesanan</h3>
-          <p className="text-sm leading-5 text-slate-500 sm:block">
-            {isVendor
-              ? 'Order masuk dan status transaksi.'
-              : 'Order aktif dan riwayat transaksi.'}
-          </p>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+            Pesanan
+          </h2>
         </div>
 
-        <div className="shrink-0 rounded-full bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+        <div className="text-xs text-slate-500">
           <SyncStatus
             failed={orderQuery.isError}
             updatedAt={orderQuery.dataUpdatedAt}
@@ -536,22 +513,12 @@ export default function OrdersPanel({
         </div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1 text-sm">
-        <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-slate-900 px-3 py-2 font-medium text-white">
-          Aktif{' '}
-          <strong>
-            {activeOrders.length}
-            {orderQuery.hasNextPage ? '+' : ''}
-          </strong>
-        </div>
-      </div>
-
       {
-        <div className="mt-5 space-y-6">
+        <div className="space-y-5">
           <section>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <h4 className="text-sm font-semibold text-slate-700">
                   {isVendor ? 'Order Aktif' : 'Pesanan Aktif'}
                 </h4>
               </div>
@@ -587,7 +554,7 @@ export default function OrdersPanel({
           <section>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <h4 className="text-sm font-semibold text-slate-700">
                   Riwayat
                 </h4>
               </div>
@@ -595,24 +562,31 @@ export default function OrdersPanel({
                 <button
                   type="button"
                   onClick={() => setShowHistory((current) => !current)}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                  aria-expanded={showHistory}
+                  aria-controls={showHistory ? historyId : undefined}
+                  className="ui-secondary gap-2"
                 >
                   {showHistory ? 'Sembunyikan' : 'Buka'}
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={'h-4 w-4 ' + (showHistory ? 'rotate-180' : '')}
+                  />
                 </button>
               </div>
             </div>
 
             {!showHistory ? null : (
-              <div className="space-y-4">
-                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-3">
-                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-                    <div>
-                      <label
-                        htmlFor="order-history-search"
-                        className="text-sm font-medium text-slate-700"
-                      >
+              <div id={historyId} className="space-y-3">
+                <div className="ui-surface p-3">
+                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                    <div className="relative min-w-0">
+                      <label htmlFor="order-history-search" className="sr-only">
                         Cari riwayat
                       </label>
+                      <Search
+                        aria-hidden="true"
+                        className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400"
+                      />
                       <input
                         id="order-history-search"
                         value={historyQuery}
@@ -620,26 +594,27 @@ export default function OrdersPanel({
                           setHistoryQuery(event.target.value)
                         }
                         placeholder="Cari riwayat..."
-                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
+                        className="ui-field min-h-11 py-2.5 pl-9 text-sm"
                       />
                     </div>
 
-                    <div>
-                      <div className="text-sm font-medium text-slate-700">
-                        Filter hasil akhir
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
+                    <label>
+                      <span className="sr-only">Status riwayat</span>
+                      <select
+                        aria-label="Status riwayat"
+                        value={historyFilter}
+                        onChange={(event) =>
+                          setHistoryFilter(event.target.value)
+                        }
+                        className="min-h-11 max-w-32 rounded-xl border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700"
+                      >
                         {historyFilterOptions.map((option) => (
-                          <HistoryFilterButton
-                            key={option.value}
-                            active={historyFilter === option.value}
-                            onClick={() => setHistoryFilter(option.value)}
-                          >
+                          <option key={option.value} value={option.value}>
                             {option.label}
-                          </HistoryFilterButton>
+                          </option>
                         ))}
-                      </div>
-                    </div>
+                      </select>
+                    </label>
                   </div>
                 </div>
 

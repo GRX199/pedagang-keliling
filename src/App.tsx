@@ -13,7 +13,9 @@ const MapPage = lazy(() => import('./features/map/MapViewPage'))
 const VendorProfile = lazy(() => import('./features/vendor/VendorStorePage'))
 const LoginPage = lazy(() => import('./features/auth/LoginPage'))
 const ChatsPage = lazy(() => import('./features/chat/ChatsPage'))
-const OrderTrackingPage = lazy(() => import('./features/orders/OrderTrackingPage'))
+const OrderTrackingPage = lazy(
+  () => import('./features/orders/OrderTrackingPage')
+)
 const LandingPage = lazy(() => import('./pages/LandingPage'))
 
 function RootRedirect() {
@@ -30,7 +32,9 @@ function RootRedirect() {
 function LoginGuard({ children }: PropsWithChildren) {
   const { user, role, loading } = useAuth()
   const location = useLocation()
-  const hashParams = new URLSearchParams(String(location.hash || '').replace(/^#/, ''))
+  const hashParams = new URLSearchParams(
+    String(location.hash || '').replace(/^#/, '')
+  )
   const isPasswordReset =
     new URLSearchParams(location.search).get('reset') === 'password' ||
     hashParams.get('type') === 'recovery'
@@ -54,12 +58,18 @@ export default function App() {
   const { user, role } = useAuth()
 
   return (
-    <>
+    <div className={user ? 'app-shell app-shell--authenticated' : 'app-shell'}>
+      <a
+        href="#konten-utama"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[2000] focus:rounded-xl focus:bg-teal-800 focus:p-3 focus:text-white"
+      >
+        Lewati ke konten utama
+      </a>
       <AppNavigation />
       {user ? <ConnectionNotice /> : null}
       {user && role === 'vendor' ? <VendorLiveLocationSync /> : null}
       <PwaInstallPrompt role={role} />
-      <main className={`min-h-[calc(100vh-73px)] ${user ? 'pb-28 lg:pb-0' : ''}`}>
+      <main id="konten-utama" tabIndex={-1} className="app-main outline-none">
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<RootRedirect />} />
@@ -124,10 +134,13 @@ export default function App() {
               }
             />
 
-            <Route path="*" element={<div className="p-6">Halaman tidak ditemukan</div>} />
+            <Route
+              path="*"
+              element={<div className="p-6">Halaman tidak ditemukan</div>}
+            />
           </Routes>
         </Suspense>
       </main>
-    </>
+    </div>
   )
 }

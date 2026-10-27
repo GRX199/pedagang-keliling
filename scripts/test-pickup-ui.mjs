@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { mkdir } from 'node:fs/promises'
 import { createServer } from 'vite'
+import { checkMobileDesign } from './mobile-design-qa.mjs'
 const require = createRequire(import.meta.url)
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright')
 const server = await createServer({
@@ -46,6 +47,14 @@ try {
   await page.route('**/*', route => route.request().url().startsWith('http://127.0.0.1:5197/') ? route.continue() : route.abort())
   await mkdir('test-results/pickup', { recursive: true })
   let refactorLayouts = 0
+  if (process.argv.includes('--mobile-design-only')) {
+    await checkMobileDesign(page, 'http://127.0.0.1:5197').catch(async error => {
+      await page.screenshot({ path: 'test-results/pickup/mobile-design-failure.png', fullPage: true })
+      throw error
+    })
+    assert.deepEqual(errors, [], 'no mobile design runtime errors')
+    process.exitCode = 0
+  } else {
   if (!process.argv.includes('--performance-only')) {
   for (const width of [320, 375, 768, 1366]) {
     await page.setViewportSize({ width, height: 850 })
@@ -368,7 +377,8 @@ try {
   await page.getByText('Profil belum dapat dimuat.', { exact: false }).waitFor()
   assert.equal(await page.getByRole('button', { name: 'Edit', exact: true }).count(), 0, 'load error is not an editable empty profile')
   await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=profile&role=vendor&gps=delayed')
-  await page.getByRole('button', { name: 'Update Lokasi', exact: true }).click()
+  await page.locator('summary').filter({ hasText: /^Informasi toko/ }).click()
+  await page.getByRole('button', { name: 'Perbarui lokasi toko', exact: true }).click()
   await page.waitForFunction(() => !!window.pendingGps)
   await page.getByRole('button', { name: 'Sembunyikan profil', exact: true }).click()
   await page.evaluate(() => window.pendingGps({ coords: { latitude: 1.48, longitude: 124.85, accuracy: 10 } }))
@@ -381,6 +391,7 @@ try {
   await page.getByRole('button', { name: 'Buka peta fixture' }).click()
   await page.getByRole('button', { name: 'Filter', exact: true }).click()
   assert(await page.getByRole('button', { name: 'Favorit', exact: true }).isEnabled(), 'map uses the store favorite cache')
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Kembali ke toko fixture' }).click()
   await page.getByRole('button', { name: 'Tersimpan', exact: true }).waitFor()
   await page.evaluate(() => { window.pickupFixture.failNextFavorite = true })
@@ -458,15 +469,17 @@ try {
   await vendorMarker.waitFor()
   const markerHandle = await vendorMarker.elementHandle()
   await vendorMarker.click()
-  await page.locator('.leaflet-popup').waitFor()
+  const selectedStore = page.getByRole('dialog', { name: 'Detail toko', exact: true })
+  await selectedStore.waitFor()
   await page.evaluate(() => window.pickupFixture.refresh())
   assert(await markerHandle.evaluate(element => element.isConnected), 'background refresh keeps marker DOM when its location is unchanged')
   assert.equal(await publicMap.evaluate(element => element._leaflet_id), publicMapId, 'public map instance survives refresh')
   await page.evaluate(() => window.pickupFixture.moveVendor())
-  await page.locator('.leaflet-popup').waitFor()
+  await selectedStore.waitFor()
   assert.equal(await publicMap.evaluate(element => element._leaflet_id), publicMapId, 'location update does not recreate public map')
   await page.evaluate(() => window.pickupFixture.offline())
   await page.waitForFunction(() => document.querySelectorAll('.leaflet-marker-icon').length === 0)
+  await selectedStore.waitFor({ state: 'hidden' })
   await page.goto('http://127.0.0.1:5197/tests/ui/pickup.html?view=dashboard&role=buyer&tab=products')
   await page.getByRole('heading', { name: 'Pesanan', exact: true }).waitFor()
   assert.equal(await page.getByRole('heading', { name: 'Produk Saya', exact: true }).count(), 0, 'unsupported customer tab falls back to orders instead of a blank screen')
@@ -606,11 +619,13 @@ try {
   await page.getByRole('button', { name: 'Aktifkan', exact: true }).click()
   await page.getByText('Status akun pedagang diubah menjadi Aktif. Pencatatan audit belum berhasil; periksa koneksi.', { exact: true }).waitFor()
   assert.equal(await page.evaluate(() => window.pickupFixture.auditWrites), 2, 'audit failure is reported honestly without replaying moderation')
+  await checkMobileDesign(page, 'http://127.0.0.1:5197')
   assert.deepEqual(errors, [], 'no page runtime errors')
   console.log(`PASS: ${48 + refactorLayouts + profileLayouts + legacyLayouts + 2} layouts, profile drafts, favorites/cache, GPS/offline cleanup, checkout, pickup/legacy tracking, COD, chat/notification races and PWA transitions. Mock services, not hosted UAT.`)
   } else {
     assert.deepEqual(errors, [], 'no page runtime errors')
     console.log('PASS: bounded order/chat pagination, global history search, stable cursors and disconnected message catch-up. Mock services only.')
+  }
   }
 } finally {
   await browser?.close()

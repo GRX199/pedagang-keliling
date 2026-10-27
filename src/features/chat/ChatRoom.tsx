@@ -16,6 +16,7 @@ import { MessageList } from './MessageList'
 import { useChatVisibility } from './useChatVisibility'
 import { SyncStatus } from '../../shared/components/SyncStatus'
 import { reportError } from '../../shared/lib/error-reporting'
+import { ImagePlus, Send, LoaderCircle } from 'lucide-react'
 
 type Props = {
   chatId: string
@@ -180,7 +181,7 @@ export function ChatThread({
           nearBottomRef.current =
             list.scrollHeight - list.scrollTop - list.clientHeight < 80
         }}
-        className="min-h-0 flex-1 space-y-3 overflow-auto rounded-2xl border border-slate-100 bg-slate-50 p-3"
+        className="min-h-0 flex-1 space-y-3 overflow-auto overscroll-contain rounded-2xl bg-[#f2f7f5] p-3"
       >
         {chat.error ? (
           <div role="alert" className="text-sm text-rose-700">
@@ -233,7 +234,7 @@ export function ChatThread({
       </div>
 
       {pendingImage ? (
-        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="mt-3 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-100">
               <img
@@ -249,9 +250,6 @@ export function ChatThread({
               <div className="mt-1 truncate text-xs text-slate-500">
                 {pendingImage.name}
               </div>
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                Tambahkan caption opsional sebelum kirim.
-              </p>
               <button
                 type="button"
                 onClick={clearPendingImage}
@@ -265,7 +263,7 @@ export function ChatThread({
         </div>
       ) : null}
 
-      <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row">
+      <div className="mt-3 flex min-w-0 shrink-0 items-end gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -273,7 +271,19 @@ export function ChatThread({
           className="hidden"
           onChange={handleImageInputChange}
         />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={sending || !chatId || !currentUser}
+          aria-label={
+            pendingImage ? 'Ganti' : paymentProofMode ? 'Bukti' : 'Foto'
+          }
+          className="ui-icon-button h-12 w-12"
+        >
+          <ImagePlus aria-hidden="true" className="h-5 w-5" />
+        </button>
         <textarea
+          aria-label={pendingImage ? 'Caption foto' : 'Pesan'}
           value={text}
           disabled={sending}
           onChange={(event) => setText(event.target.value)}
@@ -288,26 +298,26 @@ export function ChatThread({
             }
           }}
           rows={1}
-          className="min-h-[48px] min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+          className="h-12 min-h-12 min-w-0 flex-1 resize-none rounded-xl border border-slate-200 px-3 py-3 text-base"
           placeholder={pendingImage ? 'Caption opsional...' : 'Ketik pesan...'}
         />
-        <div className="grid grid-cols-2 gap-2 sm:flex">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending || !chatId || !currentUser}
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 sm:min-w-24"
-          >
-            {pendingImage ? 'Ganti' : paymentProofMode ? 'Bukti' : 'Foto'}
-          </button>
-          <button
-            onClick={sendMessage}
-            disabled={sending || (!text.trim() && !pendingImage)}
-            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400 sm:min-w-24"
-          >
+        <button
+          onClick={sendMessage}
+          disabled={sending || (!text.trim() && !pendingImage)}
+          aria-label={
+            uploadingImage ? 'Upload...' : sending ? 'Mengirim...' : 'Kirim'
+          }
+          className="ui-primary h-12 w-12 shrink-0 px-0 sm:w-auto sm:px-4"
+        >
+          {sending ? (
+            <LoaderCircle aria-hidden="true" className="h-5 w-5 animate-spin" />
+          ) : (
+            <Send aria-hidden="true" className="h-5 w-5" />
+          )}
+          <span className="hidden sm:inline">
             {uploadingImage ? 'Upload...' : sending ? 'Mengirim...' : 'Kirim'}
-          </button>
-        </div>
+          </span>
+        </button>
       </div>
     </div>
   )

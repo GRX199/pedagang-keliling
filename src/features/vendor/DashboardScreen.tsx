@@ -33,9 +33,9 @@ export default function DashboardScreen() {
   if (!user || !role) return null
 
   return (
-    <div className="min-h-screen bg-transparent">
-      <div className="mx-auto max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6">
-        <main className="min-w-0 max-w-full space-y-4">
+    <div>
+      <div className="ui-page max-w-5xl">
+        <div className="min-w-0 max-w-full space-y-4">
           {accountStatus !== 'active' ? (
             <div
               className={`rounded-[28px] p-4 text-sm shadow-sm ring-1 ${
@@ -50,14 +50,22 @@ export default function DashboardScreen() {
             </div>
           ) : null}
 
-          {activeTab === 'admin' && isAdmin && <AdminPanel currentUser={user} />}
+          {activeTab === 'admin' && isAdmin && (
+            <AdminPanel currentUser={user} />
+          )}
           {activeTab === 'products' && isVendor && <VendorProductsManager />}
           {activeTab === 'chats' && !isAdmin && <ChatWorkspace embedded />}
-          {activeTab === 'orders' && !isAdmin && <OrdersPanel currentUser={user} role={role} />}
-          {activeTab === 'profile' && (
-            <ProfilePanel key={`${user.id}:${role}`} currentUser={user} role={role} />
+          {activeTab === 'orders' && !isAdmin && (
+            <OrdersPanel currentUser={user} role={role} />
           )}
-        </main>
+          {activeTab === 'profile' && (
+            <ProfilePanel
+              key={`${user.id}:${role}`}
+              currentUser={user}
+              role={role}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

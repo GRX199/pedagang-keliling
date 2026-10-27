@@ -5,21 +5,29 @@ import type { Tables } from '../../types/database.types'
 import type { Identity } from '../../lib/profiles'
 type Chat = Tables<'chats'>
 import { useChats, useDirectChat, useRelatedOrders } from './useChats'
-import { pickFeaturedOrder, shouldShowPaymentProofShortcut } from './order-context'
+import {
+  pickFeaturedOrder,
+  shouldShowPaymentProofShortcut
+} from './order-context'
 import { useNavigate } from 'react-router-dom'
 import {
   formatOrderStatusLabel,
   formatPaymentMethodLabel,
   formatPriceLabel,
-  isActiveOrderStatus,
+  isActiveOrderStatus
 } from '../../lib/orders'
 import { useAuth } from '../auth/AuthProvider'
+import { ArrowLeft } from 'lucide-react'
 
 export { ChatThread } from './ChatRoom'
 import { ChatThread } from './ChatRoom'
 
 function getPartnerId(chat: Chat | null, currentUserId: string | undefined) {
-  return (chat?.participants || []).find((participant) => participant !== currentUserId) || null
+  return (
+    (chat?.participants || []).find(
+      (participant) => participant !== currentUserId
+    ) || null
+  )
 }
 
 function getPartnerLabel(
@@ -37,7 +45,7 @@ function OrderContextCard({
   order,
   partnerLabel,
   relatedCount,
-  onTrackOrder,
+  onTrackOrder
 }: {
   currentUser: User
   order: Order
@@ -54,7 +62,7 @@ function OrderContextCard({
   const canTrackOrder = isActiveOrderStatus(order.status)
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-[18px] bg-slate-900 p-3 text-white shadow-sm">
+    <div className="min-w-0 max-w-full shrink-0 overflow-hidden rounded-xl bg-teal-800 p-3 text-white">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0 max-w-2xl">
           <div className="flex min-w-0 items-center gap-2">
@@ -69,8 +77,10 @@ function OrderContextCard({
             {[
               counterpartName,
               formatPaymentMethodLabel(order.payment_method),
-              Number(order.total_amount || 0) > 0 ? formatPriceLabel(order.total_amount) : null,
-              relatedCount > 1 ? `${relatedCount} transaksi` : null,
+              Number(order.total_amount || 0) > 0
+                ? formatPriceLabel(order.total_amount)
+                : null,
+              relatedCount > 1 ? `${relatedCount} transaksi` : null
             ]
               .filter(Boolean)
               .join(' • ')}
@@ -93,7 +103,7 @@ function OrderContextCard({
 export default function ChatWorkspace({
   initialVendorId = null,
   initialOrderId = null,
-  embedded = false,
+  embedded = false
 }: {
   initialVendorId?: string | null
   initialOrderId?: string | null
@@ -149,7 +159,9 @@ export default function ChatWorkspace({
 
   useEffect(() => {
     setSelectedChatId((current) => {
-      return chats.some((chat) => chat.id === current) ? current : chats[0]?.id || null
+      return chats.some((chat) => chat.id === current)
+        ? current
+        : chats[0]?.id || null
     })
   }, [chats])
 
@@ -163,7 +175,11 @@ export default function ChatWorkspace({
       return
     }
 
-    if (initialVendorId && typeof window !== 'undefined' && window.innerWidth < 1024) {
+    if (
+      initialVendorId &&
+      typeof window !== 'undefined' &&
+      window.innerWidth < 1024
+    ) {
       setShowInboxMobile(false)
     }
   }, [initialVendorId, selectedChatId])
@@ -187,7 +203,7 @@ export default function ChatWorkspace({
         const [chat] = nextRows.splice(currentIndex, 1)
         nextRows.unshift({
           ...chat,
-          last_updated: message.created_at || new Date().toISOString(),
+          last_updated: message.created_at || new Date().toISOString()
         })
         return nextRows
       })
@@ -197,15 +213,19 @@ export default function ChatWorkspace({
 
   return (
     <div
-      className={`grid min-w-0 max-w-full gap-3 sm:gap-4 ${embedded ? 'grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)]' : 'grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]'}`}
+      className={`ui-chat-layout grid min-w-0 max-w-full gap-3 ${embedded ? 'grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]' : 'grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]'}`}
     >
       <div
-        className={`min-w-0 overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-4 ${selectedChat && !showInboxMobile ? 'hidden lg:block' : ''}`}
+        className={`ui-surface min-h-0 overflow-y-auto p-3 sm:p-4 ${selectedChat && !showInboxMobile ? 'hidden lg:block' : ''}`}
       >
         <div className="mb-3 flex items-center justify-between">
           <div className="min-w-0">
-            <div className="font-semibold text-slate-900">Chat</div>
-            <div className="text-sm text-slate-500">{chats.length} percakapan</div>
+            <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+              Chat
+            </h2>
+            <div className="text-sm text-slate-500">
+              {chats.length} percakapan
+            </div>
           </div>
         </div>
 
@@ -244,11 +264,11 @@ export default function ChatWorkspace({
                   onClick={() => selectChat(chat.id)}
                   className={`flex min-w-0 w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
                     active
-                      ? 'border-slate-900 bg-slate-50'
+                      ? 'border-teal-700 bg-teal-50'
                       : 'border-slate-200 bg-white hover:border-slate-300'
                   }`}
                 >
-                  <div className="h-11 w-11 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-teal-50">
                     {partner?.photo_url ? (
                       <img
                         src={partner.photo_url}
@@ -280,27 +300,28 @@ export default function ChatWorkspace({
       </div>
 
       <div
-        className={`min-w-0 max-w-full overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:rounded-[28px] sm:p-4 ${selectedChat && !showInboxMobile ? 'block' : 'hidden lg:block'}`}
+        className={`ui-surface min-h-0 max-w-full flex-col overflow-hidden p-3 sm:p-4 ${selectedChat && !showInboxMobile ? 'flex' : 'hidden lg:flex'}`}
       >
         {selectedChat && user ? (
           <>
-            <div className="mb-3 border-b border-slate-100 pb-3">
+            <div className="mb-3 shrink-0 border-b border-slate-100 pb-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setShowInboxMobile(true)}
+                  aria-label="Kembali"
+                  className="ui-icon-button lg:hidden"
+                >
+                  <ArrowLeft aria-hidden="true" className="h-5 w-5" />
+                </button>
+                <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-slate-900">
                     {selectedPartnerLabel}
                   </div>
                 </div>
-
-                <button
-                  onClick={() => setShowInboxMobile(true)}
-                  className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 lg:hidden"
-                >
-                  Kembali
-                </button>
               </div>
             </div>
-            <div className="min-w-0 space-y-3">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
               {loadingRelatedOrders ? (
                 <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
                   Memuat order terkait...
@@ -315,17 +336,7 @@ export default function ChatWorkspace({
                 />
               ) : null}
 
-              <div
-                className={
-                  embedded
-                    ? featuredOrder
-                      ? 'h-[52vh] min-h-[320px] sm:h-[50vh] sm:min-h-[360px]'
-                      : 'h-[62vh] min-h-[380px] sm:h-[60vh] sm:min-h-[420px]'
-                    : featuredOrder
-                      ? 'h-[58vh] min-h-[340px] sm:h-[58vh] sm:min-h-[390px]'
-                      : 'h-[70vh] min-h-[400px] sm:h-[70vh] sm:min-h-[460px]'
-                }
-              >
+              <div className="min-h-0 flex-1">
                 <ChatThread
                   key={`${user.id}:${selectedChat.id}`}
                   chatId={selectedChat.id}
@@ -338,7 +349,7 @@ export default function ChatWorkspace({
           </>
         ) : (
           <div className="flex h-full min-h-[320px] items-center justify-center text-sm text-slate-500">
-            Pilih chat di sebelah kiri untuk mulai percakapan.
+            Pilih percakapan untuk mulai chat.
           </div>
         )}
       </div>

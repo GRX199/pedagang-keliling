@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Coordinates, MapFilters, VendorMapItem } from '../../types/domain.types'
+import { ChevronRight } from 'lucide-react'
+import { Modal } from '../../shared/components/Modal'
+import { useMediaQuery } from '../../shared/hooks/useMediaQuery'
+import VendorSummary from './components/VendorSummary'
+import type {
+  Coordinates,
+  MapFilters,
+  VendorMapItem
+} from '../../types/domain.types'
 import { errorMessage } from '../../shared/lib/utils'
 import { usePresenceClock } from '../../shared/hooks/usePresenceClock'
 import { SyncStatus } from '../../shared/components/SyncStatus'
@@ -18,7 +26,6 @@ import { useDebounce } from '../../shared/hooks/useDebounce'
 import L from '../../shared/lib/leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster'
-import VendorProductsPreview from '../vendor/components/VendorProductsPreview'
 import MapSearchFilters from './components/MapFilters'
 
 import { useToast } from '../../shared/components/ToastProvider'
@@ -31,13 +38,11 @@ import { buildVendorTerritoryInsights } from '../../lib/territory'
 import {
   formatVendorCategoryLabel,
   formatVendorPresenceAge,
-  formatVendorPromoExpiry,
   getVendorPresenceTone,
   getVendorCoordinates,
-  getVendorLocationUpdatedAtLabel,
   getVendorPromoText,
   isVendorPresenceFresh,
-  isVendorPromoActive,
+  isVendorPromoActive
 } from '../../lib/vendor'
 
 import {
@@ -47,12 +52,8 @@ import {
   normalizeCategoryValue,
   getVendorCategory,
   getVendorSearchText,
-  getVendorReviewCount,
-  formatVendorRatingMeta,
   matchesRatingFilter,
-  isVendorModeratedOut,
-  getStoreLocationStatus,
-  getPresenceBadgeClass,
+  isVendorModeratedOut
 } from './map-model'
 
 const DEFAULT_FILTERS: MapFilters = {
@@ -63,7 +64,7 @@ const DEFAULT_FILTERS: MapFilters = {
   radius: 2.5,
   withinRadius: false,
   promo: false,
-  favorites: false,
+  favorites: false
 }
 
 export default function MapViewPage() {
@@ -108,10 +109,13 @@ function MapViewContent() {
     radius: radiusKm,
     withinRadius: onlyWithinRadius,
     favorites: onlyFavoriteVendors,
-    promo: onlyPromoVendors,
+    promo: onlyPromoVendors
   } = filters
   const debouncedQuery = useDebounce(query.trim().toLowerCase(), 300)
-  const [selectedVendor, setSelectedVendor] = useState<VendorMapItem | null>(null)
+  const [selectedVendor, setSelectedVendor] = useState<VendorMapItem | null>(
+    null
+  )
+  const wideLayout = useMediaQuery('(min-width: 1024px)')
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
   const [syncingStoreLocation, setSyncingStoreLocation] = useState(false)
   const favoritesQuery = useFavorites()
@@ -119,7 +123,7 @@ function MapViewContent() {
     ids: favoriteVendorIds,
     available: favoriteFeatureEnabled,
     busyVendorId: favoriteBusyVendorId,
-    setFavorite,
+    setFavorite
   } = favoritesQuery
 
   const [showAllVendors, setShowAllVendors] = useState(false)
@@ -141,7 +145,10 @@ function MapViewContent() {
   const isVendor = role === 'vendor'
   const isCustomerViewer = Boolean(user?.id) && !isVendor && !isAdmin
   const myVendorId = user?.id
-  const favoriteVendorIdSet = useMemo(() => new Set(favoriteVendorIds), [favoriteVendorIds])
+  const favoriteVendorIdSet = useMemo(
+    () => new Set(favoriteVendorIds),
+    [favoriteVendorIds]
+  )
 
   const requestFavoriteView = useMemo(() => {
     const params = new URLSearchParams(location.search)
@@ -165,13 +172,13 @@ function MapViewContent() {
           radius: 8,
           color: '#2563eb',
           fillColor: '#2563eb',
-          fillOpacity: 0.9,
+          fillOpacity: 0.9
         }).addTo(map)
 
       if (options.focus) {
         map.flyTo([lat, lng], options.zoom || 16, {
           animate: true,
-          duration: options.duration || 0.6,
+          duration: options.duration || 0.6
         })
       }
     },
@@ -211,10 +218,14 @@ function MapViewContent() {
     try {
       const position = await getBrowserPositionWithFallback(controller.signal)
       if (!controller.signal.aborted)
-        applyViewerLocation(position.coords.latitude, position.coords.longitude, {
-          focus: true,
-          zoom: 16,
-        })
+        applyViewerLocation(
+          position.coords.latitude,
+          position.coords.longitude,
+          {
+            focus: true,
+            zoom: 16
+          }
+        )
     } catch (error) {
       if (!controller.signal.aborted)
         toast.push(getGeolocationErrorMessage(error), { type: 'error' })
@@ -230,7 +241,7 @@ function MapViewContent() {
     if (coordinates) {
       mapRef.current?.flyTo([coordinates.lat, coordinates.lng], 16, {
         animate: true,
-        duration: 0.8,
+        duration: 0.8
       })
     }
   }, [])
@@ -242,7 +253,12 @@ function MapViewContent() {
     }
 
     changeVendorFilter('favorites', requestFavoriteView)
-  }, [changeVendorFilter, favoriteFeatureEnabled, isCustomerViewer, requestFavoriteView])
+  }, [
+    changeVendorFilter,
+    favoriteFeatureEnabled,
+    isCustomerViewer,
+    requestFavoriteView
+  ])
 
   const toggleVendorFavorite = useCallback(
     async (vendor: VendorMapItem) => {
@@ -251,14 +267,27 @@ function MapViewContent() {
       try {
         const saved = await setFavorite(vendor.id, next)
         if (saved)
-          toast.push(next ? 'Pedagang disimpan ke favorit' : 'Pedagang dihapus dari favorit', {
-            type: 'success',
-          })
+          toast.push(
+            next
+              ? 'Pedagang disimpan ke favorit'
+              : 'Pedagang dihapus dari favorit',
+            {
+              type: 'success'
+            }
+          )
       } catch {
-        toast.push('Favorit belum dapat diperbarui. Coba lagi.', { type: 'error' })
+        toast.push('Favorit belum dapat diperbarui. Coba lagi.', {
+          type: 'error'
+        })
       }
     },
-    [favoriteFeatureEnabled, favoriteVendorIdSet, isCustomerViewer, setFavorite, toast]
+    [
+      favoriteFeatureEnabled,
+      favoriteVendorIdSet,
+      isCustomerViewer,
+      setFavorite,
+      toast
+    ]
   )
 
   useEffect(() => {
@@ -284,7 +313,10 @@ function MapViewContent() {
     if (!mapRef.current) return
 
     autoLocateAttemptedRef.current = true
-    toast.push('Izinkan lokasi agar posisi toko Anda muncul di peta pelanggan.', { type: 'info' })
+    toast.push(
+      'Izinkan lokasi agar posisi toko Anda muncul di peta pelanggan.',
+      { type: 'info' }
+    )
     void syncStoreLocationNow()
   }, [isVendor, mapInstance, myVendorId, syncStoreLocationNow, toast, vendors])
 
@@ -300,12 +332,18 @@ function MapViewContent() {
 
       const vendorCategory = getVendorCategory(vendor)
       if (selectedCategory !== 'all') {
-        if (normalizeCategoryValue(vendorCategory) !== selectedCategory) return false
+        if (normalizeCategoryValue(vendorCategory) !== selectedCategory)
+          return false
       }
 
       if (!matchesRatingFilter(vendor, selectedRatingFilter)) return false
-      if (selectedMobility !== 'all' && vendor.mobility_type !== selectedMobility) return false
-      if (onlyFavoriteVendors && !favoriteVendorIdSet.has(vendor.id)) return false
+      if (
+        selectedMobility !== 'all' &&
+        vendor.mobility_type !== selectedMobility
+      )
+        return false
+      if (onlyFavoriteVendors && !favoriteVendorIdSet.has(vendor.id))
+        return false
       if (onlyPromoVendors && !isVendorPromoActive(vendor)) return false
 
       if (debouncedQuery) {
@@ -339,20 +377,25 @@ function MapViewContent() {
     selectedRatingFilter,
     selectedMobility,
     userLocation,
-    vendors,
+    vendors
   ])
 
   const onlineVendors = useMemo(
     () =>
       vendors.filter(
-        (vendor) => isVendorPresenceFresh(vendor, presenceClock) && !isVendorModeratedOut(vendor)
+        (vendor) =>
+          isVendorPresenceFresh(vendor, presenceClock) &&
+          !isVendorModeratedOut(vendor)
       ),
     [presenceClock, vendors]
   )
 
   const categoryOptions = useMemo(() => {
     const categoryMap = new Map(
-      VENDOR_CATEGORIES.map((category) => [category.label.toLowerCase(), category.label])
+      VENDOR_CATEGORIES.map((category) => [
+        category.label.toLowerCase(),
+        category.label
+      ])
     )
 
     for (const vendor of onlineVendors) {
@@ -372,7 +415,8 @@ function MapViewContent() {
 
   useEffect(() => {
     if (selectedCategory === 'all') return
-    if (categoryOptions.some((option) => option.value === selectedCategory)) return
+    if (categoryOptions.some((option) => option.value === selectedCategory))
+      return
     changeVendorFilter('category', 'all')
   }, [categoryOptions, changeVendorFilter, selectedCategory])
 
@@ -398,7 +442,10 @@ function MapViewContent() {
       const leftDistance = getVendorDistance(left, userLocation)
       const rightDistance = getVendorDistance(right, userLocation)
 
-      if (typeof leftDistance === 'number' && typeof rightDistance === 'number') {
+      if (
+        typeof leftDistance === 'number' &&
+        typeof rightDistance === 'number'
+      ) {
         return leftDistance - rightDistance
       }
 
@@ -421,26 +468,36 @@ function MapViewContent() {
     onlyWithinRadius,
     radiusKm,
     selectedCategory,
-    selectedRatingFilter,
+    selectedRatingFilter
   ])
 
   const demandMinute = Math.floor(presenceClock / 60_000)
   const demandInsights = useMemo(
-    () => buildVendorTerritoryInsights(demandOrders, { lookbackDays: demandPeriod === 'all' ? null : Number(demandPeriod) }),
+    () =>
+      buildVendorTerritoryInsights(demandOrders, {
+        lookbackDays: demandPeriod === 'all' ? null : Number(demandPeriod)
+      }),
     [demandOrders, demandPeriod, demandMinute]
   )
-  useDemandLayer(mapInstance, demandInsights.hotspots, isVendor && showDemandHeatmap, demandFocusRequest)
+  useDemandLayer(
+    mapInstance,
+    demandInsights.hotspots,
+    isVendor && showDemandHeatmap,
+    demandFocusRequest
+  )
 
   function toggleDemandLayer() {
-    setShowDemandHeatmap(current => !current)
-    if (!showDemandHeatmap) setDemandFocusRequest(current => current + 1)
+    setShowDemandHeatmap((current) => !current)
+    if (!showDemandHeatmap) setDemandFocusRequest((current) => current + 1)
   }
 
   useEffect(() => {
-    if (!selectedVendor) return
-    if (filteredVendors.some((vendor) => vendor.id === selectedVendor.id)) return
-    setSelectedVendor(null)
-  }, [filteredVendors, selectedVendor])
+    setSelectedVendor((current) =>
+      current
+        ? filteredVendors.find((vendor) => vendor.id === current.id) || null
+        : null
+    )
+  }, [filteredVendors, selectedVendor?.id])
 
   const createVendorPopup = useCallback(
     (vendor: VendorMapItem) => {
@@ -453,19 +510,19 @@ function MapViewContent() {
               colors: {
                 border: '#d1d5db',
                 background: '#ffffff',
-                color: '#111827',
+                color: '#111827'
               },
-              onClick: () => focusVendor(vendor),
+              onClick: () => focusVendor(vendor)
             },
             {
               label: 'Kelola',
               colors: {
                 border: '#16a34a',
                 background: '#16a34a',
-                color: '#ffffff',
+                color: '#ffffff'
               },
-              onClick: () => navigate('/dashboard?tab=products'),
-            },
+              onClick: () => navigate('/dashboard?tab=products')
+            }
           ]
         : [
             {
@@ -473,18 +530,18 @@ function MapViewContent() {
               colors: {
                 border: '#d1d5db',
                 background: '#ffffff',
-                color: '#111827',
+                color: '#111827'
               },
-              onClick: () => focusVendor(vendor),
+              onClick: () => focusVendor(vendor)
             },
             {
               label: 'Chat',
               colors: {
                 border: '#2563eb',
                 background: '#2563eb',
-                color: '#ffffff',
+                color: '#ffffff'
               },
-              onClick: () => navigate(`/chat/${vendor.id}`),
+              onClick: () => navigate(`/chat/${vendor.id}`)
             },
             ...(isCustomerViewer && favoriteFeatureEnabled
               ? [
@@ -498,12 +555,12 @@ function MapViewContent() {
                     colors: {
                       border: '#e11d48',
                       background: isFavorite ? '#e11d48' : '#fff1f2',
-                      color: isFavorite ? '#ffffff' : '#be123c',
+                      color: isFavorite ? '#ffffff' : '#be123c'
                     },
                     onClick: () => {
                       void toggleVendorFavorite(vendor)
-                    },
-                  },
+                    }
+                  }
                 ]
               : []),
             {
@@ -511,10 +568,10 @@ function MapViewContent() {
               colors: {
                 border: '#16a34a',
                 background: '#16a34a',
-                color: '#ffffff',
+                color: '#ffffff'
               },
-              onClick: () => navigate(`/vendor/${vendor.id}#order-summary`),
-            },
+              onClick: () => navigate(`/vendor/${vendor.id}#order-summary`)
+            }
           ]
 
       return buildPopupContent(vendor, popupActions)
@@ -528,7 +585,7 @@ function MapViewContent() {
       isVendor,
       myVendorId,
       navigate,
-      toggleVendorFavorite,
+      toggleVendorFavorite
     ]
   )
   useVendorMarkers(
@@ -541,8 +598,9 @@ function MapViewContent() {
       favoriteVendorIds,
       isCustomerViewer,
       isVendor,
-      myVendorId,
-    ])
+      myVendorId
+    ]),
+    focusVendor
   )
 
   async function toggleMyOnlineStatus() {
@@ -551,9 +609,13 @@ function MapViewContent() {
     try {
       const online = await operations.setOnline(!current.online)
       if (online !== null)
-        toast.push(`Status toko: ${online ? 'Online' : 'Offline'}`, { type: 'success' })
+        toast.push(`Status toko: ${online ? 'Online' : 'Offline'}`, {
+          type: 'success'
+        })
     } catch (error) {
-      toast.push(errorMessage(error, 'Gagal mengubah status toko'), { type: 'error' })
+      toast.push(errorMessage(error, 'Gagal mengubah status toko'), {
+        type: 'error'
+      })
     }
   }
 
@@ -566,19 +628,17 @@ function MapViewContent() {
   const filteredVendorCount = filteredVendors.length
   const onlineVendorCount = onlineVendors.length
   const favoriteVendorCount = favoriteVendorIds.length
-  const promoVendorCount = onlineVendors.filter((vendor) => isVendorPromoActive(vendor)).length
+  const promoVendorCount = onlineVendors.filter((vendor) =>
+    isVendorPromoActive(vendor)
+  ).length
   const selectedVendorDistance = getVendorDistance(selectedVendor, userLocation)
   const selectedVendorIsMine = isVendor && selectedVendor?.id === myVendorId
   const selectedVendorIsFavorite = selectedVendor
     ? favoriteVendorIdSet.has(selectedVendor.id)
     : false
-  const selectedVendorHasPromo = selectedVendor ? isVendorPromoActive(selectedVendor) : false
   const selectedVendorPresenceLabel = selectedVendor
     ? formatVendorPresenceAge(selectedVendor, presenceClock)
     : ''
-  const selectedVendorPresenceTone = selectedVendor
-    ? getVendorPresenceTone(selectedVendor, presenceClock)
-    : 'stale'
   const emptyVendorStateMessage =
     onlyFavoriteVendors && onlyPromoVendors
       ? favoriteVendorCount > 0
@@ -599,665 +659,319 @@ function MapViewContent() {
     setFilters({ ...DEFAULT_FILTERS, radius: radiusKm })
     setShowAllVendors(false)
   }
+  const vendorSummary = selectedVendor ? (
+    <VendorSummary
+      vendor={selectedVendor}
+      isOwner={selectedVendorIsMine}
+      distance={formatDistanceLabel(selectedVendorDistance)}
+      presence={selectedVendorPresenceLabel}
+      favorite={selectedVendorIsFavorite}
+      favoriteBusy={favoriteBusyVendorId === selectedVendor.id}
+      canFavorite={isCustomerViewer && favoriteFeatureEnabled}
+      onFavorite={() => void toggleVendorFavorite(selectedVendor)}
+      onVisit={() =>
+        navigate(
+          selectedVendorIsMine
+            ? '/dashboard?tab=products'
+            : '/vendor/' + selectedVendor.id
+        )
+      }
+      onChat={() => navigate('/chat/' + selectedVendor.id)}
+      onProfile={() => navigate('/dashboard?tab=profile')}
+      onClose={wideLayout ? () => setSelectedVendor(null) : undefined}
+    />
+  ) : null
+
   return (
-    <div className="min-h-screen bg-transparent">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-3 py-4 sm:px-4 sm:py-6">
-        {vendorQuery.error ? (
-          <p role="alert" className="order-1 text-sm text-amber-800">
-            Pembaruan peta tertunda.{' '}
+    <div className="ui-page space-y-3">
+      {vendorQuery.error && (
+        <p role="alert" className="text-sm text-amber-800">
+          Pembaruan peta tertunda.{' '}
+          <button
+            type="button"
+            className="min-h-11 underline"
+            onClick={() => void vendorQuery.refetch()}
+          >
+            Coba lagi
+          </button>
+        </p>
+      )}
+
+      {isVendor && (
+        <section
+          aria-label="Kontrol pedagang"
+          className="ui-surface p-3 sm:p-4"
+        >
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-slate-900">
+                Status jualan
+              </h2>
+              <p className="mt-0.5 flex items-center gap-2 text-sm text-slate-600">
+                <span
+                  aria-hidden="true"
+                  className={
+                    'h-2 w-2 rounded-full ' +
+                    (myVendorRow?.online ? 'bg-teal-600' : 'bg-slate-400')
+                  }
+                />
+                {myVendorRow?.online ? 'Online' : 'Offline'}
+                {myVendorRow?.online && myVendorPresenceTone !== 'fresh' && (
+                  <span className="truncate text-xs text-amber-800">
+                    {myVendorPresenceLabel}
+                  </span>
+                )}
+              </p>
+            </div>
             <button
               type="button"
-              onClick={() => {
-                void vendorQuery.refetch()
-              }}
+              onClick={toggleMyOnlineStatus}
+              disabled={operations.updatingOnline}
+              className="ui-primary shrink-0"
             >
-              Coba lagi
+              {operations.updatingOnline ? 'Menyimpan...' : toggleLabel}
             </button>
-          </p>
-        ) : null}
-        {isVendor ? (
-          <section className="order-1 min-w-0 rounded-[22px] border border-teal-900 bg-gradient-to-br from-teal-950 to-slate-900 p-3 text-white shadow-sm sm:p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-semibold sm:text-base">Status jualan</h2>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      myVendorRow?.online
-                        ? 'bg-emerald-400 text-emerald-950'
-                        : 'bg-white/10 text-slate-200'
-                    }`}
-                  >
-                    {myVendorRow?.online ? 'Online' : 'Offline'}
+          </div>
+          {myVendorRow?.online && myVendorPresenceTone === 'stale' && (
+            <p role="status" className="mt-2 text-xs text-amber-800">
+              Lokasi belum aktif. Toko belum terlihat di peta pelanggan; coba
+              Sinkron Lokasi.
+            </p>
+          )}
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:flex">
+            <button
+              type="button"
+              onClick={syncStoreLocationNow}
+              disabled={syncingStoreLocation}
+              className="ui-secondary"
+            >
+              {syncingStoreLocation ? 'Sinkron...' : 'Sinkron Lokasi'}
+            </button>
+            <button
+              type="button"
+              onClick={toggleDemandLayer}
+              aria-pressed={showDemandHeatmap}
+              title="Area dari pesanan toko Anda, bukan seluruh permintaan pasar"
+              className={
+                'ui-secondary ' +
+                (showDemandHeatmap
+                  ? 'border-teal-700 bg-teal-50 text-teal-900'
+                  : '')
+              }
+            >
+              {showDemandHeatmap && demandInsights.hotspotCount
+                ? 'Area pesanan aktif'
+                : 'Area pesanan'}
+            </button>
+          </div>
+          {showDemandHeatmap && (
+            <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor="demand-period">
+                  Periode area pesanan
+                </label>
+                <select
+                  id="demand-period"
+                  value={demandPeriod}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    if (value !== '14' && value !== '30' && value !== 'all')
+                      return
+                    setDemandPeriod(value)
+                    setDemandFocusRequest((current) => current + 1)
+                  }}
+                  className="min-h-11 max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
+                >
+                  <option value="14">14 hari terakhir</option>
+                  <option value="30">30 hari terakhir</option>
+                  <option value="all">Semua periode</option>
+                </select>
+                {demandInsights.mappedOrderCount > 0 && (
+                  <span className="text-xs text-slate-500">
+                    {demandInsights.mappedOrderCount} pesanan ·{' '}
+                    {demandInsights.hotspotCount} area
                   </span>
-                  {myVendorRow?.online ? (
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${getPresenceBadgeClass(myVendorPresenceTone)}`}
-                    >
-                      {myVendorPresenceLabel}
-                    </span>
-                  ) : null}
-                </div>
+                )}
               </div>
-
-              <button
-                onClick={toggleMyOnlineStatus}
-                disabled={operations.updatingOnline}
-                className="min-h-11 shrink-0 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-60"
-              >
-                {operations.updatingOnline ? 'Menyimpan...' : toggleLabel}
-              </button>
-            </div>
-
-            {myVendorRow?.online && myVendorPresenceTone === 'stale' && <p role="status" className="mt-2 text-xs text-amber-200">
-              Lokasi belum aktif. Toko belum terlihat di peta pelanggan; coba Sinkron Lokasi.
-            </p>}
-            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 sm:flex sm:flex-wrap">
-              <button
-                onClick={syncStoreLocationNow}
-                disabled={syncingStoreLocation}
-                className="shrink-0 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/15"
-              >
-                {syncingStoreLocation ? 'Sinkron...' : 'Sinkron Lokasi'}
-              </button>
-              <button
-                onClick={toggleDemandLayer}
-                title="Area dari pesanan toko Anda, bukan seluruh permintaan pasar"
-                aria-pressed={showDemandHeatmap}
-                className={`shrink-0 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                  showDemandHeatmap && demandInsights.hotspotCount
-                    ? 'bg-amber-400 text-amber-950'
-                    : 'border border-amber-300/30 bg-amber-300/10 text-amber-100 hover:bg-amber-300/15 disabled:cursor-not-allowed disabled:opacity-50'
-                }`}
-              >
-                {showDemandHeatmap && demandInsights.hotspotCount
-                  ? 'Area pesanan aktif'
-                  : 'Area pesanan'}
-              </button>
-            </div>
-            {showDemandHeatmap && (
-              <div className="mt-2 space-y-2">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <label className="sr-only" htmlFor="demand-period">Periode area pesanan</label>
-                  <select
-                    id="demand-period"
-                    value={demandPeriod}
-                    onChange={event => {
-                      const value = event.target.value
-                      if (value !== '14' && value !== '30' && value !== 'all') return
-                      setDemandPeriod(value)
-                      setDemandFocusRequest(current => current + 1)
-                    }}
-                    className="min-h-11 max-w-full rounded-xl border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white"
+              {demandQuery.isPending ? (
+                <p role="status" className="text-xs text-slate-500">
+                  Memuat area pesanan...
+                </p>
+              ) : demandQuery.isError ? (
+                <p role="alert" className="text-xs text-amber-800">
+                  Area pesanan belum diperbarui.{' '}
+                  <button
+                    type="button"
+                    onClick={() => void demandQuery.refetch()}
+                    className="min-h-11 underline"
                   >
-                    <option value="14">14 hari terakhir</option>
-                    <option value="30">30 hari terakhir</option>
-                    <option value="all">Semua periode</option>
-                  </select>
-                  {demandInsights.mappedOrderCount > 0 && (
-                    <span className="text-xs text-slate-200">{demandInsights.mappedOrderCount} pesanan · {demandInsights.hotspotCount} area</span>
-                  )}
-                </div>
-                {demandQuery.isPending ? (
-                  <p role="status" className="text-xs text-slate-200">Memuat area pesanan...</p>
-                ) : demandQuery.isError ? (
-                  <p role="alert" className="text-xs text-amber-200">
-                    Area pesanan belum diperbarui.{' '}
-                    <button onClick={() => void demandQuery.refetch()} className="min-h-11 underline">Coba lagi</button>
-                  </p>
-                ) : !demandInsights.mappedOrderCount ? (
-                  <p role="status" className="text-xs text-slate-200">
-                    {!demandOrders.length ? 'Belum ada pesanan untuk dipetakan.' : !demandInsights.eligibleOrderCount
-                      ? `Tidak ada pesanan ${demandPeriod} hari terakhir. Pilih Semua periode untuk melihat riwayat.`
+                    Coba lagi
+                  </button>
+                </p>
+              ) : !demandInsights.mappedOrderCount ? (
+                <p role="status" className="text-xs text-slate-500">
+                  {!demandOrders.length
+                    ? 'Belum ada pesanan untuk dipetakan.'
+                    : !demandInsights.eligibleOrderCount
+                      ? 'Tidak ada pesanan ' +
+                        demandPeriod +
+                        ' hari terakhir. Pilih Semua periode untuk melihat riwayat.'
                       : 'Pesanan pada periode ini belum memiliki lokasi yang dapat dipetakan.'}
-                  </p>
-                ) : null}
-                {demandQuery.truncated && <p className="text-xs text-slate-300">Menampilkan {demandOrders.length.toLocaleString('id-ID')} pesanan terbaru.</p>}
-              </div>
-            )}
-          </section>
-        ) : null}
+                </p>
+              ) : null}
+              {demandQuery.truncated && (
+                <p className="text-xs text-slate-500">
+                  Menampilkan {demandOrders.length.toLocaleString('id-ID')}{' '}
+                  pesanan terbaru.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
+      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-4">
         <section
-          className={isVendor ? 'order-3 min-w-0' : 'order-2 min-w-0'}
-          aria-label="Pencarian pedagang"
+          className="ui-surface min-w-0 overflow-hidden p-2 lg:sticky lg:top-20"
+          aria-label="Peta pedagang"
         >
-          <MapSearchFilters
-            filters={filters}
-            onChange={changeVendorFilter}
-            onReset={resetVendorFilters}
-            categories={categoryOptions}
-            customer={isCustomerViewer}
-            favoritesEnabled={favoriteFeatureEnabled}
-            favoritesCount={favoriteVendorCount}
-            totalCount={onlineVendorCount}
-            resultCount={filteredVendorCount}
-            nearbyCount={onlineVendorsWithinRadius.length}
-            locationAvailable={Boolean(userLocation)}
+          <div className="flex items-center justify-between gap-3 px-2 pb-2 pt-1">
+            <h1 className="text-sm font-semibold text-slate-900 sm:text-base">
+              Peta pedagang sekitar
+            </h1>
+            <SyncStatus
+              failed={vendorQuery.isError}
+              updatedAt={vendorQuery.dataUpdatedAt}
+              connection={vendorQuery.connection}
+            />
+          </div>
+          <LeafletMap
+            onReady={readyMap}
+            onLocate={() => void requestCurrentLocation()}
+            className="ui-map-canvas"
           />
         </section>
 
-        <section
-          className={`${isVendor ? 'order-4' : 'order-3'} grid min-w-0 max-w-full gap-4 xl:grid-cols-[minmax(0,1.35fr)_380px]`}
-        >
-          <div className="min-w-0 max-w-full overflow-hidden rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 sm:p-4">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
-                  Pedagang online
-                </h2>
-              </div>
-              <div className="shrink-0 text-xs font-medium text-slate-500">
+        <div className="min-w-0 space-y-3">
+          <section aria-label="Pencarian pedagang">
+            <MapSearchFilters
+              filters={filters}
+              onChange={changeVendorFilter}
+              onReset={resetVendorFilters}
+              categories={categoryOptions}
+              customer={isCustomerViewer}
+              favoritesEnabled={favoriteFeatureEnabled}
+              favoritesCount={favoriteVendorCount}
+              totalCount={onlineVendorCount}
+              resultCount={filteredVendorCount}
+              nearbyCount={onlineVendorsWithinRadius.length}
+              locationAvailable={Boolean(userLocation)}
+            />
+          </section>
+
+          {wideLayout && selectedVendor && (
+            <aside className="ui-surface p-4" aria-label="Detail toko pilihan">
+              {vendorSummary}
+            </aside>
+          )}
+
+          <section
+            className="ui-surface p-3 sm:p-4"
+            aria-label="Daftar pedagang online"
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h2 className="font-semibold text-slate-900">Pedagang online</h2>
+              <span className="text-xs text-slate-500">
                 {onlineListVendors.length} toko
-              </div>
+              </span>
             </div>
-
-            <div className="mt-4 space-y-3">
-              {onlineListVendors.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+            <div className="divide-y divide-slate-100 lg:max-h-[min(48dvh,34rem)] lg:overflow-y-auto">
+              {loading ? (
+                <p role="status" className="py-6 text-sm text-slate-500">
+                  Memuat pedagang...
+                </p>
+              ) : visibleOnlineListVendors.length === 0 ? (
+                <p className="py-6 text-sm leading-6 text-slate-500">
                   {emptyVendorStateMessage}
-                </div>
+                </p>
               ) : (
-                visibleOnlineListVendors.map((vendor) => {
-                  const vendorDistance = getVendorDistance(vendor, userLocation)
-                  const active = selectedVendor?.id === vendor.id
-                  const isOwnVendor = isVendor && vendor.id === myVendorId
-                  const hasPromo = isVendorPromoActive(vendor)
-                  const vendorPresenceTone = getVendorPresenceTone(vendor, presenceClock)
-                  const vendorPresenceLabel = formatVendorPresenceAge(vendor, presenceClock)
-
-                  return (
-                    <div
-                      key={vendor.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => focusVendor(vendor)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          focusVendor(vendor)
-                        }
-                      }}
-                      className={`min-w-0 max-w-full cursor-pointer overflow-hidden rounded-[18px] border p-3 transition ${
-                        active
-                          ? 'border-slate-900 bg-slate-50 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:h-12 sm:w-12">
-                          {vendor.photo_url ? (
-                            <img
-                              src={vendor.photo_url}
-                              alt={vendor.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-lg font-semibold text-slate-500">
-                              {(vendor.name || 'P')[0]}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="min-w-0 flex-1 overflow-hidden">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <div className="truncate text-base font-semibold text-slate-900">
-                              {vendor.name}
-                            </div>
-                            <span
-                              className="h-2 w-2 shrink-0 rounded-full bg-emerald-500"
-                              title="Online"
-                            />
-                            {hasPromo ? (
-                              <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-                                Promo
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="mt-1 truncate text-sm text-slate-500">
-                            {[
-                              getVendorCategory(vendor)
-                                ? formatVendorCategoryLabel(getVendorCategory(vendor))
-                                : null,
-                              formatDistanceLabel(vendorDistance),
-                              getVendorReviewCount(vendor) > 0
-                                ? formatVendorRatingMeta(vendor)
-                                : null,
-                            ]
-                              .filter(Boolean)
-                              .join(' • ')}
-                          </div>
-                          {vendorPresenceTone !== 'fresh' ? (
-                            <div
-                              className={`mt-1 text-xs ${vendorPresenceTone === 'aging' ? 'text-amber-700' : 'text-slate-500'}`}
-                            >
-                              {vendorPresenceLabel}
-                            </div>
-                          ) : null}
-                          {vendor.description ? (
-                            <div className="mt-1 line-clamp-1 text-sm text-slate-600">
-                              {vendor.description}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                        {isOwnVendor ? (
-                          <>
-                            <button
-                              onClick={() => focusVendor(vendor)}
-                              className="hidden rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
-                            >
-                              Pantau Toko
-                            </button>
-                            <button
-                              onClick={() => navigate('/dashboard?tab=products')}
-                              className="col-span-2 rounded-xl bg-emerald-600 px-3 py-2 text-center text-sm font-medium text-white transition hover:bg-emerald-700 sm:col-span-1"
-                            >
-                              Kelola Produk
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => focusVendor(vendor)}
-                              className="hidden rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
-                            >
-                              Pilih Toko
-                            </button>
-                            <button
-                              onClick={() => navigate(`/chat/${vendor.id}`)}
-                              className="min-w-0 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                            >
-                              Chat
-                            </button>
-                            <button
-                              onClick={() => navigate(`/vendor/${vendor.id}#order-summary`)}
-                              className="min-w-0 truncate rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
-                            >
-                              <span className="sm:hidden">Pesan</span>
-                              <span className="hidden sm:inline">Pesan Sekarang</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-            {onlineListVendors.length > 6 ? (
-              <button
-                type="button"
-                onClick={() => setShowAllVendors((current) => !current)}
-                className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                {showAllVendors
-                  ? 'Tampilkan lebih sedikit'
-                  : `Lihat ${onlineListVendors.length - 6} toko lainnya`}
-              </button>
-            ) : null}
-          </div>
-
-          <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
-            <div className="hidden rounded-[30px] bg-white p-5 shadow-sm ring-1 ring-slate-200/80 xl:block">
-              {!selectedVendor ? (
-                <>
-                  <h2 className="text-lg font-semibold text-slate-900">Detail toko</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Pilih toko dari daftar online atau marker pada peta untuk melihat detail yang
-                    lebih lengkap.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-3">
-                    <div className="h-16 w-16 overflow-hidden rounded-2xl bg-slate-100">
-                      {selectedVendor.photo_url ? (
+                visibleOnlineListVendors.map((vendor) => (
+                  <button
+                    key={vendor.id}
+                    type="button"
+                    onClick={() => focusVendor(vendor)}
+                    aria-label={'Lihat toko ' + vendor.name}
+                    aria-pressed={selectedVendor?.id === vendor.id}
+                    className={
+                      'flex w-full min-w-0 items-center gap-3 rounded-xl py-3 text-left transition-colors hover:bg-teal-50 ' +
+                      (selectedVendor?.id === vendor.id
+                        ? 'bg-teal-50 px-2'
+                        : 'px-1')
+                    }
+                  >
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-50 text-lg font-semibold text-teal-800">
+                      {vendor.photo_url ? (
                         <img
-                          src={selectedVendor.photo_url}
-                          alt={selectedVendor.name}
+                          src={vendor.photo_url}
+                          alt=""
+                          loading="lazy"
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-xl text-slate-500">
-                          {(selectedVendor.name || 'P')[0]}
-                        </div>
+                        (vendor.name || 'P')[0]
                       )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-lg font-semibold text-slate-900">
-                        {selectedVendor.name}
-                      </div>
-                      <div className="text-sm text-slate-500">
-                        {selectedVendor.online ? 'Sedang online' : 'Sedang offline'}
-                      </div>
-                      {selectedVendor.online ? (
-                        <div
-                          className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getPresenceBadgeClass(selectedVendorPresenceTone)}`}
-                        >
-                          {selectedVendorPresenceLabel}
-                        </div>
-                      ) : null}
-                      <div className="mt-1 text-xs text-slate-400">
-                        {formatDistanceLabel(selectedVendorDistance)}
-                      </div>
-                      <div className="mt-1 text-xs text-amber-700">
-                        {formatVendorRatingMeta(selectedVendor)}
-                      </div>
-                      {selectedVendorHasPromo ? (
-                        <div className="mt-1 text-xs font-medium text-amber-700">
-                          Promo aktif tersedia di toko ini
-                        </div>
-                      ) : null}
-                      {isCustomerViewer && selectedVendorIsFavorite ? (
-                        <div className="mt-1 text-xs font-medium text-rose-700">
-                          Sudah tersimpan di favorit Anda
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {selectedVendorHasPromo ? (
-                    <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
-                        Promo Aktif
-                      </div>
-                      <div className="mt-2 font-medium">{getVendorPromoText(selectedVendor)}</div>
-                      <div className="mt-1 text-xs text-amber-700">
-                        Berlaku sampai {formatVendorPromoExpiry(selectedVendor)}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-                    {selectedVendor.description || 'Belum ada deskripsi toko.'}
-                  </div>
-
-                  <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-                    <div className="font-medium text-slate-800">Lokasi toko</div>
-                    <div className="mt-1">
-                      {getStoreLocationStatus(selectedVendor.location, {
-                        owner: selectedVendorIsMine,
-                      })}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      Sinkron terakhir: {getVendorLocationUpdatedAtLabel(selectedVendor.location)}
-                    </div>
-                    {getVendorCategory(selectedVendor) ? (
-                      <div className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                        {formatVendorCategoryLabel(getVendorCategory(selectedVendor))}
-                      </div>
-                    ) : null}
-                    {getVendorReviewCount(selectedVendor) > 0 ? (
-                      <div className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                        {formatVendorRatingMeta(selectedVendor)}
-                      </div>
-                    ) : null}
-                    {selectedVendorHasPromo ? (
-                      <div className="mt-2 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
-                        Promo Aktif
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    {selectedVendorIsMine ? (
-                      <>
-                        <button
-                          onClick={toggleMyOnlineStatus}
-                          className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
-                        >
-                          {operations.updatingOnline ? 'Menyimpan...' : toggleLabel}
-                        </button>
-                        <button
-                          onClick={() => navigate('/dashboard?tab=profile')}
-                          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Edit Profil
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        {isCustomerViewer && favoriteFeatureEnabled && (
-                          <button
-                            onClick={() => void toggleVendorFavorite(selectedVendor)}
-                            disabled={favoriteBusyVendorId === selectedVendor.id}
-                            className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                              selectedVendorIsFavorite
-                                ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70'
-                                : 'border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70'
-                            }`}
-                          >
-                            {favoriteBusyVendorId === selectedVendor.id
-                              ? 'Menyimpan...'
-                              : selectedVendorIsFavorite
-                                ? 'Tersimpan di Favorit'
-                                : 'Simpan Favorit'}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => navigate(`/chat/${selectedVendor.id}`)}
-                          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Chat
-                        </button>
-                        <button
-                          onClick={() => navigate(`/vendor/${selectedVendor.id}`)}
-                          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Profil Toko
-                        </button>
-                        <button
-                          onClick={() => navigate(`/vendor/${selectedVendor.id}#order-summary`)}
-                          className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 sm:col-span-2"
-                        >
-                          Buat Pesanan
-                        </button>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="mt-5 hidden xl:block">
-                    <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Preview Produk
-                    </h3>
-                    <VendorProductsPreview vendorId={selectedVendor.id} />
-                  </div>
-
-                  <div className="mt-5">
-                    <button
-                      onClick={() => setSelectedVendor(null)}
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Tutup Detail
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </aside>
-        </section>
-
-        <section className={`${isVendor ? 'order-2' : 'order-1'} space-y-3`}>
-          <div className="overflow-hidden rounded-[22px] bg-white p-2 shadow-sm ring-1 ring-slate-200/80">
-            <div className="flex items-center justify-between gap-3 px-2 pb-2 pt-1">
-              <h1 className="text-sm font-semibold text-slate-900 sm:text-base">
-                Peta pedagang sekitar
-              </h1>
-              <div className="shrink-0 text-right text-xs text-slate-500">
-                <div>{loading ? 'Memuat...' : `${filteredVendorCount} toko`}</div>
-                <SyncStatus failed={vendorQuery.isError} updatedAt={vendorQuery.dataUpdatedAt} connection={vendorQuery.connection} />
-              </div>
-            </div>
-            <LeafletMap
-              onReady={readyMap}
-              onLocate={() => {
-                void requestCurrentLocation()
-              }}
-              className="h-[56vh] rounded-[18px] sm:h-[62vh] lg:h-[68vh]"
-            />
-          </div>
-
-          {selectedVendor ? (
-            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200/80 xl:hidden">
-              <div className="flex items-start gap-3">
-                <div className="h-14 w-14 overflow-hidden rounded-2xl bg-slate-100">
-                  {selectedVendor.photo_url ? (
-                    <img
-                      src={selectedVendor.photo_url}
-                      alt={selectedVendor.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-lg font-semibold text-slate-500">
-                      {(selectedVendor.name || 'P')[0]}
-                    </div>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-base font-semibold text-slate-900">
-                        {selectedVendor.name}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-500">
-                        {formatDistanceLabel(selectedVendorDistance)}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setSelectedVendor(null)}
-                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-50"
-                    >
-                      Tutup
-                    </button>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                        selectedVendor.online
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {selectedVendor.online ? 'Online' : 'Offline'}
                     </span>
-                    {selectedVendor.online ? (
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${getPresenceBadgeClass(selectedVendorPresenceTone)}`}
-                      >
-                        {selectedVendorPresenceLabel}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-slate-900">
+                        {vendor.name}
                       </span>
-                    ) : null}
-                    {getVendorCategory(selectedVendor) ? (
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                        {formatVendorCategoryLabel(getVendorCategory(selectedVendor))}
+                      <span className="mt-0.5 block truncate text-xs text-slate-500">
+                        {[
+                          formatVendorCategoryLabel(getVendorCategory(vendor)),
+                          formatDistanceLabel(
+                            getVendorDistance(vendor, userLocation)
+                          )
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </span>
-                    ) : null}
-                    {getVendorReviewCount(selectedVendor) > 0 ? (
-                      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                        {formatVendorRatingMeta(selectedVendor)}
-                      </span>
-                    ) : null}
-                    {selectedVendorHasPromo ? (
-                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
-                        Promo Aktif
-                      </span>
-                    ) : null}
-                    {isCustomerViewer && selectedVendorIsFavorite ? (
-                      <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
-                        Favorit
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 text-sm leading-6 text-slate-600">
-                {selectedVendor.description
-                  ? String(selectedVendor.description).slice(0, 120)
-                  : 'Belum ada deskripsi toko.'}
-              </div>
-
-              {selectedVendorIsMine ? (
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <button
-                    onClick={toggleMyOnlineStatus}
-                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
-                  >
-                    {operations.updatingOnline ? 'Menyimpan...' : toggleLabel}
+                      {isVendorPromoActive(vendor) && (
+                        <span className="mt-0.5 block text-xs font-medium text-amber-800">
+                          Promo tersedia
+                        </span>
+                      )}
+                    </span>
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="h-4 w-4 shrink-0 text-slate-400"
+                    />
                   </button>
-                  <button
-                    onClick={syncStoreLocationNow}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    {syncingStoreLocation ? 'Sinkron...' : 'Sinkron Lokasi'}
-                  </button>
-                  <button
-                    onClick={() => navigate('/dashboard?tab=products')}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Kelola Produk
-                  </button>
-                  <button
-                    onClick={() => navigate('/dashboard?tab=profile')}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Edit Profil
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => navigate(`/chat/${selectedVendor.id}`)}
-                      className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Chat
-                    </button>
-                    <button
-                      onClick={() => navigate(`/vendor/${selectedVendor.id}#order-summary`)}
-                      className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
-                    >
-                      Pesan
-                    </button>
-                  </div>
-
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    <button
-                      onClick={() => navigate(`/vendor/${selectedVendor.id}`)}
-                      className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Profil Toko
-                    </button>
-                    {isCustomerViewer && favoriteFeatureEnabled ? (
-                      <button
-                        onClick={() => void toggleVendorFavorite(selectedVendor)}
-                        disabled={favoriteBusyVendorId === selectedVendor.id}
-                        className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                          selectedVendorIsFavorite
-                            ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70'
-                            : 'border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70'
-                        }`}
-                      >
-                        {favoriteBusyVendorId === selectedVendor.id
-                          ? 'Menyimpan...'
-                          : selectedVendorIsFavorite
-                            ? 'Favorit Tersimpan'
-                            : 'Simpan Favorit'}
-                      </button>
-                    ) : null}
-                  </div>
-                </>
+                ))
               )}
             </div>
-          ) : null}
-        </section>
+            {onlineListVendors.length > 6 && (
+              <button
+                type="button"
+                onClick={() => setShowAllVendors((current) => !current)}
+                className="ui-secondary mt-2 w-full"
+              >
+                {showAllVendors
+                  ? 'Tampilkan lebih sedikit'
+                  : 'Lihat ' + (onlineListVendors.length - 6) + ' toko lainnya'}
+              </button>
+            )}
+          </section>
+        </div>
       </div>
+
+      <Modal
+        open={!!selectedVendor && !wideLayout}
+        onClose={() => setSelectedVendor(null)}
+        title="Detail toko"
+        presentation="sheet"
+      >
+        {vendorSummary}
+      </Modal>
     </div>
   )
 }

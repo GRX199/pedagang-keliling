@@ -2,12 +2,13 @@ import React, { useEffect, useId, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { errorMessage } from '../../shared/lib/utils'
 import { reportError } from '../../shared/lib/error-reporting'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   setRememberSessionPreference,
-  supabase,
+  supabase
 } from '../../shared/lib/supabase'
 import { useToast } from '../../shared/components/ToastProvider'
+import { MapPin, Store, ArrowRight } from 'lucide-react'
 
 const REMEMBER_EMAIL_KEY = 'kelilingku:remember-email'
 
@@ -16,20 +17,14 @@ const ROLE_OPTIONS = [
     value: 'customer',
     label: 'Pelanggan',
     description:
-      'Cari pedagang aktif, pilih menu, lalu lacak pesanan langsung dari peta.',
+      'Cari pedagang aktif, pilih menu, lalu lacak pesanan langsung dari peta.'
   },
   {
     value: 'vendor',
     label: 'Pedagang',
     description:
-      'Tampilkan toko di peta, terima order lebih awal, dan kelola transaksi sambil bergerak.',
-  },
-]
-
-const LOGIN_POINTS = [
-  'Peta menjadi halaman utama setelah login.',
-  'Chat, pesanan, dan tracking tetap tersambung real-time.',
-  'Tampilan pelanggan dan pedagang dibedakan agar alurnya tetap fokus.',
+      'Tampilkan toko di peta, terima order lebih awal, dan kelola transaksi sambil bergerak.'
+  }
 ]
 
 export default function LoginPage() {
@@ -86,7 +81,7 @@ export default function LoginPage() {
     : isRegisterMode
       ? 'Pilih peran yang sesuai agar tampilan aplikasi langsung menyesuaikan alur Anda.'
       : isForgotMode
-        ? 'Masukkan email akun Anda. Kami kirim link reset dari Supabase.'
+        ? 'Masukkan email akun Anda untuk menerima tautan reset password.'
         : 'Masukkan password baru untuk akun Anda.'
 
   const primaryActionLabel = loading
@@ -101,7 +96,7 @@ export default function LoginPage() {
 
   const roleSummary = useMemo(
     () => ROLE_OPTIONS.find((item) => item.value === role) || ROLE_OPTIONS[0],
-    [role],
+    [role]
   )
 
   function switchMode(nextMode: string) {
@@ -117,7 +112,7 @@ export default function LoginPage() {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search)
     const hashParams = new URLSearchParams(
-      String(location.hash || '').replace(/^#/, ''),
+      String(location.hash || '').replace(/^#/, '')
     )
     const isRecoveryFlow =
       searchParams.get('reset') === 'password' ||
@@ -164,8 +159,8 @@ export default function LoginPage() {
         const { error } = await supabase.auth.resetPasswordForEmail(
           email.trim(),
           {
-            redirectTo: resetRedirectTo,
-          },
+            redirectTo: resetRedirectTo
+          }
         )
 
         if (error) throw error
@@ -184,7 +179,7 @@ export default function LoginPage() {
 
         toast.push('Password berhasil diperbarui', { type: 'success' })
         setInlineMsg(
-          'Password berhasil diperbarui. Anda akan diarahkan ke aplikasi.',
+          'Password berhasil diperbarui. Anda akan diarahkan ke aplikasi.'
         )
         setPassword('')
         setConfirmPassword('')
@@ -202,10 +197,10 @@ export default function LoginPage() {
             data: {
               full_name: name,
               role,
-              is_vendor: role === 'vendor',
+              is_vendor: role === 'vendor'
             },
-            emailRedirectTo,
-          },
+            emailRedirectTo
+          }
         })
 
         if (error) {
@@ -218,12 +213,12 @@ export default function LoginPage() {
         toast.push(
           'Daftar berhasil. Cek email untuk verifikasi jika aktif pada project Anda.',
           {
-            type: 'success',
-          },
+            type: 'success'
+          }
         )
         setMode('login')
         setInlineMsg(
-          'Akun berhasil dibuat. Silakan login setelah verifikasi email jika fitur itu aktif.',
+          'Akun berhasil dibuat. Silakan login setelah verifikasi email jika fitur itu aktif.'
         )
         return
       }
@@ -231,7 +226,7 @@ export default function LoginPage() {
       setRememberSessionPreference(rememberMe)
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password,
+        password
       })
       if (error) {
         toast.push(error.message || 'Gagal login', { type: 'error' })
@@ -274,8 +269,8 @@ export default function LoginPage() {
         type: 'signup',
         email: email.trim(),
         options: {
-          emailRedirectTo,
-        },
+          emailRedirectTo
+        }
       })
 
       if (error) throw error
@@ -283,131 +278,85 @@ export default function LoginPage() {
     } catch (error) {
       void reportError(error, 'auth')
       toast.push(errorMessage(error, 'Gagal mengirim ulang email verifikasi'), {
-        type: 'error',
+        type: 'error'
       })
     }
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,#dbeafe_0%,#eff6ff_24%,#f8fafc_52%,#e2e8f0_100%)] px-3 py-5 sm:px-6 sm:py-8">
-      <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_460px]">
-        <section className="hidden overflow-hidden rounded-[34px] border border-slate-200/80 bg-slate-950 text-white shadow-2xl shadow-slate-900/15 lg:block">
-          <div className="bg-[linear-gradient(135deg,#0f172a_0%,#172554_42%,#14532d_100%)] p-7 sm:p-9">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Link
-                to="/"
-                className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/12"
-              >
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-sm font-bold text-slate-950">
-                  K
-                </span>
-                <span>Kembali ke Kelilingku</span>
-              </Link>
-
-              <div className="rounded-full bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
-                {isLoginMode
-                  ? 'Masuk ke aplikasi'
-                  : isRegisterMode
-                    ? 'Buat akun baru'
-                    : 'Bantuan akun'}
-              </div>
-            </div>
-
-            <div className="mt-10 max-w-2xl">
-              <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-                {isLoginMode
-                  ? 'Masuk untuk lanjut ke peta, pesanan, dan chat yang sudah berjalan.'
-                  : isRegisterMode
-                    ? 'Mulai sebagai pelanggan atau pedagang dengan alur yang dibedakan sejak awal.'
-                    : 'Pulihkan akses akun dengan alur reset password yang aman.'}
-              </h1>
-              <p className="mt-5 text-base leading-8 text-slate-200">
-                Kelilingku dirancang sebagai platform map-first untuk pedagang
-                keliling. Karena itu halaman masuk ini sengaja dibuat sederhana,
-                sementara peran pelanggan dan pedagang tetap dibedakan dengan
-                lebih jelas.
-              </p>
-            </div>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {LOGIN_POINTS.map((point) => (
-                <div
-                  key={point}
-                  className="rounded-[24px] bg-white/8 p-4 ring-1 ring-white/10"
-                >
-                  <div className="text-sm leading-7 text-slate-100">
-                    {point}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {isRegisterMode ? (
-              <div className="mt-8 rounded-[28px] border border-white/10 bg-white/8 p-5">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
-                  Peran yang dipilih
-                </div>
-                <div className="mt-3 text-2xl font-bold">
-                  {roleSummary.label}
-                </div>
-                <p className="mt-2 text-sm leading-7 text-slate-200">
-                  {roleSummary.description}
-                </p>
-              </div>
-            ) : null}
+    <div className="px-3 py-5 sm:px-6 sm:py-10 lg:py-16">
+      <div className="mx-auto grid max-w-5xl items-center gap-12 lg:grid-cols-[minmax(0,1fr)_440px]">
+        <section className="hidden max-w-md lg:block">
+          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-800">
+            <MapPin aria-hidden="true" className="h-7 w-7" />
           </div>
+          <p className="text-4xl font-bold leading-tight tracking-tight text-slate-900">
+            Yang dekat,
+            <br />
+            <span className="text-teal-700">jadi lebih mudah.</span>
+          </p>
+          <p className="mt-5 text-base leading-7 text-slate-500">
+            Temukan pedagang sekitar. Pesan barang, lalu koordinasikan
+            pengambilan di satu tempat.
+          </p>
+          {isRegisterMode && (
+            <p className="mt-6 flex items-start gap-3 rounded-2xl bg-white p-4 text-sm text-slate-600">
+              <Store
+                aria-hidden="true"
+                className="h-5 w-5 shrink-0 text-teal-700"
+              />
+              <span>
+                <strong className="block text-slate-900">
+                  {roleSummary.label}
+                </strong>
+                {roleSummary.description}
+              </span>
+            </p>
+          )}
         </section>
 
-        <section className="mx-auto w-full max-w-xl rounded-[24px] border border-slate-200/80 bg-white/92 p-4 shadow-xl shadow-slate-200/60 backdrop-blur sm:rounded-[34px] sm:p-8">
-          <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900"
-            >
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-sm font-bold text-white">
-                K
-              </span>
-              Kelilingku
-            </Link>
-          </div>
-
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <section className="ui-surface mx-auto w-full max-w-lg p-5 sm:p-8">
+          <div className="flex flex-col gap-5">
             <div className="min-w-0">
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:tracking-[0.22em]">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">
                 {modeLabel}
               </div>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+              <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                 {modeTitle}
-              </h2>
-              <p className="mt-2 hidden text-sm leading-7 text-slate-600 sm:block">
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
                 {modeDescription}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 rounded-full bg-slate-100 p-1 sm:inline-flex">
-              <button
-                type="button"
-                onClick={() => switchMode('login')}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  isLoginMode
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-600'
-                }`}
-              >
-                Masuk
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode('register')}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  isRegisterMode
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-600'
-                }`}
-              >
-                Daftar
-              </button>
-            </div>
+            {(isLoginMode || isRegisterMode) && (
+              <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  aria-pressed={isLoginMode}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    isLoginMode
+                      ? 'bg-white text-teal-800 shadow-sm'
+                      : 'text-slate-600'
+                  }`}
+                >
+                  Masuk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode('register')}
+                  aria-pressed={isRegisterMode}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    isRegisterMode
+                      ? 'bg-white text-teal-800 shadow-sm'
+                      : 'text-slate-600'
+                  }`}
+                >
+                  Daftar
+                </button>
+              </div>
+            )}
           </div>
 
           <form
@@ -541,9 +490,10 @@ export default function LoginPage() {
                         key={option.value}
                         type="button"
                         onClick={() => setRole(option.value)}
-                        className={`min-w-0 rounded-2xl border p-3 text-left transition sm:rounded-[24px] sm:p-4 ${
+                        aria-pressed={active}
+                        className={`min-w-0 rounded-xl border p-3 text-left transition ${
                           active
-                            ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                            ? 'border-teal-700 bg-teal-50 text-teal-900'
                             : 'border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-300 hover:bg-white'
                         }`}
                       >
@@ -554,13 +504,13 @@ export default function LoginPage() {
                           <span
                             className={`inline-flex h-5 w-5 rounded-full border ${
                               active
-                                ? 'border-white bg-white/20'
+                                ? 'border-teal-700 bg-teal-700'
                                 : 'border-slate-300 bg-white'
                             }`}
                           />
                         </div>
                         <div
-                          className={`mt-2 line-clamp-2 text-xs leading-5 sm:line-clamp-none sm:text-sm sm:leading-6 ${active ? 'text-slate-200' : 'text-slate-600'}`}
+                          className={`mt-2 text-xs leading-5 ${active ? 'text-teal-800' : 'text-slate-600'}`}
                         >
                           {option.description}
                         </div>
@@ -573,9 +523,10 @@ export default function LoginPage() {
 
             {inlineMsg ? (
               <div
+                role="status"
                 className={`rounded-2xl border px-4 py-3 text-sm ${
                   ['berhasil', 'dikirim', 'diperbarui'].some((word) =>
-                    inlineMsg.toLowerCase().includes(word),
+                    inlineMsg.toLowerCase().includes(word)
                   )
                     ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                     : 'border-rose-200 bg-rose-50 text-rose-700'
@@ -585,30 +536,37 @@ export default function LoginPage() {
               </div>
             ) : null}
 
-            <div className="grid gap-3 sm:flex sm:items-center">
-              <button
-                disabled={loading}
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-              >
+            <div className="space-y-3 pt-1">
+              <button disabled={loading} className="ui-primary w-full py-3.5">
                 {primaryActionLabel}
+                {!loading && (
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                )}
               </button>
 
-              <button
-                type="button"
-                onClick={() => switchMode(isLoginMode ? 'register' : 'login')}
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-5 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                {isLoginMode ? 'Daftar akun' : 'Masuk akun'}
-              </button>
-
-              {isLoginMode ? (
+              {!isLoginMode && !isRegisterMode && (
                 <button
                   type="button"
-                  onClick={handleResendVerification}
-                  className="text-center text-sm font-medium text-slate-500 underline-offset-4 transition hover:text-slate-900 hover:underline sm:ml-auto"
+                  onClick={() => switchMode(isLoginMode ? 'register' : 'login')}
+                  className="ui-secondary w-full"
                 >
-                  Kirim ulang verifikasi
+                  {isLoginMode ? 'Daftar akun' : 'Masuk akun'}
                 </button>
+              )}
+
+              {isLoginMode ? (
+                <details className="pt-1 text-center text-sm text-slate-500">
+                  <summary className="flex cursor-pointer items-center justify-center">
+                    Belum menerima verifikasi?
+                  </summary>
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    className="min-h-11 text-sm font-semibold text-teal-800 underline underline-offset-4"
+                  >
+                    Kirim ulang verifikasi
+                  </button>
+                </details>
               ) : null}
             </div>
           </form>

@@ -11,6 +11,7 @@ dotenv.config()
 
 const app = express()
 const PORT = Number(process.env.PORT || 4000)
+const RELEASE_COMMIT = process.env.RENDER_GIT_COMMIT?.match(/^[a-f0-9]{40}$/i)?.[0] || null
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const BUCKET = process.env.SUPABASE_BUCKET || 'data'
@@ -185,7 +186,7 @@ async function uploadBufferToStorage({ file, userId, folder }) {
 }
 
 app.get('/', (_req, res) => {
-  res.json({ ok: true })
+  res.json({ ok: true, release: RELEASE_COMMIT })
 })
 
 app.post('/client-errors', rateLimit({ windowMs: 5 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }), async (req, res) => {

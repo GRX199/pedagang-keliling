@@ -2,6 +2,12 @@
 
 ## Status 17 Oktober 2026
 
+Penyederhanaan UI mobile-first sudah diimplementasikan dan diuji lokal untuk
+pelanggan/pedagang, tanpa fitur bisnis atau migrasi baru. Pemeriksaan lokal
+diulang pada 28 Oktober beserta pembaruan keamanan dependensi backend.
+Status deployment harus dicocokkan dengan SHA rilis. Rincian serta batas verifikasi ada di
+[catatan UI mobile-first](mobile-first-ui.md).
+
 Rilis `168814e` sudah terverifikasi online: CI, smoke publik mobile/laptop dan 22 pemeriksaan hosted lulus dengan cleanup. Peningkatan 17 Oktober mencakup pagination pesanan/chat, status koneksi/lokasi, deadline dan pencegahan antrean mutasi offline, serta diagnostik aman. Bukti deployment dilacak di [performa dan keandalan](performance-reliability.md). Prioritas manual tetap UAT perangkat fisik, email reset password dan akun admin sah; lihat [checklist UAT](uat-perangkat.md). Jangan menambah fitur bisnis baru sebelum gerbang ini tuntas.
 
 ## Pembaruan Alur Pengambilan
